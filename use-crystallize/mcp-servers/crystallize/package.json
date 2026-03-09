@@ -1,0 +1,43 @@
+{
+    "name": "crystallize-mcp-server",
+    "version": "1.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "deploy": "vite build --mode production && wrangler deploy --config dist/crystallize_mcp_server/wrangler.json",
+        "codeclean": "oxlint --fix && oxfmt --write .",
+        "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+        "type-check": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@crystallize/js-api-client": "^5.3.0",
+        "@modelcontextprotocol/sdk": "^1.27.1",
+        "agents": "^0.7.5",
+        "awilix": "^13.0.3",
+        "hono": "^4.12.0",
+        "zod": "^4.3.6"
+    },
+    "devDependencies": {
+        "@cloudflare/vite-plugin": "^1.26.1",
+        "@types/node": "^25.3.5",
+        "oxfmt": "^0.36.0",
+        "oxlint": "^1.51.0",
+        "tailwindcss": "^4.2.1",
+        "typescript": "5.9.3",
+        "vite": "^7.3.1",
+        "wrangler": "^4.71.0"
+    },
+    "pnpm": {
+        "overrides": {
+            "@modelcontextprotocol/sdk": "^1.27.1"
+        },
+        "onlyBuiltDependencies": [
+            "core-js-pure",
+            "esbuild",
+            "sharp",
+            "workerd"
+        ]
+    }
+}

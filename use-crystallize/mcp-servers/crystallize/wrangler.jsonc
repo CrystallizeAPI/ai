@@ -1,0 +1,16 @@
+{
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "crystallize-mcp-server",
+    "main": "src/index.ts",
+    "routes": [
+        {
+            "pattern": "mcp.crystallize.com",
+            "custom_domain": true
+        }
+    ],
+    "compatibility_date": "2025-08-03",
+    "compatibility_flags": ["nodejs_compat"],
+    "placement": {
+        "mode": "smart",
+    },
+}

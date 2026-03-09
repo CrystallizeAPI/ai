@@ -1,0 +1,27 @@
+{
+    "name": "crystallize-ai",
+    "owner": {
+        "name": "Crystallize",
+        "email": "sebastien@crystallize.com"
+    },
+    "metadata": {
+        "description": "Official Crystallize Marketplace for Claude Code",
+        "version": "1.0.0"
+    },
+    "plugins": [
+        {
+            "name": "use-crystallize",
+            "source": "./use-crystallize",
+            "description": "Everything you need to use Crystallize with your agent, skills, agents, commands, hooks and MCP servers.",
+            "version": "1.0.0",
+            "category": "commerce",
+            "tags": [
+                "commerce",
+                "headless",
+                "skills",
+                "mcp",
+                "crystallize"
+            ]
+        }
+    ]
+}

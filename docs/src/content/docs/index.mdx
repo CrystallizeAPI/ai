@@ -1,0 +1,29 @@
+---
+title: Crystallize AI
+description: Crystallize AI Documentation
+template: splash
+hero:
+    tagline: Productivity tools for Crystallize builders, powered by AI.
+    image:
+        file: ../../assets/got.svg
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Steps, Code, Badge } from '@astrojs/starlight/components';
+
+
+<CardGrid stagger>
+    <Card title="MCP Server" icon="rocket">
+		Enhance your Crystallize workflow with your Coding Agent or chatbot with our MCP Server.
+		Query and mutate your Crystallize tenant, and build custom AI-powered workflows and automations.
+		[Learn more about the MCP Server →](/ai/guides/mcp)
+    </Card>
+    <Card title="Skills" icon="vercel">
+        Enhance your Crystallize workflow with your Coding Agent or chatbot with our collection of pre-built Skills.
+		[Learn more about Skills →](/ai/guides/skills)
+    </Card>
+    <Card title="Flare" icon="starlight">
+        No coding agent or chatbot yet? No problem! Flare is a no-code AI workflow builder for Crystallize.
+		[Learn more about Flare →](https://flare.crystallize.com)
+    </Card>
+</CardGrid>

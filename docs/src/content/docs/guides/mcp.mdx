@@ -1,0 +1,118 @@
+---
+title: Crystallize MCP Server
+description: Connect your AI coding agent or chatbot to Crystallize using the Model Context Protocol (MCP) to query and mutate your tenant data.
+---
+
+import { Steps, Code, Badge, Card, CardGrid } from '@astrojs/starlight/components';
+
+The Crystallize MCP Server lets AI agents interact with your Crystallize tenant through the [Model Context Protocol](https://modelcontextprotocol.io/). It runs on Cloudflare Workers and provides authenticated access to query and mutate your Crystallize data.
+
+## What You Can Do
+
+<CardGrid>
+    <Card title="Query Data" icon="magnifier">
+        Read catalogue items, products, orders, customers, and more from your tenant using Core, Discovery, Catalogue, and Shop APIs.
+    </Card>
+    <Card title="Fetch Content Model" icon="document">
+        Retrieve and inspect your tenant's shapes, components, and content structure to understand your schema.
+    </Card>
+    <Card title="Mutate Data" icon="pencil">
+        Create and update items, manage orders, handle checkout flows, and modify your content structure.
+        <Badge variant="danger" text="Coming Soon" />
+    </Card>
+    <Card title="Access Skills" icon="open-book">
+        Get on-demand documentation about Crystallize concepts like content modeling, pricing, and information architecture.
+    </Card>
+</CardGrid>
+
+## Setup
+
+<Steps>
+1. **Generate Access Tokens**
+
+    In the Crystallize Admin, create a new User with a **Read-Only Role** and generate Access Tokens for that user.
+
+    > We recommend starting with read-only access. You can create a separate user with write permissions if you need mutation capabilities.
+
+2. **Install the MCP Server**
+
+    Use `add-mcp` to register the server with your AI client:
+
+    ```bash
+    npx add-mcp https://mcp.crystallize.com/mcp \
+        --header "X-Crystallize-Access-Token-Id: ACCESS_TOKEN_ID" \
+        --header "X-Crystallize-Access-Token-Secret: ACCESS_TOKEN_SECRET"
+    ```
+    This works with any MCP-compatible client (Claude Desktop, Claude Code, Cursor, Windsurf, etc.).
+
+3. **Verify the connection**
+
+    Ask your AI agent to list the available tools — you should see the Crystallize tools ready to use.
+
+</Steps>
+
+## Available Tools
+
+The MCP Server exposes the following tools:
+
+| Tool | Description |
+|------|-------------|
+| `fetch-content-model` | Fetch the content model (shapes) from a Crystallize tenant |
+| `query-catalogue` | Execute a GraphQL query against the Crystallize Catalogue API |
+| `query-discovery` | Execute a GraphQL query against the Crystallize Discovery API |
+| `skills` | Retrieve Crystallize documentation and guides on-demand |
+
+### Fetch Content Model
+
+Retrieves all shapes from a tenant, including their name, identifier, type, and resolved configuration. Use this tool to understand the structure and schema of your tenant's content before querying it.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tenant` | string | Yes | The tenant identifier |
+
+### Query Catalogue
+
+Executes a GraphQL query against the [Catalogue API](https://crystallize.com/learn/developer-guides/api-overview/api-endpoints#catalogue-api). This API provides path-based reads with strong consistency and union types for components.
+
+**Best for:** Reading specific items by path or ID, traversing the catalogue tree, accessing detailed component data with full type support.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tenant` | string | Yes | The tenant identifier |
+| `query` | string | Yes | The GraphQL query to execute |
+| `variables` | object | No | Optional GraphQL variables |
+
+### Query Discovery
+
+Executes a GraphQL query against the [Discovery API](https://crystallize.com/learn/developer-guides/api-overview/api-endpoints#discovery-api). This API provides search, browse, filter, and faceting capabilities over the catalogue using a shape-typed schema where each shape becomes a GraphQL type.
+
+**Best for:** Searching, filtering, listing items, and aggregating data across your catalogue.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tenant` | string | Yes | The tenant identifier |
+| `query` | string | Yes | The GraphQL query to execute |
+| `variables` | object | No | Optional GraphQL variables |
+
+### Skills
+
+The `skills` tool provides access to the [Crystallize Skills](/ai/guides/skills) — knowledge modules covering content modeling, querying, mutations, pricing, and more. The agent can request specific skills by slug and optionally include detailed reference documents.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `skills` | string[] | Yes | One or more skill slugs to retrieve |
+| `references` | string[] | No | Specific reference slugs to include |
+| `includeAllReferences` | boolean | No | If true, include all references for the requested skills |
+
+> If you already have skills installed locally (e.g., via the Claude Plugin), you can disable them on the MCP Server by appending `?exposeSkills=false` to the URL.
+
+## Authentication
+
+The MCP Server requires two headers on every request:
+
+| Header | Description |
+|--------|-------------|
+| `X-Crystallize-Access-Token-Id` | Your Crystallize access token ID |
+| `X-Crystallize-Access-Token-Secret` | Your Crystallize access token secret |
+
+These credentials are passed through to Crystallize APIs, so the agent operates with the same permissions as the token's associated user.

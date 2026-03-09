@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "ESNext",
+        "noEmit": true,
+        "isolatedModules": true,
+        "resolveJsonModule": true,
+        "moduleResolution": "Bundler",
+        "strict": true,
+        "skipLibCheck": true,
+        "lib": ["ESNext"],
+        "types": ["node", "./worker-configuration.d.ts"],
+        "jsx": "react-jsx",
+        "jsxImportSource": "hono/jsx"
+    }
+}

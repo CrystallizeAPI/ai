@@ -1,0 +1,31 @@
+---
+import { getCollection } from "astro:content";
+import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
+
+const skills = await getCollection("skills");
+import { LinkCard, CardGrid } from "@astrojs/starlight/components";
+---
+
+<StarlightPage
+  frontmatter={{
+    title: "Crystallize Skills",
+    description:
+      "Skills available in the Crystallize MCP Server and Claude Plugin.",
+  }}
+>
+  <p>
+    These skills are bundled with the Crystallize MCP Server and Claude Plugin
+    to give AI assistants deep knowledge of Crystallize concepts.
+  </p>
+  <CardGrid>
+    {
+      skills.map((skill) => (
+        <LinkCard
+          href={`/ai/skills/${skill.data.slug}/`}
+          title={skill.data.name}
+          description={skill.data.description.split(".")[0]}
+        />
+      ))
+    }
+  </CardGrid>
+</StarlightPage>

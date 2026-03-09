@@ -1,0 +1,73 @@
+{
+    "editor.formatOnSave": true,
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        "**/node_modules": true,
+        "**/.husky": true,
+        "**/.nx": true,
+        "**/.run": true,
+        "**/coverage": true,
+        "**/dist": true,
+        "**/.astro": true,
+        "**/tmp": true,
+        "**/build": true,
+        "**/.wrangler": true,
+        "**/.cache": true
+    },
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/*/**": true,
+        "**/dist/*/**": true,
+        "**/coverage/*/**": true,
+        "**/tmp/*/**": true,
+        "**/.nx/*/**": true,
+        "**/.run/*/**": true
+    },
+    "files.associations": {
+        "*.css":"tailwindcss"
+    },
+    "todo-tree.general.tags": ["@todo:", "@fixme:", "@bug:"],
+    "todo-tree.general.statusBar": "top three",
+    "todo-tree.tree.groupedByTag": true,
+    "todo-tree.general.statusBarClickBehaviour": "reveal",
+    "todo-tree.general.tagGroups": {
+        "TODOs": ["@todo:"],
+        "BUGs": ["@fixme:", "@bug:"]
+    },
+    "todo-tree.highlights.customHighlight": {
+        "TODOs": {
+          "icon": "flame",
+          "foreground": "#ff9900"
+        },
+        "BUGs": {
+          "icon": "bug",
+          "foreground": "#ff0000"
+        }
+    },
+    "workbench.colorCustomizations": {
+        "activityBar.activeBackground": "#00004d",
+        "activityBar.background": "#00004d",
+        "activityBar.foreground": "#e7e7e7",
+        "activityBar.inactiveForeground": "#e7e7e799",
+        "activityBarBadge.background": "#9f0000",
+        "activityBarBadge.foreground": "#e7e7e7",
+        "commandCenter.border": "#e7e7e799",
+        "sash.hoverBorder": "#00004d",
+        "statusBar.background": "#00001a",
+        "statusBar.foreground": "#e7e7e7",
+        "statusBarItem.hoverBackground": "#00004d",
+        "statusBarItem.remoteBackground": "#00001a",
+        "statusBarItem.remoteForeground": "#e7e7e7",
+        "titleBar.activeBackground": "#00001a",
+        "titleBar.activeForeground": "#e7e7e7",
+        "titleBar.inactiveBackground": "#00001a99",
+        "titleBar.inactiveForeground": "#e7e7e799"
+    },
+    "peacock.color": "#00001a",
+}

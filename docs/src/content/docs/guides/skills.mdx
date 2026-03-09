@@ -1,0 +1,83 @@
+---
+title: Crystallize Skills
+description: Pre-built AI knowledge modules that give coding agents deep expertise on Crystallize concepts like content modeling, querying, mutations, and more.
+---
+
+import { Steps, Card, CardGrid, Badge, LinkCard } from '@astrojs/starlight/components';
+
+Crystallize Skills are **knowledge modules** that give AI coding agents deep expertise on Crystallize platform concepts. Each skill is a self-contained documentation package that agents can load on-demand to understand how to work with specific parts of Crystallize.
+
+Skills are available through both the **Crystallize MCP Server** (as a tool) and as a **Claude Plugin** (bundled directly).
+
+## Available Skills
+
+<CardGrid>
+    <Card title="Content Model" icon="document">
+        Design content structures using Shapes, Pieces, Components, Topic Maps, and Grids.
+    </Card>
+    <Card title="Information Architecture" icon="seti:folder">
+        Design folder hierarchies, catalogue trees, and navigation structures.
+    </Card>
+    <Card title="JS API Client" icon="seti:javascript">
+        Use `@crystallize/js-api-client` to interact with Crystallize APIs in JavaScript/TypeScript.
+    </Card>
+    <Card title="Query" icon="magnifier">
+        Query data using the Core API, Discovery API, Catalogue API, and Shop API.
+    </Card>
+    <Card title="Mutation" icon="pencil">
+        Create and modify data — items, orders, customers, carts, and checkout flows.
+    </Card>
+    <Card title="Pricing" icon="setting">
+        Design pricing strategies with Price Variants, Price Lists, Markets, and Promotions.
+    </Card>
+    <Card title="Permissions" icon="approve-check-circle">
+        Manage user roles, field-level permissions, and access control.
+    </Card>
+</CardGrid>
+
+> Each skill includes a main guide and optional **reference documents** with detailed API examples, design patterns, and best practices.
+
+## How Skills Work
+
+Skills are structured as markdown files with metadata. When an AI agent needs to work with a Crystallize concept, it requests the relevant skill(s) by name and receives comprehensive documentation including:
+
+- **Main guide** — core concepts, architecture decisions, and workflows
+- **References** — detailed API documentation, code examples, and design patterns
+
+### Via the MCP Server
+
+When using the [Crystallize MCP Server](/ai/guides/mcp), skills are exposed as a `skills` tool. The agent can call this tool with:
+
+```json
+{
+  "skills": ["content-model", "query"],
+  "includeAllReferences": true
+}
+```
+
+> By default, the MCP Server exposes the skills tool. If you have the skills installed locally via the Claude Plugin, you can disable them on the MCP by adding `?exposeSkills=false` to the MCP URL.
+
+### Via the Claude Plugin
+
+Skills are also bundled in the [Crystallize Claude Plugin](https://github.com/crystallizeapi/ai/tree/main/use-crystallize). When installed as a plugin, skills are loaded directly into the agent's context without requiring MCP server calls.
+
+## Installation
+
+<Steps>
+1. **Install as a Claude Plugin** (recommended for Claude Code)
+
+    ```bash
+    claude plugin add https://github.com/crystallizeapi/ai
+    ```
+
+    This gives your agent access to all skills locally, without needing the MCP server for skill lookups.
+
+2. **Or use via the MCP Server**
+
+    Skills are included in the MCP Server by default. Follow the [MCP Server installation guide](/ai/guides/mcp) to set it up.
+
+</Steps>
+
+## Browse All Skills
+
+Visit the [Skills Overview](/ai/skills/) to browse the full content of each skill and its reference documents.

@@ -1,0 +1,32 @@
+---
+import { getCollection, render } from "astro:content";
+import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
+import { Code, Badge } from "@astrojs/starlight/components";
+export async function getStaticPaths() {
+  const skills = await getCollection("skills");
+  return skills.map((skill) => ({
+    params: { slug: skill.data.slug },
+    props: { skill },
+  }));
+}
+
+const { skill } = Astro.props;
+const { Content, headings } = await render(skill);
+---
+
+<StarlightPage
+  frontmatter={{
+    title: skill.data.name,
+    description: skill.data.description,
+  }}
+  headings={headings}
+>
+  <Code
+    code={`npx skills add https://github.com/crystallizeapi/ai --skill ${
+      skill.data.slug
+    }`}
+    lang="bash"
+  />
+  Note: This command is coming soon.
+  <Content />
+</StarlightPage>

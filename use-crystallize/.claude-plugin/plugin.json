@@ -1,0 +1,31 @@
+{
+    "name": "use-crystallize",
+    "version": "1.0.0",
+    "description": "Everything you need to use Crystallize with your agent, skills, agents, commands, hooks and MCP servers.",
+    "author": {
+        "name": "Crystallize",
+        "email": "sebastien@crystallize.com",
+        "url": "https://crystallize.com"
+    },
+    "homepage": "https://crystallize.com",
+    "repository": "https://github.com/crystallizeapi/agent-toolkit",
+    "license": "MIT",
+    "keywords": [
+        "commerce",
+        "headless",
+        "skills",
+        "mcp",
+        "crystallize"
+    ],
+    "skills": "./skills/",
+    "mcpServers": {
+        "crystallize": {
+            "type": "http",
+            "url": "https://mcp.crystallize.com/mcp?exposeSkills=false",
+            "headers": {
+                "X-Crystallize-Access-Token-Id": "YOUR CRYSTALLIZE ACCESS TOKEN ID",
+                "X-Crystallize-Access-Token-Secret": "YOUR CRYSTALLIZE ACCESS TOKEN SECRET"
+            }
+        }
+    }
+}

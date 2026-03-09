@@ -1,0 +1,57 @@
+import { createClient } from "@crystallize/js-api-client";
+import z from "zod";
+import { defineToolWrapper } from "../../../contracts/tool";
+import { TenantMatcher } from "../../../contracts/tenant-matcher";
+
+type Deps = {
+    tenantMatcher: TenantMatcher;
+};
+
+export const createFetchContentModelToolWrapper = ({ tenantMatcher }: Deps) => {
+    return defineToolWrapper({
+        description:
+            "Fetch the content model (shapes) from a Crystallize tenant. " +
+            "Returns all shapes with their name, identifier, type, and resolved configuration. " +
+            "Use this to understand the structure and schema of a tenant's content.",
+        inputSchema: z.object({
+            tenant: z.string().describe("The tenant identifier"),
+        }),
+        handler: async ({ tenant, authContext }) => {
+            const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
+            const client = createClient({
+                tenantIdentifier: tenant,
+                accessTokenId: authContext.accessTokenId,
+                accessTokenSecret: authContext.accessTokenSecret,
+                staticAuthToken: matchedTenant.staticAuthToken,
+            });
+            try {
+                const data = await client.nextPimApi(
+                    `query {
+                        shapes {
+                            edges {
+                                node {
+                                    name
+                                    identifier
+                                    type
+                                    resolvedConfiguration
+                                }
+                            }
+                        }
+                    }`,
+                );
+                return {
+                    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+                };
+            } catch (error) {
+                return {
+                    content: [
+                        {
+                            type: "text" as const,
+                            text: `GraphQL errors:\n${error instanceof Error ? error.message : String(error)}`,
+                        },
+                    ],
+                };
+            }
+        },
+    });
+};
