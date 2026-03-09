@@ -14,6 +14,9 @@ importers:
       '@crystallize/js-api-client':
         specifier: ^5.3.0
         version: 5.3.0
+      '@crystallize/schema':
+        specifier: ^6.11.0
+        version: 6.11.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.27.1
         version: 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.6)

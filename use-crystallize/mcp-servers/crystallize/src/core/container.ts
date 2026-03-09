@@ -6,6 +6,7 @@ import { createFetchContentModelToolWrapper } from "./mcp/tools/fetch-content-mo
 import { createFetchDiscoveryGraphqlSchemaToolWrapper } from "./mcp/tools/fetch-discovery-graphql-schema";
 import { createQueryCatalogueToolWrapper } from "./mcp/tools/query-catalogue";
 import { createQueryDiscoveryToolWrapper } from "./mcp/tools/query-discovery";
+import { createBuildMassOperationToolWrapper } from "./mcp/tools/build-mass-operation";
 import { createSkillsToolWrapper } from "./mcp/tools/skills";
 import { createTenantMatcher } from "./services/tenant-matcher";
 import { TenantMatcher } from "../contracts/tenant-matcher";
@@ -24,6 +25,7 @@ type Container = Services & {
     fetchContentModelToolWrapper: ReturnType<typeof createFetchContentModelToolWrapper>;
     fetchCatalogGraphqlSchemaToolWrapper: ReturnType<typeof createFetchCatalogGraphqlSchemaToolWrapper>;
     fetchDiscoveryGraphqlSchemaToolWrapper: ReturnType<typeof createFetchDiscoveryGraphqlSchemaToolWrapper>;
+    buildMassOperationToolWrapper: ReturnType<typeof createBuildMassOperationToolWrapper>;
 };
 
 export type Services = {
@@ -38,6 +40,7 @@ export const toolRegistry = {
     "fetch-content-model": "fetchContentModelToolWrapper",
     "fetch-catalog-graphql-schema": "fetchCatalogGraphqlSchemaToolWrapper",
     "fetch-discovery-graphql-schema": "fetchDiscoveryGraphqlSchemaToolWrapper",
+    "build-mass-operation": "buildMassOperationToolWrapper",
 } as const satisfies Record<string, keyof Container>;
 
 let container: AwilixContainer<Container> | null = null;
@@ -67,6 +70,7 @@ export const buildContainer = (_env: CloudflareBindings): AwilixContainer<Contai
         fetchContentModelToolWrapper: asFunction(createFetchContentModelToolWrapper).singleton(),
         fetchCatalogGraphqlSchemaToolWrapper: asFunction(createFetchCatalogGraphqlSchemaToolWrapper).singleton(),
         fetchDiscoveryGraphqlSchemaToolWrapper: asFunction(createFetchDiscoveryGraphqlSchemaToolWrapper).singleton(),
+        buildMassOperationToolWrapper: asFunction(createBuildMassOperationToolWrapper).singleton(),
     });
     return container;
 };
