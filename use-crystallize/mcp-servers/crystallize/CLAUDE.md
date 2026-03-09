@@ -70,12 +70,14 @@ The app uses **Awilix** for dependency injection. The container is built once (s
 #### Container Registrations
 
 **Services** (singletons):
+
 - `tenantMatcher` — resolve tenant from auth context
 - `graphqlSchemaCompacter` — compact introspection schemas
 - `graphqlQueryCorrector` — fix malformed GraphQL queries
 - `queryExecutor` — execute queries with auto-correction
 
 **Tools** (singletons):
+
 - `skillsToolWrapper`, `queryDiscoveryToolWrapper`, `queryCatalogueToolWrapper`
 - `fetchContentModelToolWrapper`, `fetchCatalogGraphqlSchemaToolWrapper`, `fetchDiscoveryGraphqlSchemaToolWrapper`
 
@@ -115,13 +117,13 @@ To register a new tool:
 
 #### Tool Registry
 
-| Tool Name | Container Key | Purpose |
-|-----------|---------------|---------|
-| `skills` | `skillsToolWrapper` | Load Crystallize documentation |
-| `query-discovery` | `queryDiscoveryToolWrapper` | Execute Discovery API queries |
-| `query-catalogue` | `queryCatalogueToolWrapper` | Execute Catalogue API queries |
-| `fetch-content-model` | `fetchContentModelToolWrapper` | Fetch tenant shapes |
-| `fetch-catalog-graphql-schema` | `fetchCatalogGraphqlSchemaToolWrapper` | Get compacted Catalogue schema |
+| Tool Name                        | Container Key                            | Purpose                        |
+| -------------------------------- | ---------------------------------------- | ------------------------------ |
+| `skills`                         | `skillsToolWrapper`                      | Load Crystallize documentation |
+| `query-discovery`                | `queryDiscoveryToolWrapper`              | Execute Discovery API queries  |
+| `query-catalogue`                | `queryCatalogueToolWrapper`              | Execute Catalogue API queries  |
+| `fetch-content-model`            | `fetchContentModelToolWrapper`           | Fetch tenant shapes            |
+| `fetch-catalog-graphql-schema`   | `fetchCatalogGraphqlSchemaToolWrapper`   | Get compacted Catalogue schema |
 | `fetch-discovery-graphql-schema` | `fetchDiscoveryGraphqlSchemaToolWrapper` | Get compacted Discovery schema |
 
 Auth context is injected automatically via `getMcpAuthContext()` from `agents/mcp`.

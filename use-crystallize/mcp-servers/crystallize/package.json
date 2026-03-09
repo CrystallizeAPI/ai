@@ -9,6 +9,8 @@
         "deploy": "vite build --mode production && wrangler deploy --config dist/crystallize_mcp_server/wrangler.json",
         "codeclean": "oxlint --fix && oxfmt --write .",
         "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "type-check": "tsc --noEmit"
     },
     "dependencies": {
@@ -30,6 +32,7 @@
         "tsx": "^4.21.0",
         "typescript": "5.9.3",
         "vite": "^7.3.1",
+        "vitest": "^4.0.18",
         "wrangler": "^4.71.0"
     },
     "pnpm": {
