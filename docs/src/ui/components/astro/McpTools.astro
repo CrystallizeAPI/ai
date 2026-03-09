@@ -1,0 +1,59 @@
+---
+import { getCollection } from 'astro:content';
+
+const tools = await getCollection('mcpTools');
+// Sort: non-skills first (alphabetically), skills last
+const sorted = tools.sort((a, b) => {
+    if (a.data.toolName === 'skills') return 1;
+    if (b.data.toolName === 'skills') return -1;
+    return a.data.toolName.localeCompare(b.data.toolName);
+});
+---
+
+<div>
+    <table>
+        <thead>
+            <tr>
+                <th>Tool</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {sorted.map((tool) => (
+                <tr>
+                    <td><a href={`#${tool.data.toolName}`}><code>{tool.data.toolName}</code></a></td>
+                    <td>{tool.data.description.split('.')[0]}.</td>
+                </tr>
+            ))}
+        </tbody>
+    </table>
+
+    {sorted.map((tool) => (
+        <div>
+            <h3 id={tool.data.toolName}><code>{tool.data.toolName}</code></h3>
+            <p>{tool.data.description}</p>
+            {tool.data.inputSchema.length > 0 && (
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Type</th>
+                            <th>Required</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {tool.data.inputSchema.map((field) => (
+                            <tr>
+                                <td><code>{field.name}</code></td>
+                                <td>{field.type}</td>
+                                <td>{field.required ? 'Yes' : 'No'}</td>
+                                <td>{field.description}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
+        </div>
+    ))}
+</div>

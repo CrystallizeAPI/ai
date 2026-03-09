@@ -4,6 +4,7 @@ description: Connect your AI coding agent or chatbot to Crystallize using the Mo
 ---
 
 import { Steps, Code, Badge, Card, CardGrid } from '@astrojs/starlight/components';
+import McpTools from '../../../ui/components/astro/McpTools.astro';
 
 The Crystallize MCP Server lets AI agents interact with your Crystallize tenant through the [Model Context Protocol](https://modelcontextprotocol.io/). It runs on Cloudflare Workers and provides authenticated access to query and mutate your Crystallize data.
 
@@ -56,74 +57,9 @@ The Crystallize MCP Server lets AI agents interact with your Crystallize tenant 
 
 ## Available Tools
 
-The MCP Server exposes the following tools:
+The following tools are auto-generated from the [MCP Server source code](https://github.com/crystallizeapi/ai/tree/main/use-crystallize/mcp-servers/crystallize/src/core/mcp/tools).
 
-| Tool | Description |
-|------|-------------|
-| `fetch-content-model` | Fetch the content model (shapes) from a Crystallize tenant |
-| `fetch-catalog-graphql-schema` | Fetch the compacted GraphQL schema of the Catalogue API |
-| `fetch-discovery-graphql-schema` | Fetch the compacted GraphQL schema of the Discovery API |
-| `query-catalogue` | Execute a GraphQL query against the Crystallize Catalogue API |
-| `query-discovery` | Execute a GraphQL query against the Crystallize Discovery API |
-| `skills` | Retrieve Crystallize documentation and guides on-demand |
-
-### Fetch Content Model
-
-Retrieves all shapes from a tenant, including their name, identifier, type, and resolved configuration. Use this tool to understand the structure and schema of your tenant's content before querying it.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `tenant` | string | Yes | The tenant identifier |
-
-### Fetch Catalog GraphQL Schema
-
-Fetches the compacted GraphQL schema of the [Catalogue API](https://crystallize.com/learn/developer-guides/api-overview/api-endpoints#catalogue-api) for a given tenant. Use this tool to understand the available queries, types, and fields before building a catalogue query.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `tenant` | string | Yes | The tenant identifier |
-
-### Fetch Discovery GraphQL Schema
-
-Fetches the compacted GraphQL schema of the [Discovery API](https://crystallize.com/learn/developer-guides/api-overview/api-endpoints#discovery-api) for a given tenant. Use this tool to understand the available queries, types, and fields before building a discovery query. The schema is shape-typed — each shape in the tenant becomes a GraphQL type.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `tenant` | string | Yes | The tenant identifier |
-
-### Query Catalogue
-
-Executes a GraphQL query against the [Catalogue API](https://crystallize.com/learn/developer-guides/api-overview/api-endpoints#catalogue-api). This API provides path-based reads with strong consistency and union types for components.
-
-**Best for:** Reading specific items by path or ID, traversing the catalogue tree, accessing detailed component data with full type support.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `tenant` | string | Yes | The tenant identifier |
-| `query` | string | Yes | The GraphQL query to execute |
-| `variables` | object | No | Optional GraphQL variables |
-
-### Query Discovery
-
-Executes a GraphQL query against the [Discovery API](https://crystallize.com/learn/developer-guides/api-overview/api-endpoints#discovery-api). This API provides search, browse, filter, and faceting capabilities over the catalogue using a shape-typed schema where each shape becomes a GraphQL type.
-
-**Best for:** Searching, filtering, listing items, and aggregating data across your catalogue.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `tenant` | string | Yes | The tenant identifier |
-| `query` | string | Yes | The GraphQL query to execute |
-| `variables` | object | No | Optional GraphQL variables |
-
-### Skills
-
-The `skills` tool provides access to the [Crystallize Skills](/ai/guides/skills) — knowledge modules covering content modeling, querying, mutations, pricing, and more. The agent can request specific skills by slug and optionally include detailed reference documents.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `skills` | string[] | Yes | One or more skill slugs to retrieve |
-| `references` | string[] | No | Specific reference slugs to include |
-| `includeAllReferences` | boolean | No | If true, include all references for the requested skills |
+<McpTools />
 
 > If you already have skills installed locally (e.g., via the Claude Plugin), you can disable them on the MCP Server by appending `?exposeSkills=false` to the URL.
 
