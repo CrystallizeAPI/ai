@@ -5,8 +5,8 @@
     "routes": [
         {
             "pattern": "mcp.crystallize.com",
-            "custom_domain": true
-        }
+            "custom_domain": true,
+        },
     ],
     "compatibility_date": "2025-08-03",
     "compatibility_flags": ["nodejs_compat"],

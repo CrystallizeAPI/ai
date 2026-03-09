@@ -40,13 +40,13 @@ export const createFetchContentModelToolWrapper = ({ tenantMatcher }: Deps) => {
                     }`,
                 );
                 return {
-                    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+                    content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
                 };
             } catch (error) {
                 return {
                     content: [
                         {
-                            type: "text" as const,
+                            type: "text",
                             text: `GraphQL errors:\n${error instanceof Error ? error.message : String(error)}`,
                         },
                     ],

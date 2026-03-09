@@ -41,8 +41,8 @@ export const createSkillsToolWrapper = (_deps: Deps) => {
                 const refsToInclude = includeAllReferences
                     ? skill.references
                     : references
-                        ? skill.references.filter((r) => references.includes(r.slug))
-                        : [];
+                      ? skill.references.filter((r) => references.includes(r.slug))
+                      : [];
 
                 for (const ref of refsToInclude) {
                     parts.push(`### Reference: ${ref.slug}\n\n${ref.content}`);
@@ -58,7 +58,7 @@ export const createSkillsToolWrapper = (_deps: Deps) => {
             return {
                 content: [
                     {
-                        type: "text" as const,
+                        type: "text",
                         text: parts.join("\n\n---\n\n"),
                     },
                 ],

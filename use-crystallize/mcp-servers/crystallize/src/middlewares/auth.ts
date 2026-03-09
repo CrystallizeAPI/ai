@@ -23,9 +23,9 @@ export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
     const response = await client.pimApi<{
         me: {
             tenants: Array<{
-                tenant: AuthContext["tenants"][number]
+                tenant: AuthContext["tenants"][number];
             }>;
-        }
+        };
     }>(`query { me { tenants { tenant { id name identifier staticAuthToken } } } }`);
 
     if (!response || !response.me || !response.me.tenants || response.me.tenants.length === 0) {
@@ -35,7 +35,7 @@ export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
     c.set("authContext", {
         accessTokenId,
         accessTokenSecret,
-        tenants: response.me.tenants.map((t) => (t.tenant)),
+        tenants: response.me.tenants.map((t) => t.tenant),
     });
     await next();
 });

@@ -2,11 +2,13 @@ import { createClient } from "@crystallize/js-api-client";
 import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
+import { QueryExecutor } from "../../../contracts/query-executor";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
+    queryExecutor: QueryExecutor;
 };
-export const createQueryDiscoveryToolWrapper = ({ tenantMatcher }: Deps) => {
+export const createQueryDiscoveryToolWrapper = ({ tenantMatcher, queryExecutor }: Deps) => {
     return defineToolWrapper({
         description:
             "Execute a GraphQL query against the Crystallize Discovery API. " +
@@ -26,21 +28,22 @@ export const createQueryDiscoveryToolWrapper = ({ tenantMatcher }: Deps) => {
                 accessTokenSecret: authContext.accessTokenSecret,
                 staticAuthToken: matchedTenant.staticAuthToken,
             });
-            try {
-                const data = await client.discoveryApi(query, variables);
-                return {
-                    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
-                };
-            } catch (error) {
-                return {
-                    content: [
-                        {
-                            type: "text" as const,
-                            text: `GraphQL errors:\n${error instanceof Error ? error.message : String(error)}`,
-                        },
-                    ],
-                };
+
+            const introspectionHeaders: Record<string, string> = {};
+            if (matchedTenant.staticAuthToken) {
+                introspectionHeaders["X-Crystallize-Static-Auth-Token"] = matchedTenant.staticAuthToken;
+            } else {
+                introspectionHeaders["X-Crystallize-Access-Token-Id"] = authContext.accessTokenId;
+                introspectionHeaders["X-Crystallize-Access-Token-Secret"] = authContext.accessTokenSecret;
             }
+
+            return queryExecutor({
+                executor: (q, v) => client.discoveryApi(q, v),
+                introspectionUrl: `https://api.crystallize.com/${tenant}/discovery`,
+                introspectionHeaders,
+                query,
+                variables,
+            });
         },
     });
 };

@@ -16,6 +16,9 @@ The Crystallize MCP Server lets AI agents interact with your Crystallize tenant 
     <Card title="Fetch Content Model" icon="document">
         Retrieve and inspect your tenant's shapes, components, and content structure to understand your schema.
     </Card>
+    <Card title="Introspect GraphQL Schemas" icon="setting">
+        Fetch compacted GraphQL schemas for the Catalogue and Discovery APIs to understand available queries, types, and fields before writing queries.
+    </Card>
     <Card title="Mutate Data" icon="pencil">
         Create and update items, manage orders, handle checkout flows, and modify your content structure.
         <Badge variant="danger" text="Coming Soon" />
@@ -58,6 +61,8 @@ The MCP Server exposes the following tools:
 | Tool | Description |
 |------|-------------|
 | `fetch-content-model` | Fetch the content model (shapes) from a Crystallize tenant |
+| `fetch-catalog-graphql-schema` | Fetch the compacted GraphQL schema of the Catalogue API |
+| `fetch-discovery-graphql-schema` | Fetch the compacted GraphQL schema of the Discovery API |
 | `query-catalogue` | Execute a GraphQL query against the Crystallize Catalogue API |
 | `query-discovery` | Execute a GraphQL query against the Crystallize Discovery API |
 | `skills` | Retrieve Crystallize documentation and guides on-demand |
@@ -65,6 +70,22 @@ The MCP Server exposes the following tools:
 ### Fetch Content Model
 
 Retrieves all shapes from a tenant, including their name, identifier, type, and resolved configuration. Use this tool to understand the structure and schema of your tenant's content before querying it.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tenant` | string | Yes | The tenant identifier |
+
+### Fetch Catalog GraphQL Schema
+
+Fetches the compacted GraphQL schema of the [Catalogue API](https://crystallize.com/learn/developer-guides/api-overview/api-endpoints#catalogue-api) for a given tenant. Use this tool to understand the available queries, types, and fields before building a catalogue query.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tenant` | string | Yes | The tenant identifier |
+
+### Fetch Discovery GraphQL Schema
+
+Fetches the compacted GraphQL schema of the [Discovery API](https://crystallize.com/learn/developer-guides/api-overview/api-endpoints#discovery-api) for a given tenant. Use this tool to understand the available queries, types, and fields before building a discovery query. The schema is shape-typed — each shape in the tenant becomes a GraphQL type.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|

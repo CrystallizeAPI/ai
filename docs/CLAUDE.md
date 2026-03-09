@@ -37,6 +37,8 @@ Add new `.mdx` files to `src/content/docs/guides/` — they auto-appear in the s
 The Crystallize MCP Server (documented in `guides/mcp.mdx`) exposes these tools:
 
 - **`fetch-content-model`** — Fetches all shapes (content model) from a tenant
+- **`fetch-catalog-graphql-schema`** — Fetches the compacted GraphQL schema of the Catalogue API
+- **`fetch-discovery-graphql-schema`** — Fetches the compacted GraphQL schema of the Discovery API
 - **`query-catalogue`** — Executes GraphQL queries against the Catalogue API (path-based reads, strong consistency)
 - **`query-discovery`** — Executes GraphQL queries against the Discovery API (search, filter, faceting)
 - **`skills`** — Retrieves Crystallize Skills documentation on-demand by slug
