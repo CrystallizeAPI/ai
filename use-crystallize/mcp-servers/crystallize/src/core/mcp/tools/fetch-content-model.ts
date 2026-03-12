@@ -11,6 +11,8 @@ export const createFetchContentModelToolWrapper = ({ tenantMatcher }: Deps) => {
     return defineToolWrapper({
         description:
             "Fetch the content model (shapes) from a Crystallize tenant. " +
+            "If you haven't already, call the `skills` tool first — it explains how content models work " +
+            "and what to expect from the shape data. " +
             "Returns all shapes with their name, identifier, type, and resolved configuration. " +
             "Use this to understand the structure and schema of a tenant's content.",
         inputSchema: z.object({

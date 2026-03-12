@@ -9,7 +9,15 @@ const allReferenceSlugs = [...new Set(skills.flatMap((s) => s.references.map((r)
 
 export const createSkillsToolWrapper = (_deps: Deps) => {
     return defineToolWrapper({
-        description: `Retrieve Crystallize documentation and skills. If you already have Crystallize skills loaded in your context, you do NOT need to call this tool — use your existing knowledge instead. Available skills: ${skillSlugs.join(", ")}. Each skill has a main document and optional reference documents. Call with a skill slug to get its content. Optionally specify reference slugs to include specific references (or use includeAllReferences). Available reference slugs across skills: ${allReferenceSlugs.join(", ")}.`,
+        description:
+            `IMPORTANT: Call this tool FIRST before using any other Crystallize tool. ` +
+            `This provides essential documentation, patterns, query examples, and best practices for working with Crystallize APIs. ` +
+            `Unless you already have Crystallize skills loaded in your local context, you MUST call this tool before fetching schemas or executing queries — ` +
+            `skills contain the knowledge you need to use the APIs correctly and avoid common mistakes. ` +
+            `Available skills: ${skillSlugs.join(", ")}. ` +
+            `Each skill has a main document and optional reference documents. Call with a skill slug to get its content. ` +
+            `Optionally specify reference slugs to include specific references (or use includeAllReferences). ` +
+            `Available reference slugs across skills: ${allReferenceSlugs.join(", ")}.`,
         inputSchema: z.object({
             skills: z
                 .array(z.string())

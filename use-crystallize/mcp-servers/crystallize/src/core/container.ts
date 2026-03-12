@@ -4,7 +4,9 @@ import packageJson from "../../package.json";
 import { createFetchCatalogGraphqlSchemaToolWrapper } from "./mcp/tools/fetch-catalog-graphql-schema";
 import { createFetchContentModelToolWrapper } from "./mcp/tools/fetch-content-model";
 import { createFetchDiscoveryGraphqlSchemaToolWrapper } from "./mcp/tools/fetch-discovery-graphql-schema";
+import { createFetchCoreGraphqlSchemaToolWrapper } from "./mcp/tools/fetch-core-graphql-schema";
 import { createQueryCatalogueToolWrapper } from "./mcp/tools/query-catalogue";
+import { createQueryCoreToolWrapper } from "./mcp/tools/query-core";
 import { createQueryDiscoveryToolWrapper } from "./mcp/tools/query-discovery";
 import { createBuildMassOperationToolWrapper } from "./mcp/tools/build-mass-operation";
 import { createSkillsToolWrapper } from "./mcp/tools/skills";
@@ -25,6 +27,8 @@ type Container = Services & {
     fetchContentModelToolWrapper: ReturnType<typeof createFetchContentModelToolWrapper>;
     fetchCatalogGraphqlSchemaToolWrapper: ReturnType<typeof createFetchCatalogGraphqlSchemaToolWrapper>;
     fetchDiscoveryGraphqlSchemaToolWrapper: ReturnType<typeof createFetchDiscoveryGraphqlSchemaToolWrapper>;
+    fetchCoreGraphqlSchemaToolWrapper: ReturnType<typeof createFetchCoreGraphqlSchemaToolWrapper>;
+    queryCoreToolWrapper: ReturnType<typeof createQueryCoreToolWrapper>;
     buildMassOperationToolWrapper: ReturnType<typeof createBuildMassOperationToolWrapper>;
 };
 
@@ -40,6 +44,8 @@ export const toolRegistry = {
     "fetch-content-model": "fetchContentModelToolWrapper",
     "fetch-catalog-graphql-schema": "fetchCatalogGraphqlSchemaToolWrapper",
     "fetch-discovery-graphql-schema": "fetchDiscoveryGraphqlSchemaToolWrapper",
+    "query-core": "queryCoreToolWrapper",
+    "fetch-core-graphql-schema": "fetchCoreGraphqlSchemaToolWrapper",
     "build-mass-operation": "buildMassOperationToolWrapper",
 } as const satisfies Record<string, keyof Container>;
 
@@ -70,6 +76,8 @@ export const buildContainer = (_env: CloudflareBindings): AwilixContainer<Contai
         fetchContentModelToolWrapper: asFunction(createFetchContentModelToolWrapper).singleton(),
         fetchCatalogGraphqlSchemaToolWrapper: asFunction(createFetchCatalogGraphqlSchemaToolWrapper).singleton(),
         fetchDiscoveryGraphqlSchemaToolWrapper: asFunction(createFetchDiscoveryGraphqlSchemaToolWrapper).singleton(),
+        fetchCoreGraphqlSchemaToolWrapper: asFunction(createFetchCoreGraphqlSchemaToolWrapper).singleton(),
+        queryCoreToolWrapper: asFunction(createQueryCoreToolWrapper).singleton(),
         buildMassOperationToolWrapper: asFunction(createBuildMassOperationToolWrapper).singleton(),
     });
     return container;

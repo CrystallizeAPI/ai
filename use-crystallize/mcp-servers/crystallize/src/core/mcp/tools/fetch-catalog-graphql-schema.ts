@@ -12,8 +12,11 @@ export const createFetchCatalogGraphqlSchemaToolWrapper = ({ graphqlSchemaCompac
     return defineToolWrapper({
         description:
             "Fetch the compacted GraphQL schema of the Crystallize Catalogue API for a given tenant. " +
-            "Use this to understand the available queries, types, and fields before building a catalogue query. " +
-            "The Catalogue API provides path-based reads with strong consistency and union types for components.",
+            "BEFORE calling this tool, call the `skills` tool first to get documentation and query examples — " +
+            "skills often provide enough context to build queries without needing the full schema. " +
+            "Use this as a second step when you need to understand specific types or fields not covered by the skills. " +
+            "The Catalogue API is a storefront API for fetching items, products, and content " +
+            "to build frontends — it provides path-based reads with strong consistency and union types for components.",
         inputSchema: z.object({
             tenant: z.string().describe("The tenant identifier"),
         }),
