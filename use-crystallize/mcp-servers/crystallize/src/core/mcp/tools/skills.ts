@@ -34,7 +34,6 @@ export const createSkillsToolWrapper = (_deps: Deps) => {
                 .describe("If true, include all references for the requested skills."),
         }),
         handler: async ({ skills: requestedSlugs, references, includeAllReferences }) => {
-            console.log("Requested skills:", requestedSlugs);
             const parts: string[] = [];
 
             for (const slug of requestedSlugs) {

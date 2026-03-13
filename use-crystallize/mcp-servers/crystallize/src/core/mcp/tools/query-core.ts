@@ -3,6 +3,7 @@ import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { QueryExecutor } from "../../../contracts/query-executor";
+import { createClient } from "@crystallize/js-api-client";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
@@ -52,35 +53,20 @@ export const createQueryCoreToolWrapper = ({ tenantMatcher, queryExecutor }: Dep
             }
 
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
-            const url = `https://api.crystallize.com/@${tenant}`;
-
-            const headers: Record<string, string> = {
-                "Content-Type": "application/json",
-            };
-            if (matchedTenant.staticAuthToken) {
-                headers["X-Crystallize-Static-Auth-Token"] = matchedTenant.staticAuthToken;
-            } else {
-                headers["X-Crystallize-Access-Token-Id"] = authContext.accessTokenId;
-                headers["X-Crystallize-Access-Token-Secret"] = authContext.accessTokenSecret;
-            }
-
-            const executor = async (q: string, v?: Record<string, unknown>) => {
-                const response = await fetch(url, {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify({ query: q, variables: v }),
-                });
-                const json = (await response.json()) as { data?: unknown; errors?: unknown };
-                if (json.errors) {
-                    throw new Error(JSON.stringify(json.errors));
-                }
-                return json.data;
-            };
+            const client = createClient({
+                tenantIdentifier: matchedTenant.identifier,
+                accessTokenId: authContext.accessTokenId,
+                accessTokenSecret: authContext.accessTokenSecret,
+                staticAuthToken: matchedTenant.staticAuthToken,
+            });
 
             return queryExecutor({
-                executor,
-                introspectionUrl: url,
-                introspectionHeaders: headers,
+                executor: (q, v) => client.nextPimApi(q, v),
+                introspectionUrl: `https://api.crystallize.com/@${matchedTenant.identifier}`,
+                introspectionHeaders: {
+                    "X-Crystallize-Access-Token-Id": authContext.accessTokenId,
+                    "X-Crystallize-Access-Token-Secret": authContext.accessTokenSecret,
+                },
                 query,
                 variables,
             });

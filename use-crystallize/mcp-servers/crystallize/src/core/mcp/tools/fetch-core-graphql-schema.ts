@@ -23,14 +23,10 @@ export const createFetchCoreGraphqlSchemaToolWrapper = ({ graphqlSchemaCompacter
         }),
         handler: async ({ tenant, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
-            const url = `https://api.crystallize.com/@${tenant}`;
+            const url = `https://api.crystallize.com/@${matchedTenant.identifier}`;
             const headers: Record<string, string> = {};
-            if (matchedTenant.staticAuthToken) {
-                headers["X-Crystallize-Static-Auth-Token"] = matchedTenant.staticAuthToken;
-            } else {
-                headers["X-Crystallize-Access-Token-Id"] = authContext.accessTokenId;
-                headers["X-Crystallize-Access-Token-Secret"] = authContext.accessTokenSecret;
-            }
+            headers["X-Crystallize-Access-Token-Id"] = authContext.accessTokenId;
+            headers["X-Crystallize-Access-Token-Secret"] = authContext.accessTokenSecret;
             try {
                 const schema = await graphqlSchemaCompacter(url, { operations: "both", headers });
                 return {
