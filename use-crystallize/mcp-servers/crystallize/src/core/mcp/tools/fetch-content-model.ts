@@ -2,12 +2,14 @@ import { createClient } from "@crystallize/js-api-client";
 import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
+import { AuthContextResolver } from "../../../contracts/auth-context-resolver";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
+    authContextResolver: AuthContextResolver;
 };
 
-export const createFetchContentModelToolWrapper = ({ tenantMatcher }: Deps) => {
+export const createFetchContentModelToolWrapper = ({ tenantMatcher, authContextResolver }: Deps) => {
     return defineToolWrapper({
         description:
             "Fetch the content model (shapes) from a Crystallize tenant. " +
@@ -21,10 +23,9 @@ export const createFetchContentModelToolWrapper = ({ tenantMatcher }: Deps) => {
         handler: async ({ tenant, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const client = createClient({
-                tenantIdentifier: tenant,
-                accessTokenId: authContext.accessTokenId,
-                accessTokenSecret: authContext.accessTokenSecret,
-                staticAuthToken: matchedTenant.staticAuthToken,
+                tenantIdentifier: matchedTenant.identifier,
+                tenantId: matchedTenant.id,
+                ...authContextResolver.getClientCredentials(authContext),
             });
             try {
                 const data = await client.nextPimApi(

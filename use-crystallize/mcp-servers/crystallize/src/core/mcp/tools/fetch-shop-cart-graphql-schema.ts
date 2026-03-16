@@ -2,23 +2,26 @@ import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { GraphqlSchemaCompacter } from "../../../contracts/graphql-schema-compacter";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
+import { AuthContextResolver } from "../../../contracts/auth-context-resolver";
+import { AuthContext } from "../../../contracts/app-context";
 
 type Deps = {
     graphqlSchemaCompacter: GraphqlSchemaCompacter;
     tenantMatcher: TenantMatcher;
+    authContextResolver: AuthContextResolver;
 };
 
 const fetchShopApiToken = async (
     tenant: string,
-    authContext: { accessTokenId: string; accessTokenSecret: string },
+    authContext: AuthContext,
+    authContextResolver: AuthContextResolver,
 ): Promise<string> => {
     const response = await fetch(`https://shop-api.crystallize.com/@${tenant}/auth/token`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json; charset=UTF-8",
             Accept: "application/json",
-            "X-Crystallize-Access-Token-Id": authContext.accessTokenId,
-            "X-Crystallize-Access-Token-Secret": authContext.accessTokenSecret,
+            ...authContextResolver.getAuthHeaders(authContext),
         },
         body: JSON.stringify({ scopes: ["cart"], expiresIn: 3600 * 12 }),
     });
@@ -29,7 +32,11 @@ const fetchShopApiToken = async (
     return results.token;
 };
 
-export const createFetchShopCartGraphqlSchemaToolWrapper = ({ graphqlSchemaCompacter, tenantMatcher }: Deps) => {
+export const createFetchShopCartGraphqlSchemaToolWrapper = ({
+    graphqlSchemaCompacter,
+    tenantMatcher,
+    authContextResolver,
+}: Deps) => {
     return defineToolWrapper({
         description:
             "Fetch the compacted GraphQL schema of the Crystallize Shop Cart API for a given tenant. " +
@@ -44,7 +51,7 @@ export const createFetchShopCartGraphqlSchemaToolWrapper = ({ graphqlSchemaCompa
         }),
         handler: async ({ tenant, authContext }) => {
             tenantMatcher(authContext.tenants, { identifier: tenant });
-            const shopApiToken = await fetchShopApiToken(tenant, authContext);
+            const shopApiToken = await fetchShopApiToken(tenant, authContext, authContextResolver);
             const url = `https://shop-api.crystallize.com/@${tenant}/cart`;
             const headers: Record<string, string> = {
                 Authorization: `Bearer ${shopApiToken}`,

@@ -19,8 +19,11 @@ import { createGraphqlQueryCorrector } from "./services/graphql-query-corrector"
 import { GraphqlQueryCorrector } from "../contracts/graphql-query-corrector";
 import { createQueryExecutor } from "./services/query-with-correction";
 import { QueryExecutor } from "../contracts/query-executor";
+import { createAuthContextResolver } from "./services/auth-context-helpers";
+import { AuthContextResolver } from "../contracts/auth-context-resolver";
 
 type Container = Services & {
+    authContextResolver: AuthContextResolver;
     graphqlQueryCorrector: GraphqlQueryCorrector;
     queryExecutor: QueryExecutor;
     skillsToolWrapper: ReturnType<typeof createSkillsToolWrapper>;
@@ -67,6 +70,7 @@ export const buildContainer = (_env: CloudflareBindings): AwilixContainer<Contai
 
     container.register({
         // services
+        authContextResolver: asFunction(createAuthContextResolver).singleton(),
         tenantMatcher: asFunction(createTenantMatcher).singleton(),
         graphqlSchemaCompacter: asFunction(createGraphlSchemaCompacter).singleton(),
         graphqlQueryCorrector: asFunction(createGraphqlQueryCorrector).singleton(),

@@ -22,11 +22,21 @@ export const createFetchCatalogGraphqlSchemaToolWrapper = ({ graphqlSchemaCompac
         }),
         handler: async ({ tenant, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
+            if (authContext.type !== "token" && !matchedTenant.staticAuthToken) {
+                return {
+                    content: [
+                        {
+                            type: "text" as const,
+                            text: "The Catalogue API requires token-based authentication or a static auth token.",
+                        },
+                    ],
+                };
+            }
             const url = `https://api.crystallize.com/${tenant}/catalogue`;
             const headers: Record<string, string> = {};
             if (matchedTenant.staticAuthToken) {
                 headers["X-Crystallize-Static-Auth-Token"] = matchedTenant.staticAuthToken;
-            } else {
+            } else if (authContext.type === "token") {
                 headers["X-Crystallize-Access-Token-Id"] = authContext.accessTokenId;
                 headers["X-Crystallize-Access-Token-Secret"] = authContext.accessTokenSecret;
             }

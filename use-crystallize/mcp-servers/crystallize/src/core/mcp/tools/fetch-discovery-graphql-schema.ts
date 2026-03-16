@@ -2,7 +2,6 @@ import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { GraphqlSchemaCompacter } from "../../../contracts/graphql-schema-compacter";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
-
 type Deps = {
     graphqlSchemaCompacter: GraphqlSchemaCompacter;
     tenantMatcher: TenantMatcher;
@@ -23,13 +22,9 @@ export const createFetchDiscoveryGraphqlSchemaToolWrapper = ({ graphqlSchemaComp
         handler: async ({ tenant, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const url = `https://api.crystallize.com/${tenant}/discovery`;
-            const headers: Record<string, string> = {};
-            if (matchedTenant.staticAuthToken) {
-                headers["X-Crystallize-Static-Auth-Token"] = matchedTenant.staticAuthToken;
-            } else {
-                headers["X-Crystallize-Access-Token-Id"] = authContext.accessTokenId;
-                headers["X-Crystallize-Access-Token-Secret"] = authContext.accessTokenSecret;
-            }
+            const headers: Record<string, string> = matchedTenant.staticAuthToken
+                ? { "X-Crystallize-Static-Auth-Token": matchedTenant.staticAuthToken }
+                : {};
             try {
                 const schema = await graphqlSchemaCompacter(url, { operations: "queries", headers });
                 return {

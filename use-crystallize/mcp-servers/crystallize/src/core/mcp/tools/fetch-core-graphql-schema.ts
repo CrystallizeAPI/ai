@@ -2,13 +2,19 @@ import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { GraphqlSchemaCompacter } from "../../../contracts/graphql-schema-compacter";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
+import { AuthContextResolver } from "../../../contracts/auth-context-resolver";
 
 type Deps = {
     graphqlSchemaCompacter: GraphqlSchemaCompacter;
     tenantMatcher: TenantMatcher;
+    authContextResolver: AuthContextResolver;
 };
 
-export const createFetchCoreGraphqlSchemaToolWrapper = ({ graphqlSchemaCompacter, tenantMatcher }: Deps) => {
+export const createFetchCoreGraphqlSchemaToolWrapper = ({
+    graphqlSchemaCompacter,
+    tenantMatcher,
+    authContextResolver,
+}: Deps) => {
     return defineToolWrapper({
         description:
             "Fetch the compacted GraphQL schema of the Crystallize Core API (aka Core Next) for a given tenant. " +
@@ -24,9 +30,7 @@ export const createFetchCoreGraphqlSchemaToolWrapper = ({ graphqlSchemaCompacter
         handler: async ({ tenant, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const url = `https://api.crystallize.com/@${matchedTenant.identifier}`;
-            const headers: Record<string, string> = {};
-            headers["X-Crystallize-Access-Token-Id"] = authContext.accessTokenId;
-            headers["X-Crystallize-Access-Token-Secret"] = authContext.accessTokenSecret;
+            const headers: Record<string, string> = authContextResolver.getAuthHeaders(authContext);
             try {
                 const schema = await graphqlSchemaCompacter(url, { operations: "both", headers });
                 return {

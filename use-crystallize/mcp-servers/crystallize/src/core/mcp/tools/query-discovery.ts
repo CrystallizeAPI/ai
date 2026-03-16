@@ -3,7 +3,6 @@ import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { QueryExecutor } from "../../../contracts/query-executor";
-
 type Deps = {
     tenantMatcher: TenantMatcher;
     queryExecutor: QueryExecutor;
@@ -25,19 +24,14 @@ export const createQueryDiscoveryToolWrapper = ({ tenantMatcher, queryExecutor }
         handler: async ({ tenant, query, variables, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const client = createClient({
-                tenantIdentifier: tenant,
-                accessTokenId: authContext.accessTokenId,
-                accessTokenSecret: authContext.accessTokenSecret,
+                tenantIdentifier: matchedTenant.identifier,
+                tenantId: matchedTenant.id,
                 staticAuthToken: matchedTenant.staticAuthToken,
             });
 
-            const introspectionHeaders: Record<string, string> = {};
-            if (matchedTenant.staticAuthToken) {
-                introspectionHeaders["X-Crystallize-Static-Auth-Token"] = matchedTenant.staticAuthToken;
-            } else {
-                introspectionHeaders["X-Crystallize-Access-Token-Id"] = authContext.accessTokenId;
-                introspectionHeaders["X-Crystallize-Access-Token-Secret"] = authContext.accessTokenSecret;
-            }
+            const introspectionHeaders: Record<string, string> = matchedTenant.staticAuthToken
+                ? { "X-Crystallize-Static-Auth-Token": matchedTenant.staticAuthToken }
+                : {};
 
             return queryExecutor({
                 executor: (q, v) => client.discoveryApi(q, v),

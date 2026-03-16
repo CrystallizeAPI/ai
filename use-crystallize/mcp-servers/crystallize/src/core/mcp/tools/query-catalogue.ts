@@ -25,17 +25,30 @@ export const createQueryCatalogueToolWrapper = ({ tenantMatcher, queryExecutor }
         }),
         handler: async ({ tenant, query, variables, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
+            if (authContext.type !== "token" && !matchedTenant.staticAuthToken) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: "The Catalogue API requires token-based authentication or a static auth token.",
+                        },
+                    ],
+                };
+            }
+
             const client = createClient({
-                tenantIdentifier: tenant,
-                accessTokenId: authContext.accessTokenId,
-                accessTokenSecret: authContext.accessTokenSecret,
+                tenantIdentifier: matchedTenant.identifier,
+                tenantId: matchedTenant.id,
+                ...(authContext.type === "token"
+                    ? { accessTokenId: authContext.accessTokenId, accessTokenSecret: authContext.accessTokenSecret }
+                    : {}),
                 staticAuthToken: matchedTenant.staticAuthToken,
             });
 
             const introspectionHeaders: Record<string, string> = {};
             if (matchedTenant.staticAuthToken) {
                 introspectionHeaders["X-Crystallize-Static-Auth-Token"] = matchedTenant.staticAuthToken;
-            } else {
+            } else if (authContext.type === "token") {
                 introspectionHeaders["X-Crystallize-Access-Token-Id"] = authContext.accessTokenId;
                 introspectionHeaders["X-Crystallize-Access-Token-Secret"] = authContext.accessTokenSecret;
             }

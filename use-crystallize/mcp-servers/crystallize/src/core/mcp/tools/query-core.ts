@@ -4,13 +4,15 @@ import { defineToolWrapper } from "../../../contracts/tool";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { QueryExecutor } from "../../../contracts/query-executor";
 import { createClient } from "@crystallize/js-api-client";
+import { AuthContextResolver } from "../../../contracts/auth-context-resolver";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
     queryExecutor: QueryExecutor;
+    authContextResolver: AuthContextResolver;
 };
 
-export const createQueryCoreToolWrapper = ({ tenantMatcher, queryExecutor }: Deps) => {
+export const createQueryCoreToolWrapper = ({ tenantMatcher, queryExecutor, authContextResolver }: Deps) => {
     return defineToolWrapper({
         description:
             "Execute a read-only GraphQL query against the Crystallize Core API (aka Core Next). " +
@@ -55,18 +57,14 @@ export const createQueryCoreToolWrapper = ({ tenantMatcher, queryExecutor }: Dep
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const client = createClient({
                 tenantIdentifier: matchedTenant.identifier,
-                accessTokenId: authContext.accessTokenId,
-                accessTokenSecret: authContext.accessTokenSecret,
-                staticAuthToken: matchedTenant.staticAuthToken,
+                tenantId: matchedTenant.id,
+                ...authContextResolver.getClientCredentials(authContext),
             });
 
             return queryExecutor({
                 executor: (q, v) => client.nextPimApi(q, v),
                 introspectionUrl: `https://api.crystallize.com/@${matchedTenant.identifier}`,
-                introspectionHeaders: {
-                    "X-Crystallize-Access-Token-Id": authContext.accessTokenId,
-                    "X-Crystallize-Access-Token-Secret": authContext.accessTokenSecret,
-                },
+                introspectionHeaders: authContextResolver.getAuthHeaders(authContext),
                 query,
                 variables,
             });

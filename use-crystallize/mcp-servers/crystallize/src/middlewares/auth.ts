@@ -1,23 +1,27 @@
 import { createMiddleware } from "hono/factory";
 import type { AppContext, AuthContext } from "../contracts/app-context";
 import { createClient } from "@crystallize/js-api-client";
+import { getCookie } from "hono/cookie";
+
+const meQuery = `query { me { tenants { tenant { id name identifier staticAuthToken } } } }`;
 
 export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
     const accessTokenId = c.req.header("X-Crystallize-Access-Token-Id");
     const accessTokenSecret = c.req.header("X-Crystallize-Access-Token-Secret");
+    const sessionId = getCookie(c, "connect.sid") ?? c.req.header("X-Crystallize-Session-Id");
 
-    if (!accessTokenId || !accessTokenSecret) {
+    if (!sessionId && (!accessTokenId || !accessTokenSecret)) {
         return c.json(
             {
-                error: "Unauthorized: missing X-Crystallize-Access-Token-Id or X-Crystallize-Access-Token-Secret headers",
+                error: "Unauthorized: provide X-Crystallize-Access-Token-Id/Secret headers or a connect.sid cookie",
             },
             401,
         );
     }
+
     const client = createClient({
-        tenantIdentifier: "dummy", // Tenant identifier is required but not used for authentication validation here
-        accessTokenId,
-        accessTokenSecret,
+        tenantIdentifier: "dummy",
+        ...(sessionId ? { sessionId } : { accessTokenId, accessTokenSecret }),
     });
 
     const response = await client.pimApi<{
@@ -26,16 +30,23 @@ export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
                 tenant: AuthContext["tenants"][number];
             }>;
         };
-    }>(`query { me { tenants { tenant { id name identifier staticAuthToken } } } }`);
+    }>(meQuery);
 
     if (!response || !response.me || !response.me.tenants || response.me.tenants.length === 0) {
-        return c.json({ error: "Unauthorized: invalid access token" }, 401);
+        return c.json({ error: "Unauthorized: invalid credentials" }, 401);
     }
 
-    c.set("authContext", {
-        accessTokenId,
-        accessTokenSecret,
-        tenants: response.me.tenants.map((t) => t.tenant),
-    });
+    const tenants = response.me.tenants.map((t) => t.tenant);
+
+    if (sessionId) {
+        c.set("authContext", { type: "session", sessionId, tenants });
+    } else {
+        c.set("authContext", {
+            type: "token",
+            accessTokenId: accessTokenId!,
+            accessTokenSecret: accessTokenSecret!,
+            tenants,
+        });
+    }
     await next();
 });

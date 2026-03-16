@@ -9,6 +9,7 @@ export const testTenants: AuthContext["tenants"] = [
 ];
 
 export const testAuthContext: AuthContext = {
+    type: "token",
     accessTokenId: "test-id",
     accessTokenSecret: "test-secret",
     tenants: testTenants,
