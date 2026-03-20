@@ -489,7 +489,7 @@ export function landingPage(): HtmlEscapedString {
         <canvas id="pinball"></canvas>
 
         <div id="content">
-          <h1>Build commerce<br />with AI agents</h1>
+          <h1>Commerce data.<br />MCP-ready.</h1>
           <p class="description">
             Connect your coding agent to Crystallize. Query catalogs, mutate
             content, manage pricing — all through natural language.
