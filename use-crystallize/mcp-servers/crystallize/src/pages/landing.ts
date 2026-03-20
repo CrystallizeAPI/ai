@@ -250,7 +250,44 @@ export function landingPage(): HtmlEscapedString {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Crystallize MCP Server</title>
+        <title>Crystallize MCP Server — Commerce Data, MCP-Ready</title>
+        <meta name="description" content="Connect your AI coding agent to Crystallize. Query product catalogs, fetch content models, introspect schemas — all through natural language via the Model Context Protocol." />
+        <link rel="canonical" href="https://mcp.crystallize.com" />
+
+        <link rel="icon" type="image/svg+xml" href="https://crystallize.com/crystallize-logo/crystallize-logo.svg" />
+        <link rel="shortcut icon" href="https://crystallize.com/favicon.ico" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://mcp.crystallize.com" />
+        <meta property="og:title" content="Crystallize MCP Server — Commerce Data, MCP-Ready" />
+        <meta property="og:description" content="Connect your AI coding agent to Crystallize. Query product catalogs, fetch content models, introspect schemas — all through natural language via the Model Context Protocol." />
+        <meta property="og:image" content="https://media.crystallize.com/crystallize_marketing/24/10/29/1/crystallize-meta-image.jpg" />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Crystallize MCP Server — Commerce Data, MCP-Ready" />
+        <meta name="twitter:description" content="Connect your AI coding agent to Crystallize. Query product catalogs, fetch content models, introspect schemas — all through natural language via the Model Context Protocol." />
+        <meta name="twitter:image" content="https://media.crystallize.com/crystallize_marketing/24/10/29/1/crystallize-meta-image.jpg" />
+
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          "name": "Crystallize MCP Server",
+          "url": "https://mcp.crystallize.com",
+          "description": "Connect your AI coding agent to Crystallize via the Model Context Protocol. Query product catalogs, fetch content models, and introspect schemas through natural language.",
+          "applicationCategory": "DeveloperApplication",
+          "operatingSystem": "Any",
+          "offers": { "@type": "Offer", "price": "0" },
+          "provider": {
+            "@type": "Organization",
+            "name": "Crystallize AS",
+            "url": "https://crystallize.com",
+            "logo": "https://crystallize.com/static/logo.png",
+            "email": "hello@crystallize.com"
+          }
+        }
+        </script>
+
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
@@ -371,6 +408,20 @@ export function landingPage(): HtmlEscapedString {
             text-decoration: underline;
           }
 
+          /* ── Top-left logo ── */
+          #top-logo {
+            position: fixed;
+            top: 20px;
+            left: 24px;
+            z-index: 20;
+            pointer-events: auto;
+          }
+          #top-logo img {
+            height: 56px;
+            opacity: 0.85;
+            display: block;
+          }
+
           /* ── Feature grid ── */
           .features-grid {
             display: flex;
@@ -448,6 +499,16 @@ export function landingPage(): HtmlEscapedString {
             }
           }
           @media (max-width: 700px) {
+            #top-logo {
+              left: 0;
+              right: 0;
+              top: 16px;
+              display: flex;
+              justify-content: center;
+            }
+            #top-logo img {
+              height: 36px;
+            }
             html,
             body {
               overflow: auto;
@@ -458,7 +519,7 @@ export function landingPage(): HtmlEscapedString {
             }
             #content {
               position: relative;
-              padding: 48px 24px 64px;
+              padding: calc(52px + 2.808rem) 24px 64px;
               justify-content: flex-start;
             }
             h1 {
@@ -487,6 +548,13 @@ export function landingPage(): HtmlEscapedString {
       </head>
       <body>
         <canvas id="pinball"></canvas>
+
+        <div id="top-logo">
+          <img
+            src="https://crystallize.com/crystallize-logo/crystallize-logo.svg"
+            alt="Crystallize"
+          />
+        </div>
 
         <div id="content">
           <h1>Commerce data.<br />MCP-ready.</h1>
