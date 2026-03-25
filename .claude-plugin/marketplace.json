@@ -5,8 +5,7 @@
         "email": "sebastien@crystallize.com"
     },
     "metadata": {
-        "description": "Official Crystallize Marketplace for Claude Code",
-        "version": "1.0.0"
+        "description": "Official Crystallize Marketplace for Claude Code"
     },
     "plugins": [
         {
