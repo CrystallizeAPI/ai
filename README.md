@@ -15,32 +15,42 @@ This repo contains three sub-projects:
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v20+)
-- [pnpm](https://pnpm.io/)
+- [Bun](https://bun.sh/)
 
 ## Getting Started
 
-Each sub-project manages its own dependencies independently. Navigate to the project you want to work on and install:
+A root `Makefile` provides convenience targets for common tasks:
+
+```bash
+make install        # Install dependencies for all sub-projects
+make codeclean      # Format (oxfmt) + type-check + lint
+make tests          # Run the test suite
+make serve-doc      # Start the documentation dev server
+make serve-mcp      # Start the MCP dev server
+```
+
+Run `make` (or `make list`) to see all available targets.
 
 ### Docs
 
 ```bash
 cd docs
-pnpm install
-pnpm dev        # Start dev server
-pnpm build      # Production build
-pnpm preview    # Preview production build
+bun install
+bun dev             # Start dev server
+bun run build       # Production build
+bun run preview     # Preview production build
 ```
 
 ### MCP Server
 
 ```bash
 cd use-crystallize/mcp-servers/crystallize
-pnpm install
-pnpm dev          # Vite dev server with HMR
-pnpm build        # Production build
-pnpm deploy       # Build + deploy to Cloudflare Workers
-pnpm codeclean    # Lint + format (oxlint + oxfmt)
-pnpm type-check   # TypeScript type checking
+bun install
+bun dev             # Vite dev server with HMR
+bun build           # Production build
+bun deploy          # Build + deploy to Cloudflare Workers
+bun codeclean       # Lint + format (oxlint + oxfmt)
+bun type-check      # TypeScript type checking
 ```
 
 ### Skills
@@ -63,16 +73,28 @@ X-Crystallize-Access-Token-Id: <your-token-id>
 X-Crystallize-Access-Token-Secret: <your-token-secret>
 ```
 
-## Inspect the MCP locally
+## Inspect the MCP Locally
 
-First you can add the MCP locally:
-
-```bash
-pnpm dlx add-mcp http://localhost:5173/mcp --header "X-Crystallize-Access-Token-Id: xxx" --header "X-Crystallize-Access-Token-Secret: xxx"
-```
-
-Then you can inspect it
+First start the MCP dev server:
 
 ```bash
-pnpm dlx @modelcontextprotocol/inspector
+make serve-mcp
 ```
+
+Then add and inspect it:
+
+```bash
+bunx add-mcp http://localhost:5173/mcp \
+  --header "X-Crystallize-Access-Token-Id: xxx" \
+  --header "X-Crystallize-Access-Token-Secret: xxx"
+
+bunx @modelcontextprotocol/inspector
+```
+
+## Contributing
+
+Please read the [contribution guidelines](.github/CONTRIBUTING.md) before submitting a pull request.
+
+## License
+
+[MIT](LICENSE) — Copyright 2026 Crystallize.
