@@ -5,6 +5,7 @@ import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { QueryExecutor } from "../../../contracts/query-executor";
 import { createClient } from "@crystallize/js-api-client";
 import { AuthContextResolver } from "../../../contracts/auth-context-resolver";
+import { tenantSchema, readOnlyQuerySchema, variablesSchema, buildAtApiUrl } from "../../security";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
@@ -23,10 +24,13 @@ export const createQueryCoreToolWrapper = ({ tenantMatcher, queryExecutor, authC
             "Only queries are allowed — mutations are blocked. " +
             "Do NOT use this for fetching items or products for storefronts — use Catalogue or Discovery APIs instead.",
         inputSchema: z.object({
-            tenant: z.string().describe("The tenant identifier"),
-            query: z.string().describe("The GraphQL query to execute (mutations are not allowed)"),
-            variables: z.record(z.string(), z.unknown()).optional().describe("Optional GraphQL variables"),
+            tenant: tenantSchema,
+            query: readOnlyQuerySchema,
+            variables: variablesSchema,
         }),
+        annotions: {
+            readOnlyHint: true,
+        },
         handler: async ({ tenant, query, variables, authContext }) => {
             try {
                 const doc = parse(query);
@@ -63,7 +67,7 @@ export const createQueryCoreToolWrapper = ({ tenantMatcher, queryExecutor, authC
 
             return queryExecutor({
                 executor: (q, v) => client.nextPimApi(q, v),
-                introspectionUrl: `https://api.crystallize.com/@${matchedTenant.identifier}`,
+                introspectionUrl: buildAtApiUrl("https://api.crystallize.com", matchedTenant.identifier, ""),
                 introspectionHeaders: authContextResolver.getAuthHeaders(authContext),
                 query,
                 variables,

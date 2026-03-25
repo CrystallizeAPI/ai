@@ -4,6 +4,7 @@ import { GraphqlSchemaCompacter } from "../../../contracts/graphql-schema-compac
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { AuthContextResolver } from "../../../contracts/auth-context-resolver";
 import { AuthContext } from "../../../contracts/app-context";
+import { tenantSchema, sanitizeErrorMessage, buildAtApiUrl } from "../../security";
 
 type Deps = {
     graphqlSchemaCompacter: GraphqlSchemaCompacter;
@@ -16,7 +17,7 @@ const fetchShopApiToken = async (
     authContext: AuthContext,
     authContextResolver: AuthContextResolver,
 ): Promise<string> => {
-    const response = await fetch(`https://shop-api.crystallize.com/@${tenant}/auth/token`, {
+    const response = await fetch(buildAtApiUrl("https://shop-api.crystallize.com", tenant, "/auth/token"), {
         method: "POST",
         headers: {
             "Content-Type": "application/json; charset=UTF-8",
@@ -27,7 +28,7 @@ const fetchShopApiToken = async (
     });
     const results = (await response.json()) as { success: boolean; token?: string; error?: string };
     if (!results.success || !results.token) {
-        throw new Error("Could not fetch shop API token: " + (results.error || "unknown error"));
+        throw new Error("Could not fetch shop API token");
     }
     return results.token;
 };
@@ -47,12 +48,15 @@ export const createFetchShopCartGraphqlSchemaToolWrapper = ({
             "applying discounts, and reading cart state. " +
             "Do NOT use this for orders or subscription contracts — those are separate Shop API endpoints.",
         inputSchema: z.object({
-            tenant: z.string().describe("The tenant identifier"),
+            tenant: tenantSchema,
         }),
+        annotions: {
+            readOnlyHint: true,
+        },
         handler: async ({ tenant, authContext }) => {
-            tenantMatcher(authContext.tenants, { identifier: tenant });
-            const shopApiToken = await fetchShopApiToken(tenant, authContext, authContextResolver);
-            const url = `https://shop-api.crystallize.com/@${tenant}/cart`;
+            const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
+            const shopApiToken = await fetchShopApiToken(matchedTenant.identifier, authContext, authContextResolver);
+            const url = buildAtApiUrl("https://shop-api.crystallize.com", matchedTenant.identifier, "/cart");
             const headers: Record<string, string> = {
                 Authorization: `Bearer ${shopApiToken}`,
             };
@@ -66,7 +70,7 @@ export const createFetchShopCartGraphqlSchemaToolWrapper = ({
                     content: [
                         {
                             type: "text",
-                            text: `Failed to fetch shop cart schema: ${error instanceof Error ? error.message : String(error)}`,
+                            text: `Failed to fetch shop cart schema: ${sanitizeErrorMessage(error)}`,
                         },
                     ],
                 };

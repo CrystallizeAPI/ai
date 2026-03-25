@@ -39,6 +39,9 @@ export const servicesProvider = createMiddleware<AppContext>(async (c, next) => 
             {
                 description: wrapper.description,
                 inputSchema: wrapper.inputSchema,
+                annotations: {
+                    readOnlyHint: true,
+                },
             },
             async (input) => {
                 const authContext = getMcpAuthContext();

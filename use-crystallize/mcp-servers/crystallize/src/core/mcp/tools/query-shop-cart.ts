@@ -6,6 +6,7 @@ import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { QueryExecutor } from "../../../contracts/query-executor";
 import { AuthContextResolver } from "../../../contracts/auth-context-resolver";
 import { AuthContext } from "../../../contracts/app-context";
+import { tenantSchema, readOnlyQuerySchema, variablesSchema, buildAtApiUrl } from "../../security";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
@@ -18,7 +19,7 @@ const fetchShopApiToken = async (
     authContext: AuthContext,
     authContextResolver: AuthContextResolver,
 ): Promise<string> => {
-    const response = await fetch(`https://shop-api.crystallize.com/@${tenant}/auth/token`, {
+    const response = await fetch(buildAtApiUrl("https://shop-api.crystallize.com", tenant, "/auth/token"), {
         method: "POST",
         headers: {
             "Content-Type": "application/json; charset=UTF-8",
@@ -29,7 +30,7 @@ const fetchShopApiToken = async (
     });
     const results = (await response.json()) as { success: boolean; token?: string; error?: string };
     if (!results.success || !results.token) {
-        throw new Error("Could not fetch shop API token: " + (results.error || "unknown error"));
+        throw new Error("Could not fetch shop API token");
     }
     return results.token;
 };
@@ -45,10 +46,13 @@ export const createQueryShopCartToolWrapper = ({ tenantMatcher, queryExecutor, a
             "Only queries are allowed — mutations are blocked. " +
             "Do NOT use this for orders or subscription contracts — those are separate Shop API endpoints.",
         inputSchema: z.object({
-            tenant: z.string().describe("The tenant identifier"),
-            query: z.string().describe("The GraphQL query to execute (mutations are not allowed)"),
-            variables: z.record(z.string(), z.unknown()).optional().describe("Optional GraphQL variables"),
+            tenant: tenantSchema,
+            query: readOnlyQuerySchema,
+            variables: variablesSchema,
         }),
+        annotions: {
+            readOnlyHint: true,
+        },
         handler: async ({ tenant, query, variables, authContext }) => {
             try {
                 const doc = parse(query);
@@ -83,8 +87,12 @@ export const createQueryShopCartToolWrapper = ({ tenantMatcher, queryExecutor, a
                 ...authContextResolver.getClientCredentials(authContext),
             });
 
-            const shopApiToken = await fetchShopApiToken(tenant, authContext, authContextResolver);
-            const introspectionUrl = `https://shop-api.crystallize.com/@${tenant}/cart`;
+            const shopApiToken = await fetchShopApiToken(matchedTenant.identifier, authContext, authContextResolver);
+            const introspectionUrl = buildAtApiUrl(
+                "https://shop-api.crystallize.com",
+                matchedTenant.identifier,
+                "/cart",
+            );
             const introspectionHeaders: Record<string, string> = {
                 Authorization: `Bearer ${shopApiToken}`,
             };

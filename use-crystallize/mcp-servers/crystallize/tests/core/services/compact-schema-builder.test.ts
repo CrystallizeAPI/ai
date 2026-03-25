@@ -10,7 +10,10 @@ mock.module("../../../src/core/services/compact-schema-builder", () => {
     };
 });
 
-import { createGraphlSchemaCompacter } from "../../../src/core/services/compact-schema-builder";
+import {
+    createGraphlSchemaCompacter,
+    compactSchemaFromIntrospection,
+} from "../../../src/core/services/compact-schema-builder";
 
 const SCHEMA_SDL = `
     type Query {
@@ -158,5 +161,21 @@ describe("compactSchemaBuilder", () => {
 
         const compacter = createGraphlSchemaCompacter();
         await expect(compacter("https://api.example.com/graphql")).rejects.toThrow("Introspection failed");
+    });
+
+    it("filters root fields with rootFieldFilter via compactSchemaFromIntrospection", () => {
+        const introspection = buildIntrospectionFromSDL(SCHEMA_SDL) as any;
+        const result = compactSchemaFromIntrospection(introspection, {
+            operations: "both",
+            rootFieldFilter: new Set(["products"]),
+        });
+
+        expect(result).toContain("# Queries");
+        expect(result).toContain("products");
+        expect(result).toContain("Product");
+        // categories is filtered out since it's not in the rootFieldFilter
+        expect(result).not.toContain("categories");
+        // createProduct mutation is also filtered out
+        expect(result).not.toContain("createProduct");
     });
 });

@@ -11,13 +11,13 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 1. Fork the repository
 2. Clone your fork locally
 3. Install dependencies:
-   ```bash
-   make install
-   ```
+    ```bash
+    make install
+    ```
 4. Create a branch for your changes:
-   ```bash
-   git checkout -b my-feature
-   ```
+    ```bash
+    git checkout -b my-feature
+    ```
 
 ## Development
 
@@ -48,11 +48,11 @@ make tests
 
 ### Project Layout
 
-| Area           | Path                                       | Stack                           |
-| -------------- | ------------------------------------------ | ------------------------------- |
-| **Skills**     | `use-crystallize/skills/`                  | Plain Markdown + YAML           |
-| **MCP Server** | `use-crystallize/mcp-servers/crystallize/` | Hono, Cloudflare Workers, Vite  |
-| **Docs**       | `docs/`                                    | Astro Starlight, Tailwind CSS   |
+| Area           | Path                                       | Stack                          |
+| -------------- | ------------------------------------------ | ------------------------------ |
+| **Skills**     | `use-crystallize/skills/`                  | Plain Markdown + YAML          |
+| **MCP Server** | `use-crystallize/mcp-servers/crystallize/` | Hono, Cloudflare Workers, Vite |
+| **Docs**       | `docs/`                                    | Astro Starlight, Tailwind CSS  |
 
 ## Submitting Changes
 

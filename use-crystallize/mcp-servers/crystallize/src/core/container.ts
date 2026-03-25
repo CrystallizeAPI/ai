@@ -21,9 +21,12 @@ import { createQueryExecutor } from "./services/query-with-correction";
 import { QueryExecutor } from "../contracts/query-executor";
 import { createAuthContextResolver } from "./services/auth-context-helpers";
 import { AuthContextResolver } from "../contracts/auth-context-resolver";
+import { createCoreSchemaDomainSplitter } from "./services/core-schema-domain-splitter";
+import { CoreSchemaDomainSplitter } from "../contracts/core-schema-domain-splitter";
 
 type Container = Services & {
     authContextResolver: AuthContextResolver;
+    coreSchemaDomainSplitter: CoreSchemaDomainSplitter;
     graphqlQueryCorrector: GraphqlQueryCorrector;
     queryExecutor: QueryExecutor;
     skillsToolWrapper: ReturnType<typeof createSkillsToolWrapper>;
@@ -73,6 +76,7 @@ export const buildContainer = (_env: CloudflareBindings): AwilixContainer<Contai
         authContextResolver: asFunction(createAuthContextResolver).singleton(),
         tenantMatcher: asFunction(createTenantMatcher).singleton(),
         graphqlSchemaCompacter: asFunction(createGraphlSchemaCompacter).singleton(),
+        coreSchemaDomainSplitter: asFunction(createCoreSchemaDomainSplitter).singleton(),
         graphqlQueryCorrector: asFunction(createGraphqlQueryCorrector).singleton(),
         queryExecutor: asFunction(createQueryExecutor).singleton(),
         mcpServer: asFunction(() => {

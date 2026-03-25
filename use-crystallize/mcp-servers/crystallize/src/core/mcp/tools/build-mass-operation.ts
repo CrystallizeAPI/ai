@@ -28,6 +28,9 @@ export const createBuildMassOperationToolWrapper = () => {
                 ),
             version: z.string().optional().describe("Mass operation file version. Defaults to '1.0.0'."),
         }),
+        annotions: {
+            readOnlyHint: true,
+        },
         handler: async ({ operations, version }) => {
             const result = OperationsSchema.safeParse({
                 version: version ?? "1.0.0",

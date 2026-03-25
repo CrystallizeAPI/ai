@@ -3,6 +3,8 @@ import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { QueryExecutor } from "../../../contracts/query-executor";
+import { tenantSchema, querySchema, variablesSchema, buildApiUrl } from "../../security";
+
 type Deps = {
     tenantMatcher: TenantMatcher;
     queryExecutor: QueryExecutor;
@@ -17,10 +19,13 @@ export const createQueryDiscoveryToolWrapper = ({ tenantMatcher, queryExecutor }
             "to build frontends. It uses a shape-typed schema where each shape in the tenant becomes a GraphQL type. " +
             "Use this for searching, filtering, listing items, and aggregating data for storefront use cases.",
         inputSchema: z.object({
-            tenant: z.string().describe("The tenant identifier"),
-            query: z.string().describe("The GraphQL query to execute"),
-            variables: z.record(z.string(), z.unknown()).optional().describe("Optional GraphQL variables"),
+            tenant: tenantSchema,
+            query: querySchema,
+            variables: variablesSchema,
         }),
+        annotions: {
+            readOnlyHint: true,
+        },
         handler: async ({ tenant, query, variables, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const client = createClient({
@@ -35,7 +40,7 @@ export const createQueryDiscoveryToolWrapper = ({ tenantMatcher, queryExecutor }
 
             return queryExecutor({
                 executor: (q, v) => client.discoveryApi(q, v),
-                introspectionUrl: `https://api.crystallize.com/${tenant}/discovery`,
+                introspectionUrl: buildApiUrl("https://api.crystallize.com", matchedTenant.identifier, "/discovery"),
                 introspectionHeaders,
                 query,
                 variables,

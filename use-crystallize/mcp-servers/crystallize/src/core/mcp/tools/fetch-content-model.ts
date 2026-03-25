@@ -3,6 +3,7 @@ import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { AuthContextResolver } from "../../../contracts/auth-context-resolver";
+import { tenantSchema, sanitizeErrorMessage } from "../../security";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
@@ -18,8 +19,11 @@ export const createFetchContentModelToolWrapper = ({ tenantMatcher, authContextR
             "Returns all shapes with their name, identifier, type, and resolved configuration. " +
             "Use this to understand the structure and schema of a tenant's content.",
         inputSchema: z.object({
-            tenant: z.string().describe("The tenant identifier"),
+            tenant: tenantSchema,
         }),
+        annotions: {
+            readOnlyHint: true,
+        },
         handler: async ({ tenant, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const client = createClient({
@@ -50,7 +54,7 @@ export const createFetchContentModelToolWrapper = ({ tenantMatcher, authContextR
                     content: [
                         {
                             type: "text",
-                            text: `GraphQL errors:\n${error instanceof Error ? error.message : String(error)}`,
+                            text: `GraphQL errors:\n${sanitizeErrorMessage(error)}`,
                         },
                     ],
                 };

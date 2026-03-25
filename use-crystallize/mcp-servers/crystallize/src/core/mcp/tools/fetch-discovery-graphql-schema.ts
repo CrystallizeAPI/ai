@@ -2,6 +2,8 @@ import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { GraphqlSchemaCompacter } from "../../../contracts/graphql-schema-compacter";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
+import { tenantSchema, sanitizeErrorMessage, buildApiUrl } from "../../security";
+
 type Deps = {
     graphqlSchemaCompacter: GraphqlSchemaCompacter;
     tenantMatcher: TenantMatcher;
@@ -17,11 +19,14 @@ export const createFetchDiscoveryGraphqlSchemaToolWrapper = ({ graphqlSchemaComp
             "The Discovery API is a storefront API for searching, browsing, filtering, and faceting items and products " +
             "to build frontends — it uses a shape-typed schema where each shape in the tenant becomes a GraphQL type.",
         inputSchema: z.object({
-            tenant: z.string().describe("The tenant identifier"),
+            tenant: tenantSchema,
         }),
+        annotions: {
+            readOnlyHint: true,
+        },
         handler: async ({ tenant, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
-            const url = `https://api.crystallize.com/${tenant}/discovery`;
+            const url = buildApiUrl("https://api.crystallize.com", matchedTenant.identifier, "/discovery");
             const headers: Record<string, string> = matchedTenant.staticAuthToken
                 ? { "X-Crystallize-Static-Auth-Token": matchedTenant.staticAuthToken }
                 : {};
@@ -35,7 +40,7 @@ export const createFetchDiscoveryGraphqlSchemaToolWrapper = ({ graphqlSchemaComp
                     content: [
                         {
                             type: "text",
-                            text: `Failed to fetch discovery schema: ${error instanceof Error ? error.message : String(error)}`,
+                            text: `Failed to fetch discovery schema: ${sanitizeErrorMessage(error)}`,
                         },
                     ],
                 };

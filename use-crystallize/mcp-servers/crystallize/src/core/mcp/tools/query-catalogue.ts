@@ -3,6 +3,7 @@ import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { QueryExecutor } from "../../../contracts/query-executor";
+import { tenantSchema, querySchema, variablesSchema, buildApiUrl } from "../../security";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
@@ -19,10 +20,13 @@ export const createQueryCatalogueToolWrapper = ({ tenantMatcher, queryExecutor }
             "Use this for reading specific items by path or ID, traversing the catalogue tree, " +
             "and accessing detailed component data with full type support.",
         inputSchema: z.object({
-            tenant: z.string().describe("The tenant identifier"),
-            query: z.string().describe("The GraphQL query to execute"),
-            variables: z.record(z.string(), z.unknown()).optional().describe("Optional GraphQL variables"),
+            tenant: tenantSchema,
+            query: querySchema,
+            variables: variablesSchema,
         }),
+        annotions: {
+            readOnlyHint: true,
+        },
         handler: async ({ tenant, query, variables, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             if (authContext.type !== "token" && !matchedTenant.staticAuthToken) {
@@ -55,7 +59,7 @@ export const createQueryCatalogueToolWrapper = ({ tenantMatcher, queryExecutor }
 
             return queryExecutor({
                 executor: (q, v) => client.catalogueApi(q, v),
-                introspectionUrl: `https://api.crystallize.com/${tenant}/catalogue`,
+                introspectionUrl: buildApiUrl("https://api.crystallize.com", matchedTenant.identifier, "/catalogue"),
                 introspectionHeaders,
                 query,
                 variables,

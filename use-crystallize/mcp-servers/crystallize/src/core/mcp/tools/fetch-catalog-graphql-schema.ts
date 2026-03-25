@@ -2,6 +2,7 @@ import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
 import { GraphqlSchemaCompacter } from "../../../contracts/graphql-schema-compacter";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
+import { tenantSchema, sanitizeErrorMessage, buildApiUrl } from "../../security";
 
 type Deps = {
     graphqlSchemaCompacter: GraphqlSchemaCompacter;
@@ -18,8 +19,11 @@ export const createFetchCatalogGraphqlSchemaToolWrapper = ({ graphqlSchemaCompac
             "The Catalogue API is a storefront API for fetching items, products, and content " +
             "to build frontends — it provides path-based reads with strong consistency and union types for components.",
         inputSchema: z.object({
-            tenant: z.string().describe("The tenant identifier"),
+            tenant: tenantSchema,
         }),
+        annotions: {
+            readOnlyHint: true,
+        },
         handler: async ({ tenant, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             if (authContext.type !== "token" && !matchedTenant.staticAuthToken) {
@@ -32,7 +36,7 @@ export const createFetchCatalogGraphqlSchemaToolWrapper = ({ graphqlSchemaCompac
                     ],
                 };
             }
-            const url = `https://api.crystallize.com/${tenant}/catalogue`;
+            const url = buildApiUrl("https://api.crystallize.com", matchedTenant.identifier, "/catalogue");
             const headers: Record<string, string> = {};
             if (matchedTenant.staticAuthToken) {
                 headers["X-Crystallize-Static-Auth-Token"] = matchedTenant.staticAuthToken;
@@ -50,7 +54,7 @@ export const createFetchCatalogGraphqlSchemaToolWrapper = ({ graphqlSchemaCompac
                     content: [
                         {
                             type: "text" as const,
-                            text: `Failed to fetch catalogue schema: ${error instanceof Error ? error.message : String(error)}`,
+                            text: `Failed to fetch catalogue schema: ${sanitizeErrorMessage(error)}`,
                         },
                     ],
                 };

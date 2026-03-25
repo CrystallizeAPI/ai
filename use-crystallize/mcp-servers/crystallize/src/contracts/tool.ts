@@ -1,5 +1,6 @@
 import z from "zod";
 import { AuthContext } from "./app-context";
+import { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 
 type ToolWrapperResult = {
     content: Array<{
@@ -11,6 +12,7 @@ type ToolWrapperResult = {
 export type ToolWrapper<TSchema extends z.ZodType> = {
     description: string;
     inputSchema: TSchema;
+    annotions?: ToolAnnotations;
     handler: (
         input: z.infer<TSchema> & {
             authContext: AuthContext;

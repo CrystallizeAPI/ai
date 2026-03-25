@@ -1,5 +1,6 @@
 import type { GraphqlQueryCorrector } from "../../contracts/graphql-query-corrector";
 import type { QueryExecutor } from "../../contracts/query-executor";
+import { sanitizeErrorMessage } from "../security";
 
 type Deps = {
     graphqlQueryCorrector: GraphqlQueryCorrector;
@@ -12,7 +13,7 @@ export const createQueryExecutor =
             const data = await executor(query, variables);
             return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorMessage = sanitizeErrorMessage(error);
 
             try {
                 const result = await graphqlQueryCorrector(query, introspectionUrl, introspectionHeaders);
@@ -32,7 +33,7 @@ export const createQueryExecutor =
                         }
                         return { content: [{ type: "text", text }] };
                     } catch (retryError) {
-                        const retryMessage = retryError instanceof Error ? retryError.message : String(retryError);
+                        const retryMessage = sanitizeErrorMessage(retryError);
                         const correctionsLog = result.corrections
                             .map((c) => `- "${c.field}" → "${c.suggestion}"`)
                             .join("\n");
