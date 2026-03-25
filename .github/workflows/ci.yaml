@@ -1,0 +1,31 @@
+name: CI
+
+on:
+    push:
+        branches: ["main"]
+    pull_request:
+        types: [opened, synchronize, reopened]
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    test:
+        name: 🧪 Tests
+        runs-on: ubuntu-latest
+        steps:
+            - name: ⬇️ Checkout repo
+              uses: actions/checkout@v6
+
+            - name: 📦 Setup Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: 📥 Install deps
+              run: make install
+
+            - name: 💄 Code Clean
+              run: make codeclean
+
+            - name: 🏄 Run the tests
+              run: make tests

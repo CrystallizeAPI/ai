@@ -1,0 +1,46 @@
+name: Deploy Docs
+
+on:
+    workflow_run:
+        workflows: ["CI"]
+        types:
+            - completed
+
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+jobs:
+    build:
+        name: 🦾 Build the doc artefact
+        if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+        runs-on: ubuntu-latest
+        steps:
+            - name: ⬇️ Checkout repo
+              uses: actions/checkout@v6
+
+            - name: 📦 Setup Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: 📥 Install deps
+              run: make install
+
+            - name: 🏄 Build and upload
+              uses: withastro/action@v6
+              with:
+                  path: docs
+                  package-manager: bun@latest
+
+    deploy:
+        name: 🚀 Deploy to GitHub Pages
+        if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+        needs: build
+        runs-on: ubuntu-latest
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - name: 🚢 Ship it
+              id: deployment
+              uses: actions/deploy-pages@v5
