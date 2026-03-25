@@ -2,6 +2,22 @@
 
 The Core API provides comprehensive read access to items, customers, orders, shapes, and tenant configuration. Use this for admin interfaces, reporting, and complex filtering needs.
 
+## Table of Contents
+
+- [Base URL](#base-url)
+- [Authentication](#authentication)
+- [Core API vs Other APIs](#core-api-vs-other-apis)
+- [Item Queries](#item-queries) — Get by ID, list with pagination, get components, check identifiers
+- [Customer Queries](#customer-queries) — Get by identifier, list, customer groups
+- [Order Queries](#order-queries) — Get by ID, list with advanced filtering
+- [Shape and Piece Queries](#shape-and-piece-queries) — Shape definitions, pieces
+- [Flow Queries](#flow-queries) — Flows and flow content
+- [Archive Queries](#archive-queries) — Archived versions
+- [Bulk Task Queries](#bulk-task-queries) — Task status and listing
+- [File and Image Queries](#file-and-image-queries) — Images
+- [Error Handling](#error-handling) — Union return types
+- [TypeScript Types](#typescript-types)
+
 ## Base URL
 
 ```
@@ -25,6 +41,7 @@ curl -X POST 'https://api.crystallize.com/@your-tenant' \
 ## Core API vs Other APIs
 
 **Use Core API for:**
+
 - Admin interfaces and dashboards
 - Complex order filtering (by customer, SKU, payment provider)
 - Reading shape/piece definitions
@@ -32,6 +49,7 @@ curl -X POST 'https://api.crystallize.com/@your-tenant' \
 - Bulk data access
 
 **Use Discovery/Catalogue API for:**
+
 - Storefront product listings
 - Search and filtering
 - Public content access
@@ -165,10 +183,7 @@ query GetItemComponent {
 
 ```graphql
 query CheckIdentifier {
-  isIdentifierAvailable(
-    tenantId: "tenant-id"
-    identifier: "new-product-slug"
-  ) {
+  isIdentifierAvailable(tenantId: "tenant-id", identifier: "new-product-slug") {
     ... on IdentifierAvailability {
       available
     }
@@ -387,6 +402,7 @@ query ListOrders {
 ```
 
 **Filter Options:**
+
 - `customerIdentifier` - Filter by customer email/identifier
 - `sku` - Filter orders containing specific SKU
 - `paymentProvider` - Filter by payment method (stripe, klarna, etc.)
@@ -599,11 +615,7 @@ query GetBulkTask {
 
 ```graphql
 query ListBulkTasks {
-  bulkTasks(
-    tenantId: "tenant-id"
-    first: 20
-    filter: { status: running }
-  ) {
+  bulkTasks(tenantId: "tenant-id", first: 20, filter: { status: running }) {
     edges {
       node {
         id
@@ -683,6 +695,7 @@ query {
 ```
 
 Common error types:
+
 - `UnauthorizedError` - Invalid or missing credentials
 - `ItemNotFoundError` - Item doesn't exist
 - `CustomerNotFoundError` - Customer doesn't exist
@@ -698,8 +711,8 @@ import {
   Query,
   GetItemQuery,
   GetCustomerQuery,
-  ListOrdersQuery
-} from '@/generated/core';
+  ListOrdersQuery,
+} from "@/generated/core";
 ```
 
 Types are generated from the Core API schema via GraphQL Code Generator.

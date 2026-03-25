@@ -32,12 +32,36 @@ This is the backbone of the page builder. A shape (e.g. `landing-page`, `categor
       "multilingual": true,
       "allowDuplicates": true,
       "choices": [
-        { "id": "banner",             "type": "piece", "config": { "piece": { "identifier": "banner" } } },
-        { "id": "feature-highlights", "type": "piece", "config": { "piece": { "identifier": "feature-highlights" } } },
-        { "id": "product-slider",     "type": "piece", "config": { "piece": { "identifier": "product-slider" } } },
-        { "id": "story-slider",       "type": "piece", "config": { "piece": { "identifier": "story-slider" } } },
-        { "id": "picture-grid",       "type": "piece", "config": { "piece": { "identifier": "picture-grid" } } },
-        { "id": "category-slider",    "type": "piece", "config": { "piece": { "identifier": "category-slider" } } }
+        {
+          "id": "banner",
+          "type": "piece",
+          "config": { "piece": { "identifier": "banner" } }
+        },
+        {
+          "id": "feature-highlights",
+          "type": "piece",
+          "config": { "piece": { "identifier": "feature-highlights" } }
+        },
+        {
+          "id": "product-slider",
+          "type": "piece",
+          "config": { "piece": { "identifier": "product-slider" } }
+        },
+        {
+          "id": "story-slider",
+          "type": "piece",
+          "config": { "piece": { "identifier": "story-slider" } }
+        },
+        {
+          "id": "picture-grid",
+          "type": "piece",
+          "config": { "piece": { "identifier": "picture-grid" } }
+        },
+        {
+          "id": "category-slider",
+          "type": "piece",
+          "config": { "piece": { "identifier": "category-slider" } }
+        }
       ]
     }
   }
@@ -54,14 +78,14 @@ Key flags:
 
 Each block is a `piece` shape with its own component set. Pieces are defined once and referenced by multiple shapes — both `landing-page` and `category` share the exact same set of blocks in Furnitut.
 
-| Piece identifier      | What it renders                              | Key components                                         |
-| --------------------- | -------------------------------------------- | ------------------------------------------------------ |
-| `banner`              | Full-width hero/promotional section          | title, description, image, call-to-action, layout      |
-| `feature-highlights`  | USP grid (repeatable icon + headline + copy) | usp (contentChunk, repeatable), layout                 |
-| `product-slider`      | Curated horizontal product carousel          | title, description, itemRelations → products, layout   |
-| `story-slider`        | Editorial story carousel                     | title, description, itemRelations → stories, layout    |
-| `picture-grid`        | Fixed 4-image visual grid                    | title, description, images (min/max: 4), layout        |
-| `category-slider`     | Category navigation carousel                 | title, description, itemRelations → categories, layout |
+| Piece identifier     | What it renders                              | Key components                                         |
+| -------------------- | -------------------------------------------- | ------------------------------------------------------ |
+| `banner`             | Full-width hero/promotional section          | title, description, image, call-to-action, layout      |
+| `feature-highlights` | USP grid (repeatable icon + headline + copy) | usp (contentChunk, repeatable), layout                 |
+| `product-slider`     | Curated horizontal product carousel          | title, description, itemRelations → products, layout   |
+| `story-slider`       | Editorial story carousel                     | title, description, itemRelations → stories, layout    |
+| `picture-grid`       | Fixed 4-image visual grid                    | title, description, images (min/max: 4), layout        |
+| `category-slider`    | Category navigation carousel                 | title, description, itemRelations → categories, layout |
 
 ### 3. The `layout` Piece — Shared Styling Contract
 
@@ -128,12 +152,12 @@ The `multilingual: true` flag on `componentMultipleChoice` enables **localized s
 
 With localized structure enabled, each language/market gets its own **independent selection and ordering of blocks**. This is not just about translating text inside the same blocks — the entire page composition can differ:
 
-| Market  | Blocks on landing page                                     |
-| ------- | ---------------------------------------------------------- |
-| English | Hero Banner → Product Slider → Testimonials → CTA Banner  |
-| German  | Hero Banner → Feature Highlights → Product Slider          |
-| French  | Video Section → Category Slider → Story Slider → Banner   |
-| Japanese| Banner → Picture Grid → Product Slider → Feature Highlights|
+| Market   | Blocks on landing page                                      |
+| -------- | ----------------------------------------------------------- |
+| English  | Hero Banner → Product Slider → Testimonials → CTA Banner    |
+| German   | Hero Banner → Feature Highlights → Product Slider           |
+| French   | Video Section → Category Slider → Story Slider → Banner     |
+| Japanese | Banner → Picture Grid → Product Slider → Feature Highlights |
 
 ### Why this is the default recommendation
 
@@ -161,7 +185,7 @@ In these cases, set `multilingual: false` — but this is the exception, not the
 
 ### `componentChoice` — Exclusive Alternatives
 
-Used when a field should have one value from a set of *structurally different* types. Examples:
+Used when a field should have one value from a set of _structurally different_ types. Examples:
 
 - `layout.background-media`: image **or** video
 - `story.media`: image, shoppable-image, **or** video
@@ -182,7 +206,7 @@ Used when a field should have one value from a set of *structurally different* t
 }
 ```
 
-Use `componentChoice` (not `componentMultipleChoice`) when only *one* option should be active at a time.
+Use `componentChoice` (not `componentMultipleChoice`) when only _one_ option should be active at a time.
 
 ### `contentChunk` — Repeatable Inline Groups
 
@@ -200,9 +224,9 @@ Used inside a piece when you need an editor-managed list of structured items tha
     "contentChunk": {
       "repeatable": true,
       "components": [
-        { "id": "headline",    "type": "singleLine" },
+        { "id": "headline", "type": "singleLine" },
         { "id": "description", "type": "richText" },
-        { "id": "icon",        "type": "images" }
+        { "id": "icon", "type": "images" }
       ]
     }
   }
@@ -215,11 +239,11 @@ Use `contentChunk` for inline-repeated groups. Use `itemRelations` when those it
 
 Beyond `layout`, other pieces serve as shared field groups embedded across shapes:
 
-| Piece             | Used by                                              | Purpose                                |
-| ----------------- | ---------------------------------------------------- | -------------------------------------- |
-| `call-to-action`  | `banner`                                             | Repeatable `{label, url}` CTA buttons  |
-| `meta`            | `landing-page`, `category`, `product`, `story`       | SEO title, description, image          |
-| `dimensions`      | `product`, product variant                           | Physical measurements (W/H/D/weight)   |
+| Piece            | Used by                                        | Purpose                               |
+| ---------------- | ---------------------------------------------- | ------------------------------------- |
+| `call-to-action` | `banner`                                       | Repeatable `{label, url}` CTA buttons |
+| `meta`           | `landing-page`, `category`, `product`, `story` | SEO title, description, image         |
+| `dimensions`     | `product`, product variant                     | Physical measurements (W/H/D/weight)  |
 
 ---
 
@@ -277,20 +301,23 @@ category (folder shape)  ← same blocks component as landing-page
 // Example pattern
 blocks.map((block) => {
   switch (block.__typename || block.type) {
-    case 'banner':             return <Banner {...block} />
-    case 'feature-highlights': return <FeatureHighlights {...block} />
-    case 'product-slider':     return <ProductSlider {...block} />
+    case "banner":
+      return <Banner {...block} />;
+    case "feature-highlights":
+      return <FeatureHighlights {...block} />;
+    case "product-slider":
+      return <ProductSlider {...block} />;
     // ...
   }
-})
+});
 ```
 
 **Apply `layout` values as wrapper props**, not inside the block component itself. This keeps block components pure and reusable outside of the page builder context.
 
 ```jsx
 <BlockWrapper
-  displayWidth={block.layout.displayWidth}  // "stretch" | "contain"
-  theme={block.layout.theme}                // "light" | "dark" | ...
+  displayWidth={block.layout.displayWidth} // "stretch" | "contain"
+  theme={block.layout.theme} // "light" | "dark" | ...
   backgroundMedia={block.layout.backgroundMedia}
 >
   <Banner {...block} />

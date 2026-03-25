@@ -3,12 +3,34 @@ name: content-model
 description: Design content models in Crystallize using Shapes, Pieces, Components, Topic Maps, and Grids. Create product structures, define document types, build taxonomies, organize catalogue items, design relationships between items, implement classification bridges, configure item relations with shape restrictions, and architect scalable data models. Use when modeling content, creating shapes, defining components, building taxonomies, designing relationship patterns, implementing semantic bridges, configuring product variants, or structuring catalogue hierarchies.
 metadata:
   author: Crystallize
-  version: "2.0"
+  version: "3.0"
 ---
 
 # Crystallize Content Model Skill
 
 Design and implement content structures in Crystallize using a flexible modeling system for products, documents, and taxonomies.
+
+## Consultation Approach
+
+Before designing shapes, understand the business. Ask clarifying questions:
+
+1. **What are you selling or publishing?** Products, articles, courses, services?
+2. **How will customers discover items?** Browse categories, search, filter by attributes?
+3. **What makes each item unique?** Specs, features, editorial content, variants?
+4. **What's shared across items?** Brands, materials, certifications, authors?
+5. **Do you need multiple languages/markets?** Which fields vary by language?
+6. **What's the scale?** Number of products, categories, content pages?
+7. **Do items have relationships?** Bundles, kits, compatibility, recommendations?
+
+Use the answers to choose shape types, decide on classification patterns (topics vs documents), and plan the component structure. A content model that reflects the business intent is more valuable than one that's technically impressive.
+
+## Output Format
+
+The output of this skill is a **mass operations JSON file** — a structured document that creates all shapes and pieces in the correct order.
+
+After generating the mass operations JSON, **always validate it** using the `build-mass-operation` MCP tool. This tool validates against the official `@crystallize/schema` and returns either valid JSON or detailed error feedback. Fix any validation errors before presenting the result.
+
+The mass operations file follows the **4-phase ordering** described in the [Mass Operations section](#mass-operations--4-phase-ordering) below.
 
 ## Quick Start Decision Tree
 
@@ -46,6 +68,25 @@ Product variants have additional built-ins: `sku`, `images`, `videos`, `price`, 
 **Components are the additional fields you define** beyond these built-ins. For product shapes, use `variantComponents` in the shape definition to add custom components directly to product variants (e.g., custom certifications, variant-level specs).
 
 **IMPORTANT:** Do NOT add components for price or stock - these are native properties managed through the product variant's built-in fields. Only create custom price/stock components for specific edge cases (e.g., tiered pricing models, subscription pricing, price modifiers for configurators).
+
+**Product Identification:** The built-in `sku` field on product variants is the primary product identifier — use it for GTIN, EAN, ISBN, or any single identifier. Do NOT add a separate `gtin` or `ean` single-line component on the variant. If a product needs **multiple identifiers** (e.g., both ISBN-10 and ISBN-13, or a GTIN plus a legacy system ID), add an **identifiers chunk** with named fields to the shape:
+
+```
+Product Shape: Book
+  └── identifiers (contentChunk)
+        ├── isbn-10 (Single Line)
+        ├── isbn-13 (Single Line)
+        └── legacy-id (Single Line)
+
+Product Shape: Consumer Electronics
+  └── identifiers (contentChunk)
+        ├── gtin (Single Line)
+        ├── ean (Single Line)
+        ├── upc (Single Line)
+        └── legacy-id (Single Line)
+```
+
+Each identifier gets its own named component — not a generic key/value pattern. This keeps the data typed, queryable, and self-documenting. Also useful during migrations to preserve old system identifiers alongside the new SKU.
 
 See [Shapes Reference](references/shapes.md) and [Content Modelling Guide](references/content-modelling.md) for details.
 
@@ -386,23 +427,28 @@ For complete pattern details with examples, see [Design Patterns Reference](refe
 ### Consolidation Approach
 
 **Step 1: Identify common components**
+
 - Extract all shared components (description, SEO, images, etc.)
 - These become the base components of the consolidated shape
 
 **Step 2: Create a type selector**
+
 - Add a selection component to distinguish between variants
 - Example: `product-type` with options "plant", "vase", "bundle"
 
 **Step 3: Extract variant-specific attributes into pieces**
+
 - Create separate pieces for each variant's unique components
 - Example: `plant-attributes` piece, `vase-attributes` piece
 
 **Step 4: Use choice component for polymorphic structure**
+
 - Add a choice component that conditionally shows the appropriate piece based on the type selection
 
 ### Example: Consolidating Plant and Vase into Product
 
 **Before consolidation (2 shapes):**
+
 ```
 Shape: Plant (product)
   ├── description (richText)
@@ -419,6 +465,7 @@ Shape: Vase (product)
 ```
 
 **After consolidation (1 shape + 2 pieces):**
+
 ```json
 {
   "intent": "shape/upsert",
@@ -467,12 +514,18 @@ Shape: Vase (product)
         }
       }
     },
-    { "id": "seo", "name": "SEO", "type": "piece", "config": { "piece": { "identifier": "seo" } } }
+    {
+      "id": "seo",
+      "name": "SEO",
+      "type": "piece",
+      "config": { "piece": { "identifier": "seo" } }
+    }
   ]
 }
 ```
 
 **Supporting pieces:**
+
 ```json
 {
   "intent": "piece/upsert",
@@ -571,6 +624,7 @@ Shape: Vase (product)
 ```
 
 **Benefits:**
+
 - Single product shape instead of multiple
 - Shared components (description, SEO) defined once
 - Type-specific attributes cleanly separated into pieces
@@ -578,6 +632,7 @@ Shape: Vase (product)
 - Clearer information architecture
 
 **Trade-offs:**
+
 - Slightly more complex for editors (choice component requires selecting variant type)
 - Frontend may need to handle polymorphic structure
 - Only worthwhile when shapes share significant overlap
@@ -720,6 +775,8 @@ Piece: "SEO"  (not "SEO Metadata")
 
 ❌ **Mixing variant data with product data** - Use variant attributes (built-in) for size/color/sku
 
+❌ **Adding GTIN/EAN/ISBN as a variant component** - The built-in `sku` field handles single product identifiers. For multiple identifiers, add a chunk with named single-line components (e.g., `isbn-10`, `isbn-13`, `gtin`, `ean`, `upc`, `legacy-id`) at the shape level, not on the variant.
+
 ❌ **Adding price or stock components to product shapes** - Products have native `price` and `stock` fields on variants. Only add custom pricing/stock components for specific edge cases (tiered pricing, subscription models, configurator price modifiers, bulk discounts)
 
 ❌ **Selection for expandable values** - Use documents + item relations for brands/categories that grow
@@ -758,6 +815,7 @@ When creating shapes and pieces via mass operations (Bulk Task API), use a **4-p
 4. **Add components to shapes** → `intent: "shape/upsert"` (identifier + name + type + `components`/`variantComponents`)
 
 **REQUIRED FIELDS**:
+
 - All upsert operations MUST include `identifier` and `name`
 - Shape upserts MUST include `type`
 
@@ -824,7 +882,12 @@ Components can reference pieces (via `type: "piece"`) and shapes (via `itemRelat
       "type": "product",
       "components": [
         { "id": "description", "name": "Description", "type": "richText" },
-        { "id": "seo", "name": "SEO", "type": "piece", "config": { "piece": { "identifier": "seo" } } },
+        {
+          "id": "seo",
+          "name": "SEO",
+          "type": "piece",
+          "config": { "piece": { "identifier": "seo" } }
+        },
         {
           "id": "brand",
           "name": "Brand",
@@ -856,6 +919,23 @@ Components can reference pieces (via `type: "piece"`) and shapes (via `itemRelat
 ```
 
 **Note:** Using `piece/upsert` or `shape/upsert` in a single operation (without the 4-phase split) will work ONLY if there are no cross-references. When pieces reference other pieces or shapes reference pieces/other shapes, the 4-phase order is required.
+
+## Validation Checklist
+
+Before presenting the mass operations JSON, verify:
+
+1. **Validate with `build-mass-operation` tool** — Run the operations array through the MCP tool and fix any schema errors. This is the source of truth.
+2. **`acceptedShapeIdentifiers`** on every `itemRelations` component — no untyped relations
+3. **No structural nesting violations** — `contentChunk`, `componentChoice`, `componentMultipleChoice` cannot be direct children of each other
+4. **Every `contentChunk` has at least 1 component** — empty chunks are invalid
+5. **Every `componentChoice`/`componentMultipleChoice` has at least 2 choices** — single-choice is invalid
+6. **No custom price/stock components** on product shapes — these are built-in on variants
+7. **`paragraphCollection` config always has `multilingual` array** — this is required, not optional (use `[]` for no localization, `["title", "body", "images", "videos"]` for full localization)
+8. **`datetime` config uses only valid fields** — `required`, `discoverable`, `multilingual` only. There is no `format` field.
+9. **`files` config**: if `acceptedContentTypes` is provided, each entry needs `contentType` (required). If `maxFileSize` is provided, both `size` and `unit` are required.
+10. **Naming conventions** — all identifiers use lowercase-with-hyphens (no camelCase, no underscores)
+11. **Reusable SEO piece** — create an SEO piece and reference it from multiple shapes
+12. **Localization strategy** — translatable for marketing text, non-translatable for universal data (codes, dimensions)
 
 ## References
 

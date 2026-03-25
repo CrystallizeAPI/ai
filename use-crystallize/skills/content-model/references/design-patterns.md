@@ -480,7 +480,7 @@ The classification (role/meaning) can be a **Selection** (simple label) or an **
 
 ### The problem it solves
 
-A single semantic concept can take **one of several mutually exclusive structural forms** — *poly-* (many) + *morph* (form). The meaning stays the same, but the internal fields change based on a deliberate selection. You want to handle this variation within a single shape rather than creating separate shapes. Crystallize implements this via the **Choice** (`componentChoice`) and **Multiple Choice** (`componentMultipleChoice`) component types.
+A single semantic concept can take **one of several mutually exclusive structural forms** — _poly-_ (many) + _morph_ (form). The meaning stays the same, but the internal fields change based on a deliberate selection. You want to handle this variation within a single shape rather than creating separate shapes. Crystallize implements this via the **Choice** (`componentChoice`) and **Multiple Choice** (`componentMultipleChoice`) component types.
 
 ### Recognizing when you need it
 
@@ -537,6 +537,7 @@ Product Shape
 For large or reusable field sets, reference **Pieces** inside choice options instead of defining components inline. This makes variants more maintainable and reusable across shapes.
 
 **When to use this variant:**
+
 - Choice variants have many components (10+ fields each)
 - The same variant appears in multiple choice components or shapes
 - You want to update variant fields in one place
@@ -593,6 +594,7 @@ For large or reusable field sets, reference **Pieces** inside choice options ins
 ```
 
 **Benefits:**
+
 - Cleaner JSON structure — choice definitions stay focused on selection
 - Pieces are reusable across multiple shapes and choices
 - Easier to maintain — update piece definition once, affects all uses

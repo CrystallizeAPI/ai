@@ -21,12 +21,12 @@ Every promotion is built from these parts:
 
 How the discount is calculated:
 
-| Mechanism | Description | Use Case |
-|-----------|-------------|----------|
-| **Percentage** | % off the original price | "20% off all shoes" |
-| **Fixed** | Flat amount off | "$10 off when you spend $50+" |
-| **X for Y** | Buy X items, pay for Y | "Buy 3, pay for 2" (cheapest items are free) |
-| **Cart** | Reduce the cart total | "$20 off the entire order" |
+| Mechanism      | Description              | Use Case                                     |
+| -------------- | ------------------------ | -------------------------------------------- |
+| **Percentage** | % off the original price | "20% off all shoes"                          |
+| **Fixed**      | Flat amount off          | "$10 off when you spend $50+"                |
+| **X for Y**    | Buy X items, pay for Y   | "Buy 3, pay for 2" (cheapest items are free) |
+| **Cart**       | Reduce the cart total    | "$20 off the entire order"                   |
 
 ### 2. Period (optional)
 
@@ -61,18 +61,19 @@ Which product variants the promotion affects:
 
 Control how the promotion behaves:
 
-| Limitation | Description | Example |
-|-----------|-------------|---------|
-| **Cumulative** | Can combine with other discounts? | Yes/No |
-| **Combine with** | Specific promotions it can stack with | Only with "Free Shipping" |
-| **Repeatable** | Applies per qualifying set or once per cart | "Buy 3 pay 2" repeats for every set of 3 |
-| **Max usage** | Total times it can be applied to a cart | Max 1 application per cart |
-| **Max per customer** | Times each customer can use it | 1 per customer lifetime |
-| **Quantity per trigger** | Items discounted per trigger match | Discount 1 item per trigger |
+| Limitation               | Description                                 | Example                                  |
+| ------------------------ | ------------------------------------------- | ---------------------------------------- |
+| **Cumulative**           | Can combine with other discounts?           | Yes/No                                   |
+| **Combine with**         | Specific promotions it can stack with       | Only with "Free Shipping"                |
+| **Repeatable**           | Applies per qualifying set or once per cart | "Buy 3 pay 2" repeats for every set of 3 |
+| **Max usage**            | Total times it can be applied to a cart     | Max 1 application per cart               |
+| **Max per customer**     | Times each customer can use it              | 1 per customer lifetime                  |
+| **Quantity per trigger** | Items discounted per trigger match          | Discount 1 item per trigger              |
 
 ## Common Promotion Patterns
 
 ### Simple Sitewide Sale
+
 ```
 Mechanism: Percentage — 20% off
 Period: Black Friday weekend (Nov 25–28)
@@ -82,6 +83,7 @@ Limitations: Not cumulative
 ```
 
 ### Coupon Code
+
 ```
 Mechanism: Percentage — 15% off
 Period: None (always active)
@@ -91,6 +93,7 @@ Limitations: Max 1 per customer
 ```
 
 ### Buy X Get Y Free
+
 ```
 Mechanism: X for Y — Buy 3, pay for 2
 Period: None
@@ -100,6 +103,7 @@ Limitations: Repeatable (every 3 items), cumulative
 ```
 
 ### Free Shipping Threshold
+
 ```
 Mechanism: Cart — Reduce shipping to $0
 Period: None
@@ -109,6 +113,7 @@ Limitations: Cumulative (can combine with product discounts)
 ```
 
 ### Members-Only Discount
+
 ```
 Mechanism: Percentage — 10% off
 Period: None
@@ -118,6 +123,7 @@ Limitations: Cumulative, no max usage
 ```
 
 ### Bundle Discount
+
 ```
 Mechanism: Fixed — $15 off
 Period: Summer campaign (Jun 1 – Aug 31)
@@ -128,16 +134,108 @@ Limitations: Max 1 per cart
 
 ## Promotions vs Price Lists vs Price Variants
 
-| Feature | Price Variants | Price Lists | Promotions |
-|---------|---------------|-------------|------------|
-| Scope | Global / all products | Product or market specific | Cart level |
-| Visibility | Always (on product pages) | Always (resolved at query/checkout) | Only in cart/checkout |
-| Time-limited | No | Yes (via period) | Yes (via period) |
-| Conditions | None | Market / customer | Cart contents, coupons |
-| Coupon codes | ❌ | ❌ | ✅ |
-| Buy X Get Y | ❌ | ❌ | ✅ |
-| Per-customer limits | ❌ | ❌ | ✅ |
-| Stacking rules | N/A | Priority-based | Cumulative / exclusive |
+| Feature             | Price Variants            | Price Lists                         | Promotions             |
+| ------------------- | ------------------------- | ----------------------------------- | ---------------------- |
+| Scope               | Global / all products     | Product or market specific          | Cart level             |
+| Visibility          | Always (on product pages) | Always (resolved at query/checkout) | Only in cart/checkout  |
+| Time-limited        | No                        | Yes (via period)                    | Yes (via period)       |
+| Conditions          | None                      | Market / customer                   | Cart contents, coupons |
+| Coupon codes        | ❌                        | ❌                                  | ✅                     |
+| Buy X Get Y         | ❌                        | ❌                                  | ✅                     |
+| Per-customer limits | ❌                        | ❌                                  | ✅                     |
+| Stacking rules      | N/A                       | Priority-based                      | Cumulative / exclusive |
+
+## Applying Promotions in the Cart
+
+Promotions are resolved during cart hydration in the Shop API. The cart context determines which market, customer, and coupon codes are active.
+
+### Cart Hydration with a Coupon Code
+
+```graphql
+mutation HydrateCartWithCoupon {
+  cart {
+    hydrate(
+      input: {
+        context: { market: ["eu-retail"], voucherCode: "WELCOME15" }
+        items: [
+          { sku: "TSHIRT-RED-L", quantity: 2 }
+          { sku: "HOODIE-BLK-M", quantity: 1 }
+        ]
+      }
+    ) {
+      cart {
+        items {
+          variant {
+            sku
+            name
+          }
+          quantity
+          price {
+            gross
+            net
+            currency
+            discount {
+              amount
+              percentage
+            }
+          }
+        }
+        total {
+          gross
+          net
+          currency
+          discount
+        }
+      }
+    }
+  }
+}
+```
+
+The response includes a `discount` field on each item and on the cart total when a promotion has been applied. If the coupon code is invalid or no promotion matches, the prices are returned without discounts.
+
+### Cart Hydration with Automatic Promotions
+
+Promotions without triggers apply automatically — no coupon code needed:
+
+```graphql
+mutation HydrateCart {
+  cart {
+    hydrate(
+      input: {
+        context: { markets: ["us-retail"] }
+        items: [{ sku: "SNEAKER-WHT-42", quantity: 3 }]
+      }
+    ) {
+      cart {
+        items {
+          variant {
+            sku
+          }
+          quantity
+          price {
+            gross
+            net
+            currency
+            discount {
+              amount
+              percentage
+            }
+          }
+        }
+        total {
+          gross
+          net
+          currency
+          discount
+        }
+      }
+    }
+  }
+}
+```
+
+If a "Buy 3, pay for 2" promotion targets sneakers and has no trigger restriction, the discount is applied automatically when the quantity condition is met.
 
 ## Best Practices
 

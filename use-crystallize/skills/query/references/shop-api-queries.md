@@ -26,17 +26,18 @@ curl -X POST 'https://shop-api.crystallize.com/YOUR_TENANT/auth/token' \
   -H 'x-crystallize-access-token-id: YOUR_ACCESS_TOKEN_ID' \
   -H 'x-crystallize-access-token-secret: YOUR_ACCESS_TOKEN_SECRET' \
   -H 'Content-Type: application/json' \
-  -d '{"scopes":["cart","cart:admin"],"expiresIn":18000}'
+  -d '{"scopes":["cart","cart:admin","order"],"expiresIn":18000}'
 ```
 
 ### Token Scopes
 
-| Scope        | Description              |
-| ------------ | ------------------------ |
-| `cart`       | Manage a single cart     |
-| `cart:admin` | Manage multiple carts    |
-| `usage`      | Access usage/metrics API |
-| `lock`       | Acquire/release locks    |
+| Scope        | Description                                  |
+| ------------ | -------------------------------------------- |
+| `cart`       | Manage a single cart                         |
+| `cart:admin` | Manage multiple carts                        |
+| `order`      | Create and manage orders (`/order` endpoint) |
+| `usage`      | Access usage/metrics API                     |
+| `lock`       | Acquire/release locks                        |
 
 ### Using the Token
 
@@ -54,6 +55,9 @@ Authorization: Bearer YOUR_JWT_TOKEN
 query {
   cart(id: "cart-id-here") {
     id
+    state
+    isStale
+    isExpired
     createdAt
     updatedAt
     items {
@@ -138,5 +142,7 @@ SKU items start as managed but become unmanaged if you override properties like 
 
 ## Related Links
 
+- [Shop API Order Queries](shop-api-order-queries.md) - Querying orders (`/order` endpoint)
+- [Shop API Order Mutations](../../mutation/references/shop-api-order-mutations.md) - Creating and managing orders
 - [Crystallize Shop API Documentation](https://crystallize.com/docs/developer/apis/shop-api)
 - [Order API Documentation](https://crystallize.com/learn/developer-guides/order-api)

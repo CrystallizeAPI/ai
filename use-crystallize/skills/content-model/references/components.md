@@ -209,6 +209,7 @@ They **CANNOT** have other structural components as direct children:
 **Polymorphic Choice with per-variant fields (CORRECT approach):**
 
 When building a "Product Type" selector where each type (Smartphone, Laptop, Headphones) has its OWN set of fields, you MUST:
+
 1. Create a `piece/create` operation for each variant
 2. Reference those pieces in the componentChoice
 
@@ -391,6 +392,7 @@ This granularity is useful for blog posts or editorial content where media is un
 Valid values: `"body"`, `"title"`, `"images"`, `"videos"`, `"structure"`
 
 **Examples:**
+
 - Everything localized: `["title", "body", "videos", "images"]`
 - Only text localized: `["title", "body"]`
 - Nothing localized (universal): `[]`
@@ -409,6 +411,7 @@ Valid values: `"body"`, `"title"`, `"images"`, `"videos"`, `"structure"`
 ```
 
 **Common mistakes**:
+
 - Omitting `multilingual` entirely → Error: "expected array, received undefined"
 - Using language codes like `["en"]` → Error: `Invalid option: expected one of "body"|"images"|"title"|"videos"|"structure"`
 - Using capitalized names like `["Title", "Body"]` → Must use lowercase: `["title", "body"]`

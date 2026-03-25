@@ -34,24 +34,42 @@ Use `variantComponents` when you need variant-level data beyond the built-in SKU
 
 ```graphql
 mutation {
-  createShape(input: {
-    name: "Phone"
-    type: product
-    components: [
-      # Product-level components
-      { id: "description", name: "Description", type: richText }
-      { id: "brand", name: "Brand", type: itemRelations,
-        config: { itemRelations: { acceptedShapeIdentifiers: ["brand"], maxItems: 1 } } }
-    ]
-    variantComponents: [
-      # Variant-level custom components
-      { id: "battery-capacity", name: "Battery Capacity", type: numeric,
-        config: { numeric: { units: ["mAh"], discoverable: true } } }
-      { id: "color-name", name: "Color Name", type: singleLine,
-        config: { singleLine: { multilingual: true } } }
-    ]
-  }) {
-    ... on Shape { identifier }
+  createShape(
+    input: {
+      name: "Phone"
+      type: product
+      components: [
+        # Product-level components
+        { id: "description", name: "Description", type: richText }
+        {
+          id: "brand"
+          name: "Brand"
+          type: itemRelations
+          config: {
+            itemRelations: { acceptedShapeIdentifiers: ["brand"], maxItems: 1 }
+          }
+        }
+      ]
+      variantComponents: [
+        # Variant-level custom components
+        {
+          id: "battery-capacity"
+          name: "Battery Capacity"
+          type: numeric
+          config: { numeric: { units: ["mAh"], discoverable: true } }
+        }
+        {
+          id: "color-name"
+          name: "Color Name"
+          type: singleLine
+          config: { singleLine: { multilingual: true } }
+        }
+      ]
+    }
+  ) {
+    ... on Shape {
+      identifier
+    }
   }
 }
 ```

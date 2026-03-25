@@ -1,6 +1,6 @@
 # Price Lists & Markets Reference
 
-Price lists and markets work together to localize and personalize pricing. Markets define *where* and *who*; price lists define *what price* they get.
+Price lists and markets work together to localize and personalize pricing. Markets define _where_ and _who_; price lists define _what price_ they get.
 
 ## Markets
 
@@ -13,6 +13,7 @@ Markets are set at **checkout time** via the cart context — they are not assig
 ### Creating Markets
 
 **In the Admin UI:**
+
 1. Go to **Settings → Markets**
 2. Click **Add market +**
 3. Enter a **name** (e.g. "Norway B2B") and **identifier** (e.g. `norway-b2b`)
@@ -20,9 +21,31 @@ Markets are set at **checkout time** via the cart context — they are not assig
 
 The identifier is used in the API and checkout context. Choose it carefully — it should be lowercase, hyphenated, and descriptive.
 
+### Via PIM API
+
+```graphql
+mutation CreateMarket {
+  market {
+    create(
+      input: {
+        tenantId: "your-tenant-id"
+        identifier: "eu-retail"
+        name: "EU Retail"
+        customerIdentifiers: []
+        type: B2C
+      }
+    ) {
+      identifier
+      name
+    }
+  }
+}
+```
+
 ### Market Architecture Patterns
 
 #### By Country
+
 ```
 Markets:
   ├── norway     — "Norway"
@@ -32,6 +55,7 @@ Markets:
 ```
 
 #### By Region
+
 ```
 Markets:
   ├── nordics    — "Nordics" (NO, SE, DK, FI)
@@ -41,6 +65,7 @@ Markets:
 ```
 
 #### By Segment × Region
+
 ```
 Markets:
   ├── eu-retail  — "EU Retail"
@@ -50,6 +75,7 @@ Markets:
 ```
 
 #### By Channel
+
 ```
 Markets:
   ├── online     — "Online Store"
@@ -65,17 +91,26 @@ At checkout time, the storefront sets the market in the cart context:
 mutation HydrateCart {
   cart {
     hydrate(
-      input: {
-        items: [{ sku: "TSHIRT-RED-L", quantity: 1 }]
-        market: { identifier: "eu-retail" }
-      }
+      context: { markets: ["eu-retail"] }
+      input: { items: [{ sku: "TSHIRT-RED-L", quantity: 1 }] }
     ) {
       cart {
         items {
-          variant { sku name }
-          price { gross net currency }
+          variant {
+            sku
+            name
+          }
+          price {
+            gross
+            net
+            currency
+          }
         }
-        total { gross net currency }
+        total {
+          gross
+          net
+          currency
+        }
       }
     }
   }
@@ -83,6 +118,7 @@ mutation HydrateCart {
 ```
 
 The market selection determines:
+
 1. Which **price lists** are evaluated
 2. Which **promotions** apply
 3. Which **currency** is resolved
@@ -96,6 +132,7 @@ Price lists override or adjust the base price (from price variants) for specific
 ### Creating Price Lists
 
 **In the Admin UI:**
+
 1. Go to **Special Prices → Price Lists**
 2. Click **Add new**
 3. Configure:
@@ -106,13 +143,38 @@ Price lists override or adjust the base price (from price variants) for specific
    - **Period** (optional) — Start and end dates
    - **Target** — Market, customer group, or individual customer
 
+### Via PIM API
+
+```graphql
+mutation CreatePriceList {
+  priceList {
+    create(
+      input: {
+        tenantId: "your-tenant-id"
+        identifier: "eu-summer-sale"
+        name: "EU Summer Sale"
+        modifierType: PERCENTAGE
+        priceVariants: ["retail"]
+        selectedProductVariants: { type: ALL }
+        targetAudience: { marketIdentifiers: ["eu-retail"] }
+        startDate: "2025-06-01T00:00:00Z"
+        endDate: "2025-08-31T23:59:59Z"
+      }
+    ) {
+      identifier
+      name
+    }
+  }
+}
+```
+
 ### Adjustment Types
 
-| Type | Description | Example |
-|------|-------------|---------|
-| **Percentage** | Adjust up or down by % | `-10%` = 10% discount |
-| **Relative** | Add or subtract a fixed amount | `-5` = $5 off |
-| **Absolute** | Set a specific price | `25.00` = exactly $25 |
+| Type           | Description                    | Example               |
+| -------------- | ------------------------------ | --------------------- |
+| **Percentage** | Adjust up or down by %         | `-10%` = 10% discount |
+| **Relative**   | Add or subtract a fixed amount | `-5` = $5 off         |
+| **Absolute**   | Set a specific price           | `25.00` = exactly $25 |
 
 ### Price List Patterns
 

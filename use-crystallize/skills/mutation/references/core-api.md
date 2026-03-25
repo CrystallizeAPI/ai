@@ -1,37 +1,21 @@
 # Core API Mutations Reference
 
-The Core API is the next-generation API for managing Crystallize data. It provides read/write access to items, shapes, customers, orders, and configuration.
+The Core API provides full read/write access to items, shapes, customers, orders, and configuration.
 
-## Base URL
+See [SKILL.md](../SKILL.md) for endpoint URLs and authentication headers.
 
-```
-https://api.crystallize.com/@{tenant-identifier}
-```
+## Table of Contents
 
-Note the `@` prefix before the tenant identifier.
+- [Item Mutations](#item-mutations) - Create, update, publish, unpublish, delete
+- [Component Updates](#component-updates) - Update individual fields on items
+- [Product Variants](#product-variants) - SKUs, pricing, stock, images
+- [Customer Mutations](#customer-mutations) - Individual, organization, update
+- [Order Mutations](#order-mutations) - Update order metadata
+- [Media & Images](#media--images) - Upload images for items and variants
+- [Flow Mutations](#flow-mutations) - Manage item workflows
+- [Error Handling](#error-handling)
 
-## Authentication
-
-Authentication is required. Use access tokens generated in the Crystallize App:
-
-```bash
-curl -X POST 'https://api.crystallize.com/@your-tenant' \
-  -H 'Content-Type: application/json' \
-  -H 'X-Crystallize-Access-Token-Id: YOUR_TOKEN_ID' \
-  -H 'X-Crystallize-Access-Token-Secret: YOUR_TOKEN_SECRET' \
-  -d '{"query": "..."}'
-```
-
-## Core API vs PIM API
-
-The Core API is replacing the legacy PIM API. Use Core API for:
-
-- Direct component updates
-- Path management
-- Filtering orders by customer, meta, payment provider, SKU
-- Creating pieces
-- Archive-related mutations
-- Flow operations
+---
 
 ## Item Mutations
 
@@ -106,12 +90,90 @@ mutation CreateFolder {
 }
 ```
 
-### Update Component
+### Publish Item
 
-Update individual components on an item:
+Publishing makes the item visible on the storefront. Creating an item does NOT publish it.
 
 ```graphql
-mutation UpdateComponent {
+mutation PublishItem {
+  item {
+    publish(id: "item-id", language: "en", includeDescendants: false) {
+      ... on Item {
+        id
+        publishedAt
+      }
+    }
+  }
+}
+```
+
+Set `includeDescendants: true` to publish all children (useful for folders).
+
+### Unpublish Item
+
+```graphql
+mutation UnpublishItem {
+  item {
+    unpublish(id: "item-id", language: "en", includeDescendants: false) {
+      ... on Item {
+        id
+      }
+    }
+  }
+}
+```
+
+### Delete Item
+
+```graphql
+mutation DeleteItem {
+  item {
+    delete(id: "item-id") {
+      ... on Item {
+        id
+      }
+      ... on BasicError {
+        errorName
+        message
+      }
+    }
+  }
+}
+```
+
+Deleting a folder with children will fail unless children are moved or deleted first.
+
+### Move Item in Tree
+
+```graphql
+mutation MoveItem {
+  item {
+    moveToTree(
+      itemId: "item-id"
+      input: { parentId: "new-parent-folder-id", position: 0 }
+    ) {
+      ... on Item {
+        id
+        tree {
+          parentId
+          path
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## Component Updates
+
+Use `updateComponent` to change individual fields on an item. Each call targets one component by its `componentId` (the identifier defined in the shape).
+
+### Rich Text
+
+```graphql
+mutation UpdateRichText {
   item {
     updateComponent(
       itemId: "item-id"
@@ -135,7 +197,7 @@ mutation UpdateComponent {
 }
 ```
 
-### Update Single Line Component
+### Single Line
 
 ```graphql
 mutation UpdateSingleLine {
@@ -156,27 +218,16 @@ mutation UpdateSingleLine {
 }
 ```
 
-### Publish Item
+### Numeric
 
 ```graphql
-mutation PublishItem {
+mutation UpdateNumeric {
   item {
-    publish(id: "item-id", language: "en", includeDescendants: false) {
-      ... on Item {
-        id
-        publishedAt
-      }
-    }
-  }
-}
-```
-
-### Unpublish Item
-
-```graphql
-mutation UnpublishItem {
-  item {
-    unpublish(id: "item-id", language: "en", includeDescendants: false) {
+    updateComponent(
+      itemId: "item-id"
+      language: "en"
+      component: { componentId: "weight", numeric: { number: 1.5, unit: "kg" } }
+    ) {
       ... on Item {
         id
       }
@@ -184,6 +235,190 @@ mutation UnpublishItem {
   }
 }
 ```
+
+### Boolean (Switch)
+
+```graphql
+mutation UpdateSwitch {
+  item {
+    updateComponent(
+      itemId: "item-id"
+      language: "en"
+      component: { componentId: "featured", boolean: { value: true } }
+    ) {
+      ... on Item {
+        id
+      }
+    }
+  }
+}
+```
+
+### Images Component
+
+```graphql
+mutation UpdateImages {
+  item {
+    updateComponent(
+      itemId: "item-id"
+      language: "en"
+      component: {
+        componentId: "gallery"
+        images: [
+          { key: "image-key-from-upload", altText: "Product front view" }
+        ]
+      }
+    ) {
+      ... on Item {
+        id
+      }
+    }
+  }
+}
+```
+
+### Selection
+
+```graphql
+mutation UpdateSelection {
+  item {
+    updateComponent(
+      itemId: "item-id"
+      language: "en"
+      component: { componentId: "color", selection: { keys: ["red"] } }
+    ) {
+      ... on Item {
+        id
+      }
+    }
+  }
+}
+```
+
+### Item Relations
+
+```graphql
+mutation UpdateItemRelations {
+  item {
+    updateComponent(
+      itemId: "item-id"
+      language: "en"
+      component: {
+        componentId: "related-products"
+        itemRelations: { itemIds: ["related-item-id-1", "related-item-id-2"] }
+      }
+    ) {
+      ... on Item {
+        id
+      }
+    }
+  }
+}
+```
+
+### Content Chunk (repeatable)
+
+```graphql
+mutation UpdateChunk {
+  item {
+    updateComponent(
+      itemId: "item-id"
+      language: "en"
+      component: {
+        componentId: "specifications"
+        contentChunk: {
+          chunks: [
+            [
+              { componentId: "label", singleLine: { text: "Weight" } }
+              { componentId: "value", singleLine: { text: "1.5 kg" } }
+            ]
+            [
+              { componentId: "label", singleLine: { text: "Dimensions" } }
+              { componentId: "value", singleLine: { text: "30x20x10 cm" } }
+            ]
+          ]
+        }
+      }
+    ) {
+      ... on Item {
+        id
+      }
+    }
+  }
+}
+```
+
+---
+
+## Product Variants
+
+Variants represent purchasable SKUs on a product. Each variant has built-in fields: `sku`, `name`, `price`, `stock`, `images`, `attributes`.
+
+### Set Variants on a Product
+
+This replaces all variants on the product. Include all variants you want to keep.
+
+```graphql
+mutation SetVariants {
+  product {
+    setVariants(
+      productId: "product-id"
+      language: "en"
+      variants: [
+        {
+          sku: "sneaker-red-42"
+          name: "Red - Size 42"
+          isDefault: true
+          price: 129.99
+          stock: 50
+          attributes: [
+            { attribute: "color", value: "Red" }
+            { attribute: "size", value: "42" }
+          ]
+          images: [
+            { key: "uploaded-image-key", altText: "Red sneaker size 42" }
+          ]
+        }
+        {
+          sku: "sneaker-blue-42"
+          name: "Blue - Size 42"
+          isDefault: false
+          price: 129.99
+          stock: 30
+          attributes: [
+            { attribute: "color", value: "Blue" }
+            { attribute: "size", value: "42" }
+          ]
+        }
+      ]
+    ) {
+      ... on Product {
+        id
+        variants {
+          sku
+          name
+          price
+          stock
+        }
+      }
+      ... on BasicError {
+        errorName
+        message
+      }
+    }
+  }
+}
+```
+
+### Update Stock
+
+Stock is managed per variant through `setVariants`. To update stock on a single variant without affecting others, query all current variants first, modify the stock value, and call `setVariants` with the full list.
+
+### Variant Attributes
+
+Attributes define the variant matrix (e.g., color + size). They appear as filterable properties in the storefront. Use consistent attribute names across products for proper filtering.
+
+---
 
 ## Customer Mutations
 
@@ -255,6 +490,26 @@ mutation UpdateCustomer {
 }
 ```
 
+### Delete Customer
+
+```graphql
+mutation DeleteCustomer {
+  customer {
+    delete(id: "customer-id") {
+      ... on Customer {
+        id
+      }
+      ... on BasicError {
+        errorName
+        message
+      }
+    }
+  }
+}
+```
+
+---
+
 ## Order Mutations
 
 ### Update Order
@@ -274,6 +529,63 @@ mutation UpdateOrder {
   }
 }
 ```
+
+---
+
+## Media & Images
+
+Images in Crystallize are uploaded to the tenant's media library, then referenced by key in components or variants.
+
+### Upload Image via URL
+
+```graphql
+mutation UploadImageFromURL {
+  fileUpload {
+    uploadFromUrl(
+      tenantId: "tenant-id"
+      url: "https://example.com/product-photo.jpg"
+      fileName: "product-photo.jpg"
+    ) {
+      ... on FileContent {
+        key
+        url
+      }
+      ... on BasicError {
+        errorName
+        message
+      }
+    }
+  }
+}
+```
+
+The returned `key` is used when assigning images to components or variants.
+
+---
+
+## Flow Mutations
+
+Flows model item workflows (e.g., Draft > Review > Published). Items can be moved between stages.
+
+### Set Item Flow Stage
+
+```graphql
+mutation SetFlowStage {
+  item {
+    setFlowStage(itemId: "item-id", stageId: "stage-id") {
+      ... on Item {
+        id
+      }
+      ... on BasicError {
+        errorName
+        message
+      }
+    }
+  }
+}
+```
+
+---
 
 ## Error Handling
 
@@ -305,11 +617,12 @@ mutation {
 
 Common error types:
 
-- `UnauthorizedError`
-- `BasicError`
-- `ItemNotFoundError`
-- `OrderDoesNotBelongToTenantError`
-- `ExperimentalFeaturesNotAvailableError`
+| Error                             | Cause                                            |
+| --------------------------------- | ------------------------------------------------ |
+| `BasicError`                      | General validation or input errors               |
+| `UnauthorizedError`               | Missing or insufficient access token permissions |
+| `ItemNotFoundError`               | Item ID doesn't exist or wrong tenant            |
+| `OrderDoesNotBelongToTenantError` | Order ID belongs to a different tenant           |
 
 ## Related Links
 

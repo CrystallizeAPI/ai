@@ -80,6 +80,7 @@ Used in both `components` and `variantComponents` arrays, and recursively inside
 The `config` object must match the component `type`. Only set the key that corresponds to the component type.
 
 ### boolean
+
 ```typescript
 config: {
   boolean: {
@@ -89,11 +90,13 @@ config: {
   }
 }
 ```
+
 No required sub-fields.
 
 ---
 
 ### singleLine
+
 ```typescript
 config: {
   singleLine: {
@@ -106,11 +109,13 @@ config: {
   }
 }
 ```
+
 No required sub-fields.
 
 ---
 
 ### richText
+
 ```typescript
 config: {
   richText: {
@@ -122,11 +127,13 @@ config: {
   }
 }
 ```
+
 No required sub-fields.
 
 ---
 
 ### numeric
+
 ```typescript
 config: {
   numeric: {
@@ -138,11 +145,13 @@ config: {
   }
 }
 ```
+
 No required sub-fields.
 
 ---
 
 ### datetime
+
 ```typescript
 config: {
   datetime: {
@@ -153,11 +162,13 @@ config: {
   }
 }
 ```
+
 No required sub-fields.
 
 ---
 
 ### location
+
 ```typescript
 config: {
   location: {
@@ -167,11 +178,13 @@ config: {
   }
 }
 ```
+
 No required sub-fields.
 
 ---
 
 ### images
+
 ```typescript
 config: {
   images: {
@@ -183,11 +196,13 @@ config: {
   }
 }
 ```
+
 No required sub-fields.
 
 ---
 
 ### videos
+
 ```typescript
 config: {
   videos: {
@@ -199,11 +214,13 @@ config: {
   }
 }
 ```
+
 No required sub-fields.
 
 ---
 
 ### files
+
 ```typescript
 config: {
   files: {
@@ -223,11 +240,13 @@ config: {
   }
 }
 ```
+
 Sub-fields `contentType`, `size`, and `unit` are required when their parent objects are provided.
 
 ---
 
 ### selection
+
 ```typescript
 config: {
   selection: {
@@ -244,11 +263,13 @@ config: {
   }
 }
 ```
+
 **`options` is required** (non-nullable array). Each option requires `key` (the API identifier) and `value` (the display label).
 
 ---
 
 ### propertiesTable
+
 ```typescript
 config: {
   propertiesTable: {
@@ -262,11 +283,13 @@ config: {
   }
 }
 ```
+
 `keys` is required when a section is provided. Omit `sections` entirely for fluid/dynamic keys (editors define keys at content time).
 
 ---
 
 ### itemRelations
+
 ```typescript
 config: {
   itemRelations: {
@@ -287,11 +310,13 @@ config: {
   }
 }
 ```
+
 **Always set `acceptedShapeIdentifiers`** — without it, editors can link any shape, breaking semantic meaning. The `min`/`max` fields (without `Items` suffix) are deprecated aliases — use `minItems`/`maxItems` instead.
 
 ---
 
 ### gridRelations
+
 ```typescript
 config: {
   gridRelations: {
@@ -303,11 +328,13 @@ config: {
   }
 }
 ```
+
 No required sub-fields.
 
 ---
 
 ### contentChunk
+
 ```typescript
 config: {
   contentChunk: {
@@ -319,11 +346,13 @@ config: {
   }
 }
 ```
+
 **`components` is required** (non-nullable) and **must contain at least 1 entry** — an empty `components: []` is invalid and meaningless. Children MUST be pieces or regular (non-structural) components. Structural components (componentChoice, componentMultipleChoice, contentChunk) cannot be direct children.
 
 ---
 
 ### componentChoice
+
 ```typescript
 config: {
   componentChoice: {
@@ -334,11 +363,13 @@ config: {
   }
 }
 ```
+
 **`choices` is required** (non-nullable). **Minimum 2 choices** — a single-choice componentChoice is invalid. Children MUST be pieces or regular components; not other structural components.
 
 ---
 
 ### componentMultipleChoice
+
 ```typescript
 config: {
   componentMultipleChoice: {
@@ -350,11 +381,13 @@ config: {
   }
 }
 ```
+
 **`choices` is required** (non-nullable). **Minimum 2 choices** — a single-choice componentMultipleChoice is invalid. **`allowDuplicates`** (not `repeatable`) controls whether editors can add the same choice more than once (e.g., two Banner sections on one page). Children MUST be pieces or regular components; not other structural components.
 
 ---
 
 ### piece
+
 ```typescript
 config: {
   piece: {
@@ -365,11 +398,13 @@ config: {
   }
 }
 ```
+
 **`identifier` is required** — must match an existing piece's identifier.
 
 ---
 
 ### paragraphCollection
+
 ```typescript
 config: {
   paragraphCollection: {
@@ -389,10 +424,10 @@ No required sub-fields.
 
 **NEVER nest structural components as direct children of other structural components:**
 
-| Parent type | Valid direct children | Invalid direct children |
-|---|---|---|
-| `contentChunk` | pieces, regular components | componentChoice, componentMultipleChoice, contentChunk |
-| `componentChoice` | pieces, regular components | componentChoice, componentMultipleChoice, contentChunk |
+| Parent type               | Valid direct children      | Invalid direct children                                |
+| ------------------------- | -------------------------- | ------------------------------------------------------ |
+| `contentChunk`            | pieces, regular components | componentChoice, componentMultipleChoice, contentChunk |
+| `componentChoice`         | pieces, regular components | componentChoice, componentMultipleChoice, contentChunk |
 | `componentMultipleChoice` | pieces, regular components | componentChoice, componentMultipleChoice, contentChunk |
 
 **Maximum nesting depth: 4 levels.** Level 5 and beyond may only contain non-structural components.
@@ -403,85 +438,97 @@ No required sub-fields.
 
 ```graphql
 mutation CreateProductShape {
-  createShape(input: {
-    name: "Guitar"
-    type: product
-    identifier: "guitar"
-    components: [
-      {
-        id: "description"
-        name: "Description"
-        type: richText
-        config: { richText: { discoverable: true, multilingual: true } }
-      }
-      {
-        id: "brand"
-        name: "Brand"
-        type: itemRelations
-        config: {
-          itemRelations: {
-            acceptedShapeIdentifiers: ["brand"]
-            minItems: 1
-            maxItems: 1
+  createShape(
+    input: {
+      name: "Guitar"
+      type: product
+      identifier: "guitar"
+      components: [
+        {
+          id: "description"
+          name: "Description"
+          type: richText
+          config: { richText: { discoverable: true, multilingual: true } }
+        }
+        {
+          id: "brand"
+          name: "Brand"
+          type: itemRelations
+          config: {
+            itemRelations: {
+              acceptedShapeIdentifiers: ["brand"]
+              minItems: 1
+              maxItems: 1
+            }
           }
         }
-      }
-      {
-        id: "body-type"
-        name: "Body Type"
-        type: itemRelations
-        config: {
-          itemRelations: {
-            acceptedShapeIdentifiers: ["body-type"]
-            maxItems: 1
+        {
+          id: "body-type"
+          name: "Body Type"
+          type: itemRelations
+          config: {
+            itemRelations: {
+              acceptedShapeIdentifiers: ["body-type"]
+              maxItems: 1
+            }
           }
         }
-      }
-      {
-        id: "finish"
-        name: "Finish"
-        type: selection
-        config: {
-          selection: {
-            options: [
-              { key: "gloss", value: "Gloss" }
-              { key: "satin", value: "Satin" }
-              { key: "matte", value: "Matte" }
-            ]
-            discoverable: true
+        {
+          id: "finish"
+          name: "Finish"
+          type: selection
+          config: {
+            selection: {
+              options: [
+                { key: "gloss", value: "Gloss" }
+                { key: "satin", value: "Satin" }
+                { key: "matte", value: "Matte" }
+              ]
+              discoverable: true
+            }
           }
         }
-      }
-      {
-        id: "specs"
-        name: "Specifications"
-        type: contentChunk
-        config: {
-          contentChunk: {
-            repeatable: false
-            components: [
-              { id: "weight", name: "Weight", type: numeric, config: { numeric: { units: ["kg", "lb"] } } }
-              { id: "scale-length", name: "Scale Length", type: numeric, config: { numeric: { units: ["mm", "inch"] } } }
-            ]
+        {
+          id: "specs"
+          name: "Specifications"
+          type: contentChunk
+          config: {
+            contentChunk: {
+              repeatable: false
+              components: [
+                {
+                  id: "weight"
+                  name: "Weight"
+                  type: numeric
+                  config: { numeric: { units: ["kg", "lb"] } }
+                }
+                {
+                  id: "scale-length"
+                  name: "Scale Length"
+                  type: numeric
+                  config: { numeric: { units: ["mm", "inch"] } }
+                }
+              ]
+            }
           }
         }
-      }
-      {
-        id: "seo"
-        name: "SEO"
-        type: piece
-        config: { piece: { identifier: "seo" } }
-      }
-    ]
-    variantComponents: [
-      {
-        id: "fret-count"
-        name: "Fret Count"
-        type: numeric
-        config: { numeric: { discoverable: true } }
-      }
-    ]
-  }) {
+        {
+          id: "seo"
+          name: "SEO"
+          type: piece
+          config: { piece: { identifier: "seo" } }
+        }
+      ]
+      variantComponents: [
+        {
+          id: "fret-count"
+          name: "Fret Count"
+          type: numeric
+          config: { numeric: { discoverable: true } }
+        }
+      ]
+    }
+  ) {
     ... on Shape {
       identifier
       name
@@ -499,9 +546,9 @@ mutation CreateProductShape {
 
 ## Common Errors
 
-| Error | Cause |
-|---|---|
-| `InvalidIdError` | `identifier` contains invalid characters (use lowercase letters, numbers, hyphens) |
-| `PieceIdentifierTakenError` | The `identifier` is already used by an existing piece |
-| `UnauthorizedError` | Access token lacks write permissions |
-| `ExperimentalFeaturesNotAvailableError` | Feature not available on current plan |
+| Error                                   | Cause                                                                              |
+| --------------------------------------- | ---------------------------------------------------------------------------------- |
+| `InvalidIdError`                        | `identifier` contains invalid characters (use lowercase letters, numbers, hyphens) |
+| `PieceIdentifierTakenError`             | The `identifier` is already used by an existing piece                              |
+| `UnauthorizedError`                     | Access token lacks write permissions                                               |
+| `ExperimentalFeaturesNotAvailableError` | Feature not available on current plan                                              |

@@ -116,7 +116,9 @@ The `browse` API provides **shape-typed access** — each shape becomes its own 
         defaultVariant {
           sku
           defaultPrice
-          firstImage { url }
+          firstImage {
+            url
+          }
         }
       }
     }
@@ -138,7 +140,10 @@ The `browse` API provides **shape-typed access** — each shape becomes its own 
             ... on product {
               name
               path
-              defaultVariant { sku defaultPrice }
+              defaultVariant {
+                sku
+                defaultPrice
+              }
             }
           }
         }
@@ -158,12 +163,22 @@ The `browse` API provides **shape-typed access** — each shape becomes its own 
 {
   folder: browse {
     category(language: en, path: "/shop") {
-      hits { name path }
+      hits {
+        name
+        path
+      }
     }
   }
   products: browse {
     product(language: en, path: "/shop/*") {
-      hits { name path defaultVariant { sku defaultPrice } }
+      hits {
+        name
+        path
+        defaultVariant {
+          sku
+          defaultPrice
+        }
+      }
     }
   }
 }
@@ -178,7 +193,10 @@ Use `paginationToken` (returned as `endCursor` in summary) for efficient, consis
 ```graphql
 {
   browse {
-    product(language: en, pagination: { limit: 25, after: "CURSOR_FROM_PREVIOUS_PAGE" }) {
+    product(
+      language: en
+      pagination: { limit: 25, after: "CURSOR_FROM_PREVIOUS_PAGE" }
+    ) {
       summary {
         totalHits
         hasMoreHits
@@ -194,6 +212,7 @@ Use `paginationToken` (returned as `endCursor` in summary) for efficient, consis
 ```
 
 **Flow:**
+
 1. First request: omit `after` (or set to `null`)
 2. Use `summary.endCursor` as the `after` value for the next page
 3. Stop when `summary.hasMoreHits` is `false`
@@ -210,7 +229,10 @@ The same cursor pattern works with `search`:
       hasMoreHits
       endCursor
     }
-    hits { name path }
+    hits {
+      name
+      path
+    }
   }
 }
 ```
