@@ -1,5 +1,5 @@
 ---
-name: get-data-from-crystallize
+name: query
 description: Query Crystallize APIs for product data, content, and commerce information. Use this skill when fetching product catalogs, listing items, searching products, filtering by attributes, browsing categories, building storefronts, retrieving cart data, reading orders or customers, building admin dashboards, getting item details by path or ID, implementing faceted navigation, paginating results, or reading any data from Crystallize. Covers Core API, Discovery API, Catalogue API, and Shop API queries. Also use when the user asks about GraphQL queries against Crystallize, reading product variants, getting component data, checking stock levels, or any read operation — even if they don't explicitly say "query".
 metadata:
     author: Crystallize
