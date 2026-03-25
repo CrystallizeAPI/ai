@@ -78,22 +78,17 @@ In Discovery API:
 
 ```graphql
 {
-  search(
-    filter: {
-      type: PRODUCT
-      topics: { path: { equals: "/flavour/fruity/citrus" } }
-    }
-  ) {
-    edges {
-      node {
-        name
-        topics {
-          name
-          path
+    search(filter: { type: PRODUCT, topics: { path: { equals: "/flavour/fruity/citrus" } } }) {
+        edges {
+            node {
+                name
+                topics {
+                    name
+                    path
+                }
+            }
         }
-      }
     }
-  }
 }
 ```
 
@@ -103,15 +98,15 @@ Get facet counts:
 
 ```graphql
 {
-  search(filter: { type: PRODUCT }) {
-    aggregations {
-      topics {
-        path
-        name
-        count
-      }
+    search(filter: { type: PRODUCT }) {
+        aggregations {
+            topics {
+                path
+                name
+                count
+            }
+        }
     }
-  }
 }
 ```
 
@@ -170,26 +165,26 @@ Homepage (Document Shape)
 
 ```graphql
 {
-  grid(id: "grid-id") {
-    name
-    rows {
-      columns {
-        item {
-          name
-          path
-          ... on Product {
-            defaultVariant {
-              price
+    grid(id: "grid-id") {
+        name
+        rows {
+            columns {
+                item {
+                    name
+                    path
+                    ... on Product {
+                        defaultVariant {
+                            price
+                        }
+                    }
+                }
+                layout {
+                    colspan
+                    rowspan
+                }
             }
-          }
         }
-        layout {
-          colspan
-          rowspan
-        }
-      }
     }
-  }
 }
 ```
 

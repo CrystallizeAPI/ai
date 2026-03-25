@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, mock } from "bun:test";
 import { createQueryExecutor } from "../../../src/core/services/query-with-correction";
 import type { GraphqlQueryCorrector, CorrectionResult } from "../../../src/contracts/graphql-query-corrector";
 
@@ -7,9 +7,10 @@ describe("queryExecutor", () => {
     const introspectionHeaders = { Authorization: "Bearer test" };
 
     function setup() {
-        const graphqlQueryCorrector = vi.fn<GraphqlQueryCorrector>();
+        const graphqlQueryCorrector = mock() as unknown as ReturnType<typeof mock> & GraphqlQueryCorrector;
         const queryExecutor = createQueryExecutor({ graphqlQueryCorrector });
-        const executor = vi.fn<(query: string, variables?: Record<string, unknown>) => Promise<unknown>>();
+        const executor = mock() as unknown as ReturnType<typeof mock> &
+            ((query: string, variables?: Record<string, unknown>) => Promise<unknown>);
         return { graphqlQueryCorrector, queryExecutor, executor };
     }
 

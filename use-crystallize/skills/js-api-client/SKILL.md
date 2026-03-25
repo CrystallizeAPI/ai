@@ -2,8 +2,8 @@
 name: js-api-client
 description: Use the @crystallize/js-api-client package to interact with Crystallize APIs in JavaScript/TypeScript. Use when setting up the Crystallize API client, configuring credentials, calling catalogueApi/discoveryApi/pimApi/shopCartApi, working with high-level helpers for catalogue fetching, cart management, orders, customers, subscriptions, navigation, or using any helper from the @crystallize/js-api-client npm package.
 metadata:
-  author: Crystallize
-  version: "2.0"
+    author: Crystallize
+    version: "2.0"
 ---
 
 # Crystallize JS API Client
@@ -34,22 +34,22 @@ pnpm add @crystallize/js-api-client
 import { createClient } from "@crystallize/js-api-client";
 
 const api = createClient({
-  tenantIdentifier: "your-tenant",
-  // For protected APIs, provide credentials:
-  // accessTokenId: '…',
-  // accessTokenSecret: '…',
-  // staticAuthToken: '…', // for read-only catalogue/discovery
+    tenantIdentifier: "your-tenant",
+    // For protected APIs, provide credentials:
+    // accessTokenId: '…',
+    // accessTokenSecret: '…',
+    // staticAuthToken: '…', // for read-only catalogue/discovery
 });
 
 // Call any GraphQL API with string queries
 const { catalogue } = await api.catalogueApi(
-  `query Q($path: String!, $language: String!) {
+    `query Q($path: String!, $language: String!) {
     catalogue(path: $path, language: $language) {
       name
       path
     }
   }`,
-  { path: "/shop", language: "en" },
+    { path: "/shop", language: "en" },
 );
 
 // Close when using HTTP/2 option

@@ -9,7 +9,7 @@
         "strict": true,
         "skipLibCheck": true,
         "lib": ["ESNext"],
-        "types": ["node", "./worker-configuration.d.ts"],
+        "types": ["node", "./worker-configuration.d.ts", "bun"],
         "jsx": "react-jsx",
         "jsxImportSource": "hono/jsx"
     }

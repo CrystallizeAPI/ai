@@ -2,8 +2,8 @@
 name: mutation
 description: Mutate data in Crystallize - create products, documents, and folders, update item components, manage product variants and SKUs, publish/unpublish items, handle customers and orders, manage carts and checkout flows, convert cart to order, create orders from checkout or directly (POS, imports), record payments, track fulfillment pipeline stages, upload images and media, import data, delete items, and perform bulk operations. Use this skill when creating or updating any content in Crystallize, adding products to the catalogue, modifying descriptions or fields, setting up checkout, placing orders, managing stock, recording payments, tracking order fulfillment, or writing data through the Core API or Shop API.
 metadata:
-  author: Crystallize
-  version: "2.0"
+    author: Crystallize
+    version: "2.0"
 ---
 
 # Crystallize Mutation Skill
@@ -167,9 +167,9 @@ For JavaScript/TypeScript projects, use `@crystallize/js-api-client` instead of 
 ```typescript
 import { createClient } from "@crystallize/js-api-client";
 const api = createClient({
-  tenantIdentifier: "your-tenant",
-  accessTokenId: "...",
-  accessTokenSecret: "...",
+    tenantIdentifier: "your-tenant",
+    accessTokenId: "...",
+    accessTokenSecret: "...",
 });
 
 // Use pimApi for Core API mutations

@@ -26,84 +26,84 @@ Retrieve an order by its Shop API UUID.
 
 ```graphql
 query GetOrder($id: UUID!) {
-  order(id: $id) {
-    id
-    coreId
-    reference
-    type
-    paymentStatus
-    createdAt
-    updatedAt
-    additionalInformation
-    customer {
-      identifier
-      firstName
-      lastName
-      email
-      phone
-      companyName
-      type
-      addresses {
+    order(id: $id) {
+        id
+        coreId
+        reference
         type
-        street
-        city
-        postalCode
-        country
-      }
+        paymentStatus
+        createdAt
+        updatedAt
+        additionalInformation
+        customer {
+            identifier
+            firstName
+            lastName
+            email
+            phone
+            companyName
+            type
+            addresses {
+                type
+                street
+                city
+                postalCode
+                country
+            }
+        }
+        items {
+            name
+            sku
+            productId
+            quantity
+            type
+            imageUrl
+            price {
+                gross
+                net
+                taxAmount
+                taxPercent
+                currency
+            }
+            subTotal {
+                gross
+                net
+                taxAmount
+                currency
+            }
+        }
+        total {
+            gross
+            net
+            taxAmount
+            taxPercent
+            currency
+            discounts {
+                amount
+            }
+            taxBreakdown {
+                taxRate
+                amount
+            }
+        }
+        payments {
+            provider
+            transactionId
+            amount
+            method
+            createdAt
+        }
+        pipelines {
+            identifier
+            stage
+        }
+        appliedPromotions {
+            identifier
+            name
+        }
+        meta
+        metaProperty(key: "fulfillment_status")
     }
-    items {
-      name
-      sku
-      productId
-      quantity
-      type
-      imageUrl
-      price {
-        gross
-        net
-        taxAmount
-        taxPercent
-        currency
-      }
-      subTotal {
-        gross
-        net
-        taxAmount
-        currency
-      }
-    }
-    total {
-      gross
-      net
-      taxAmount
-      taxPercent
-      currency
-      discounts {
-        amount
-      }
-      taxBreakdown {
-        taxRate
-        amount
-      }
-    }
-    payments {
-      provider
-      transactionId
-      amount
-      method
-      createdAt
-    }
-    pipelines {
-      identifier
-      stage
-    }
-    appliedPromotions {
-      identifier
-      name
-    }
-    meta
-    metaProperty(key: "fulfillment_status")
-  }
 }
 ```
 
@@ -111,7 +111,7 @@ Variables:
 
 ```json
 {
-  "id": "order-uuid-here"
+    "id": "order-uuid-here"
 }
 ```
 
@@ -121,31 +121,31 @@ Retrieve orders for a specific customer with pagination.
 
 ```graphql
 query GetCustomerOrders($customerIdentifier: String!, $limit: Int, $skip: Int) {
-  orders(customerIdentifier: $customerIdentifier, limit: $limit, skip: $skip) {
-    id
-    coreId
-    type
-    paymentStatus
-    createdAt
-    total {
-      gross
-      net
-      currency
+    orders(customerIdentifier: $customerIdentifier, limit: $limit, skip: $skip) {
+        id
+        coreId
+        type
+        paymentStatus
+        createdAt
+        total {
+            gross
+            net
+            currency
+        }
+        items {
+            name
+            sku
+            quantity
+            price {
+                gross
+                net
+            }
+        }
+        pipelines {
+            identifier
+            stage
+        }
     }
-    items {
-      name
-      sku
-      quantity
-      price {
-        gross
-        net
-      }
-    }
-    pipelines {
-      identifier
-      stage
-    }
-  }
 }
 ```
 
@@ -153,9 +153,9 @@ Variables:
 
 ```json
 {
-  "customerIdentifier": "john@example.com",
-  "limit": 10,
-  "skip": 0
+    "customerIdentifier": "john@example.com",
+    "limit": 10,
+    "skip": 0
 }
 ```
 

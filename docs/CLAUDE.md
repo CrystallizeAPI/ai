@@ -9,13 +9,13 @@ This is the **Crystallize AI documentation site**, built with [Astro Starlight](
 ## Commands
 
 ```bash
-pnpm install        # Install dependencies
-pnpm dev            # Start dev server (astro dev)
-pnpm build          # Production build (astro build)
-pnpm preview        # Preview production build locally
+bun install         # Install dependencies
+bun dev             # Start dev server (astro dev)
+bun run build       # Production build (astro build)
+bun run preview     # Preview production build locally
 ```
 
-Package manager: **pnpm**
+Runtime / Package manager: **Bun**
 
 ## Architecture
 

@@ -1,18 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
 import { Hono } from "hono";
 
-vi.mock("@crystallize/js-api-client", () => ({
-    createClient: vi.fn(),
+const mockCreateClient = mock();
+mock.module("@crystallize/js-api-client", () => ({
+    createClient: mockCreateClient,
 }));
 
-import { createClient } from "@crystallize/js-api-client";
 import { authMiddleware } from "../../src/middlewares/auth";
 
 describe("authMiddleware", () => {
     let app: Hono;
 
     beforeEach(() => {
-        vi.clearAllMocks();
+        mockCreateClient.mockReset();
         app = new Hono();
         app.use("/*", authMiddleware as never);
         app.get("/test", (c) => {
@@ -36,8 +36,8 @@ describe("authMiddleware", () => {
     });
 
     it("returns 401 when pimApi returns empty tenants", async () => {
-        const mockPimApi = vi.fn().mockResolvedValue({ me: { tenants: [] } });
-        vi.mocked(createClient).mockReturnValue({ pimApi: mockPimApi } as never);
+        const mockPimApi = mock().mockResolvedValue({ me: { tenants: [] } });
+        mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
         const res = await app.request("/test", {
             headers: {
@@ -52,8 +52,8 @@ describe("authMiddleware", () => {
     });
 
     it("returns 401 when pimApi returns null", async () => {
-        const mockPimApi = vi.fn().mockResolvedValue(null);
-        vi.mocked(createClient).mockReturnValue({ pimApi: mockPimApi } as never);
+        const mockPimApi = mock().mockResolvedValue(null);
+        mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
         const res = await app.request("/test", {
             headers: {
@@ -67,8 +67,8 @@ describe("authMiddleware", () => {
 
     it("sets authContext and proceeds on valid token", async () => {
         const tenantData = [{ tenant: { id: "t1", identifier: "shop", name: "Shop", staticAuthToken: "tok" } }];
-        const mockPimApi = vi.fn().mockResolvedValue({ me: { tenants: tenantData } });
-        vi.mocked(createClient).mockReturnValue({ pimApi: mockPimApi } as never);
+        const mockPimApi = mock().mockResolvedValue({ me: { tenants: tenantData } });
+        mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
         const res = await app.request("/test", {
             headers: {
@@ -91,8 +91,8 @@ describe("authMiddleware", () => {
 
     it("sets session authContext when connect.sid cookie is provided", async () => {
         const tenantData = [{ tenant: { id: "t1", identifier: "shop", name: "Shop" } }];
-        const mockPimApi = vi.fn().mockResolvedValue({ me: { tenants: tenantData } });
-        vi.mocked(createClient).mockReturnValue({ pimApi: mockPimApi } as never);
+        const mockPimApi = mock().mockResolvedValue({ me: { tenants: tenantData } });
+        mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
         const res = await app.request("/test", {
             headers: {
@@ -110,13 +110,13 @@ describe("authMiddleware", () => {
         expect(body.authContext.sessionId).toBe("my-session-id");
         expect(body.authContext.tenants).toHaveLength(1);
 
-        expect(vi.mocked(createClient)).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "my-session-id" }));
+        expect(mockCreateClient).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "my-session-id" }));
     });
 
     it("sets session authContext when X-Crystallize-Session-Id header is provided", async () => {
         const tenantData = [{ tenant: { id: "t1", identifier: "shop", name: "Shop" } }];
-        const mockPimApi = vi.fn().mockResolvedValue({ me: { tenants: tenantData } });
-        vi.mocked(createClient).mockReturnValue({ pimApi: mockPimApi } as never);
+        const mockPimApi = mock().mockResolvedValue({ me: { tenants: tenantData } });
+        mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
         const res = await app.request("/test", {
             headers: {
@@ -135,8 +135,8 @@ describe("authMiddleware", () => {
 
     it("prefers session over token headers when both are provided", async () => {
         const tenantData = [{ tenant: { id: "t1", identifier: "shop", name: "Shop" } }];
-        const mockPimApi = vi.fn().mockResolvedValue({ me: { tenants: tenantData } });
-        vi.mocked(createClient).mockReturnValue({ pimApi: mockPimApi } as never);
+        const mockPimApi = mock().mockResolvedValue({ me: { tenants: tenantData } });
+        mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
         const res = await app.request("/test", {
             headers: {

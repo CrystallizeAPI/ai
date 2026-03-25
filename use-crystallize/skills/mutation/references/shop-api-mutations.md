@@ -25,13 +25,13 @@ Query the cart state with:
 
 ```graphql
 query {
-  cart(id: "cart-id") {
-    id
-    state # cart | placed | ordered | abandoned
-    isStale # true if prices may have changed since last hydration
-    isExpired # true if cart has expired
-    orderId # set after fulfill, links to the order
-  }
+    cart(id: "cart-id") {
+        id
+        state # cart | placed | ordered | abandoned
+        isStale # true if prices may have changed since last hydration
+        isExpired # true if cart has expired
+        orderId # set after fulfill, links to the order
+    }
 }
 ```
 
@@ -48,32 +48,27 @@ The primary mutation for creating and updating carts. Hydration:
 
 ```graphql
 mutation {
-  hydrate(
-    input: {
-      items: [
-        { sku: "robot-pink-standard", quantity: 1 }
-        { sku: "robot-red-standard", quantity: 3 }
-      ]
+    hydrate(
+        input: { items: [{ sku: "robot-pink-standard", quantity: 1 }, { sku: "robot-red-standard", quantity: 3 }] }
+    ) {
+        id
+        state
+        isStale
+        isExpired
+        items {
+            sku
+            name
+            quantity
+            price {
+                gross
+                net
+            }
+        }
+        total {
+            gross
+            net
+        }
     }
-  ) {
-    id
-    state
-    isStale
-    isExpired
-    items {
-      sku
-      name
-      quantity
-      price {
-        gross
-        net
-      }
-    }
-    total {
-      gross
-      net
-    }
-  }
 }
 ```
 
@@ -83,97 +78,77 @@ The hydrate input accepts customer info inline — this is the recommended way t
 
 ```graphql
 mutation {
-  hydrate(
-    input: {
-      customer: {
-        identifier: "john@example.com"
-        isGuest: false
-        firstName: "John"
-        lastName: "Doe"
-      }
-      context: {
-        language: "en"
-        price: {
-          pricesHaveTaxesIncludedInCrystallize: true
-          decimals: 4
-          currency: "EUR"
-          selectedVariantIdentifier: "sales"
-          compareAtVariantIdentifier: "default"
-          fallbackVariantIdentifiers: ["default"]
+    hydrate(
+        input: {
+            customer: { identifier: "john@example.com", isGuest: false, firstName: "John", lastName: "Doe" }
+            context: {
+                language: "en"
+                price: {
+                    pricesHaveTaxesIncludedInCrystallize: true
+                    decimals: 4
+                    currency: "EUR"
+                    selectedVariantIdentifier: "sales"
+                    compareAtVariantIdentifier: "default"
+                    fallbackVariantIdentifiers: ["default"]
+                }
+            }
+            items: [
+                { sku: "palissade-lounge-sofa-iron-red", quantity: 1, type: standard, group: "Outdoor" }
+                { sku: "palissade-bar-stool-sky-grey", quantity: 1, type: standard, group: "Outdoor" }
+                { sku: "monstera-deliciosa-medium", quantity: 2, type: standard, group: "Plants" }
+            ]
         }
-      }
-      items: [
-        {
-          sku: "palissade-lounge-sofa-iron-red"
-          quantity: 1
-          type: standard
-          group: "Outdoor"
+    ) {
+        id
+        state
+        isStale
+        customer {
+            identifier
+            firstName
+            lastName
         }
-        {
-          sku: "palissade-bar-stool-sky-grey"
-          quantity: 1
-          type: standard
-          group: "Outdoor"
+        appliedPromotions {
+            identifier
+            name
+            mechanism {
+                type
+                value
+            }
         }
-        {
-          sku: "monstera-deliciosa-medium"
-          quantity: 2
-          type: standard
-          group: "Plants"
+        items {
+            name
+            variant {
+                sku
+                price {
+                    gross
+                    net
+                    taxAmount
+                    taxPercent
+                }
+                compareAtPrice {
+                    gross
+                    net
+                }
+            }
+            price {
+                net
+                gross
+                taxAmount
+                discounts {
+                    percent
+                    amount
+                }
+            }
         }
-      ]
+        total {
+            net
+            gross
+            discounts {
+                percent
+                amount
+            }
+        }
     }
-  ) {
-    id
-    state
-    isStale
-    customer {
-      identifier
-      firstName
-      lastName
-    }
-    appliedPromotions {
-      identifier
-      name
-      mechanism {
-        type
-        value
-      }
-    }
-    items {
-      name
-      variant {
-        sku
-        price {
-          gross
-          net
-          taxAmount
-          taxPercent
-        }
-        compareAtPrice {
-          gross
-          net
-        }
-      }
-      price {
-        net
-        gross
-        taxAmount
-        discounts {
-          percent
-          amount
-        }
-      }
-    }
-    total {
-      net
-      gross
-      discounts {
-        percent
-        amount
-      }
-    }
-  }
 }
 ```
 
@@ -223,30 +198,30 @@ For items not in Crystallize (shipping, fees):
 
 ```graphql
 mutation {
-  hydrate(
-    input: {
-      items: [{ sku: "product-sku", quantity: 1 }]
-      externalItems: [
-        {
-          sku: "shipping-fedex"
-          quantity: 1
-          name: "FedEx Ground Shipping"
-          images: []
-          variant: {
-            price: { gross: 12.99, net: 10.39 }
-            product: { id: "shipping-product", path: "/shipping" }
-          }
+    hydrate(
+        input: {
+            items: [{ sku: "product-sku", quantity: 1 }]
+            externalItems: [
+                {
+                    sku: "shipping-fedex"
+                    quantity: 1
+                    name: "FedEx Ground Shipping"
+                    images: []
+                    variant: {
+                        price: { gross: 12.99, net: 10.39 }
+                        product: { id: "shipping-product", path: "/shipping" }
+                    }
+                }
+            ]
         }
-      ]
+    ) {
+        id
+        items {
+            sku
+            name
+            origin
+        }
     }
-  ) {
-    id
-    items {
-      sku
-      name
-      origin
-    }
-  }
 }
 ```
 
@@ -258,24 +233,16 @@ Add a single SKU item to an existing cart. If the item already exists and is man
 
 ```graphql
 mutation {
-  addSkuItem(
-    id: "cart-id"
-    input: {
-      sku: "new-product-sku"
-      quantity: 2
-      type: standard
-      group: "Furniture"
+    addSkuItem(id: "cart-id", input: { sku: "new-product-sku", quantity: 2, type: standard, group: "Furniture" }) {
+        id
+        items {
+            name
+            variant {
+                sku
+            }
+            quantity
+        }
     }
-  ) {
-    id
-    items {
-      name
-      variant {
-        sku
-      }
-      quantity
-    }
-  }
 }
 ```
 
@@ -285,28 +252,28 @@ Add a fully custom item not in Crystallize (e.g., shipping, service fees).
 
 ```graphql
 mutation {
-  addExternalItem(
-    id: "cart-id"
-    input: {
-      sku: "shipping-standard"
-      name: "Standard Shipping"
-      quantity: 1
-      price: { gross: 9.99, net: 7.99 }
-      type: shipping
+    addExternalItem(
+        id: "cart-id"
+        input: {
+            sku: "shipping-standard"
+            name: "Standard Shipping"
+            quantity: 1
+            price: { gross: 9.99, net: 7.99 }
+            type: shipping
+        }
+    ) {
+        id
+        items {
+            name
+            variant {
+                sku
+            }
+            price {
+                gross
+                net
+            }
+        }
     }
-  ) {
-    id
-    items {
-      name
-      variant {
-        sku
-      }
-      price {
-        gross
-        net
-      }
-    }
-  }
 }
 ```
 
@@ -314,15 +281,15 @@ mutation {
 
 ```graphql
 mutation {
-  removeCartItem(id: "cart-id", sku: "product-to-remove") {
-    id
-    items {
-      variant {
-        sku
-      }
-      quantity
+    removeCartItem(id: "cart-id", sku: "product-to-remove") {
+        id
+        items {
+            variant {
+                sku
+            }
+            quantity
+        }
     }
-  }
 }
 ```
 
@@ -330,13 +297,13 @@ mutation {
 
 ```graphql
 mutation {
-  setCartItem(id: "cart-id", sku: "product-sku", quantity: 5) {
-    id
-    items {
-      sku
-      quantity
+    setCartItem(id: "cart-id", sku: "product-sku", quantity: 5) {
+        id
+        items {
+            sku
+            quantity
+        }
     }
-  }
 }
 ```
 
@@ -346,21 +313,17 @@ Override managed pricing (makes item unmanaged):
 
 ```graphql
 mutation {
-  changeCartItemPricing(
-    id: "cart-id"
-    sku: "product-sku"
-    price: { gross: 49.99, net: 39.99 }
-  ) {
-    id
-    items {
-      sku
-      managed
-      price {
-        gross
-        net
-      }
+    changeCartItemPricing(id: "cart-id", sku: "product-sku", price: { gross: 49.99, net: 39.99 }) {
+        id
+        items {
+            sku
+            managed
+            price {
+                gross
+                net
+            }
+        }
     }
-  }
 }
 ```
 
@@ -370,22 +333,17 @@ mutation {
 
 ```graphql
 mutation {
-  setCustomer(
-    id: "cart-id"
-    customer: {
-      firstName: "John"
-      lastName: "Doe"
-      email: "john@example.com"
-      phone: "+1234567890"
+    setCustomer(
+        id: "cart-id"
+        customer: { firstName: "John", lastName: "Doe", email: "john@example.com", phone: "+1234567890" }
+    ) {
+        id
+        customer {
+            firstName
+            lastName
+            email
+        }
     }
-  ) {
-    id
-    customer {
-      firstName
-      lastName
-      email
-    }
-  }
 }
 ```
 
@@ -393,23 +351,13 @@ mutation {
 
 ```graphql
 mutation {
-  setAddresses(
-    id: "cart-id"
-    billing: {
-      street: "123 Main St"
-      city: "New York"
-      postalCode: "10001"
-      country: "US"
+    setAddresses(
+        id: "cart-id"
+        billing: { street: "123 Main St", city: "New York", postalCode: "10001", country: "US" }
+        delivery: { street: "456 Oak Ave", city: "Brooklyn", postalCode: "11201", country: "US" }
+    ) {
+        id
     }
-    delivery: {
-      street: "456 Oak Ave"
-      city: "Brooklyn"
-      postalCode: "11201"
-      country: "US"
-    }
-  ) {
-    id
-  }
 }
 ```
 
@@ -419,26 +367,26 @@ Get cart formatted for order creation:
 
 ```graphql
 mutation {
-  cartAsOrderIntent(id: "cart-id") {
-    customer {
-      firstName
-      lastName
-      email
+    cartAsOrderIntent(id: "cart-id") {
+        customer {
+            firstName
+            lastName
+            email
+        }
+        cart {
+            sku
+            name
+            quantity
+            price {
+                gross
+                net
+            }
+        }
+        total {
+            gross
+            net
+        }
     }
-    cart {
-      sku
-      name
-      quantity
-      price {
-        gross
-        net
-      }
-    }
-    total {
-      gross
-      net
-    }
-  }
 }
 ```
 
@@ -450,19 +398,19 @@ Placing a cart locks it and makes it **immutable**. This should happen when the 
 
 ```graphql
 mutation {
-  place(id: "cart-id") {
-    id
-    state # now "placed"
-    items {
-      name
-      quantity
+    place(id: "cart-id") {
+        id
+        state # now "placed"
+        items {
+            name
+            quantity
+        }
+        total {
+            gross
+            net
+            currency
+        }
     }
-    total {
-      gross
-      net
-      currency
-    }
-  }
 }
 ```
 
@@ -474,11 +422,11 @@ After creating an order (via [`createFromCart`](shop-api-order-mutations.md) on 
 
 ```graphql
 mutation {
-  fulfill(id: "cart-id", orderId: "order-uuid") {
-    id
-    state # now "ordered"
-    orderId # the linked order ID
-  }
+    fulfill(id: "cart-id", orderId: "order-uuid") {
+        id
+        state # now "ordered"
+        orderId # the linked order ID
+    }
 }
 ```
 
@@ -488,10 +436,10 @@ Explicitly mark a cart as abandoned (e.g., user left checkout, session timeout):
 
 ```graphql
 mutation {
-  abandon(id: "cart-id") {
-    id
-    state # now "abandoned"
-  }
+    abandon(id: "cart-id") {
+        id
+        state # now "abandoned"
+    }
 }
 ```
 
@@ -501,11 +449,11 @@ Convert a cart to a non-expiring wishlist:
 
 ```graphql
 mutation {
-  markAsWishlist(id: "cart-id", name: "My Favorites") {
-    id
-    isWishlist
-    name
-  }
+    markAsWishlist(id: "cart-id", name: "My Favorites") {
+        id
+        isWishlist
+        name
+    }
 }
 ```
 
@@ -513,10 +461,10 @@ mutation {
 
 ```graphql
 mutation {
-  setCartExpiration(id: "cart-id", expiresAt: "2024-12-31T23:59:59Z") {
-    id
-    expiresAt
-  }
+    setCartExpiration(id: "cart-id", expiresAt: "2024-12-31T23:59:59Z") {
+        id
+        expiresAt
+    }
 }
 ```
 
@@ -524,9 +472,9 @@ mutation {
 
 ```graphql
 mutation {
-  remove(id: "cart-id") {
-    id
-  }
+    remove(id: "cart-id") {
+        id
+    }
 }
 ```
 
@@ -557,57 +505,54 @@ For guest checkout, set `isGuest: true` in the hydrate customer input.
 ```graphql
 # Step 1: Create and hydrate cart (POST /cart)
 mutation {
-  hydrate(
-    input: {
-      customer: { identifier: "john@example.com", isGuest: false }
-      context: {
-        language: "en"
-        price: {
-          pricesHaveTaxesIncludedInCrystallize: true
-          decimals: 4
-          currency: "EUR"
-          selectedVariantIdentifier: "default"
+    hydrate(
+        input: {
+            customer: { identifier: "john@example.com", isGuest: false }
+            context: {
+                language: "en"
+                price: {
+                    pricesHaveTaxesIncludedInCrystallize: true
+                    decimals: 4
+                    currency: "EUR"
+                    selectedVariantIdentifier: "default"
+                }
+            }
+            items: [
+                { sku: "product-sku-1", quantity: 2, type: standard }
+                { sku: "product-sku-2", quantity: 1, type: standard }
+            ]
         }
-      }
-      items: [
-        { sku: "product-sku-1", quantity: 2, type: standard }
-        { sku: "product-sku-2", quantity: 1, type: standard }
-      ]
+    ) {
+        id
+        state
+        total {
+            gross
+            net
+            currency
+        }
     }
-  ) {
-    id
-    state
-    total {
-      gross
-      net
-      currency
-    }
-  }
 }
 
 # Step 2: Place cart — locks it for payment (POST /cart)
 mutation {
-  place(id: "cart-uuid-from-step-1") {
-    id
-    state # "placed"
-  }
+    place(id: "cart-uuid-from-step-1") {
+        id
+        state # "placed"
+    }
 }
 
 # Step 3: Create order from placed cart (POST /order — DIFFERENT ENDPOINT!)
 mutation {
-  createFromCart(
-    id: "cart-uuid-from-step-1"
-    input: { type: standard, paymentStatus: paid }
-  ) {
-    id
-    coreId
-    type
-    total {
-      gross
-      net
-      currency
+    createFromCart(id: "cart-uuid-from-step-1", input: { type: standard, paymentStatus: paid }) {
+        id
+        coreId
+        type
+        total {
+            gross
+            net
+            currency
+        }
     }
-  }
 }
 ```
 

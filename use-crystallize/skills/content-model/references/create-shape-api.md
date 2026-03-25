@@ -16,21 +16,21 @@ Auth headers: `X-Crystallize-Access-Token-Id` + `X-Crystallize-Access-Token-Secr
 
 ```graphql
 mutation CreateShape($input: CreateShapeInput!) {
-  createShape(input: $input) {
-    ... on Shape {
-      identifier
-      name
-      type
+    createShape(input: $input) {
+        ... on Shape {
+            identifier
+            name
+            type
+        }
+        ... on BasicError {
+            errorName
+            message
+        }
+        ... on UnauthorizedError {
+            errorName
+            message
+        }
     }
-    ... on BasicError {
-      errorName
-      message
-    }
-    ... on UnauthorizedError {
-      errorName
-      message
-    }
-  }
 }
 ```
 
@@ -438,107 +438,86 @@ No required sub-fields.
 
 ```graphql
 mutation CreateProductShape {
-  createShape(
-    input: {
-      name: "Guitar"
-      type: product
-      identifier: "guitar"
-      components: [
-        {
-          id: "description"
-          name: "Description"
-          type: richText
-          config: { richText: { discoverable: true, multilingual: true } }
-        }
-        {
-          id: "brand"
-          name: "Brand"
-          type: itemRelations
-          config: {
-            itemRelations: {
-              acceptedShapeIdentifiers: ["brand"]
-              minItems: 1
-              maxItems: 1
-            }
-          }
-        }
-        {
-          id: "body-type"
-          name: "Body Type"
-          type: itemRelations
-          config: {
-            itemRelations: {
-              acceptedShapeIdentifiers: ["body-type"]
-              maxItems: 1
-            }
-          }
-        }
-        {
-          id: "finish"
-          name: "Finish"
-          type: selection
-          config: {
-            selection: {
-              options: [
-                { key: "gloss", value: "Gloss" }
-                { key: "satin", value: "Satin" }
-                { key: "matte", value: "Matte" }
-              ]
-              discoverable: true
-            }
-          }
-        }
-        {
-          id: "specs"
-          name: "Specifications"
-          type: contentChunk
-          config: {
-            contentChunk: {
-              repeatable: false
-              components: [
+    createShape(
+        input: {
+            name: "Guitar"
+            type: product
+            identifier: "guitar"
+            components: [
                 {
-                  id: "weight"
-                  name: "Weight"
-                  type: numeric
-                  config: { numeric: { units: ["kg", "lb"] } }
+                    id: "description"
+                    name: "Description"
+                    type: richText
+                    config: { richText: { discoverable: true, multilingual: true } }
                 }
                 {
-                  id: "scale-length"
-                  name: "Scale Length"
-                  type: numeric
-                  config: { numeric: { units: ["mm", "inch"] } }
+                    id: "brand"
+                    name: "Brand"
+                    type: itemRelations
+                    config: { itemRelations: { acceptedShapeIdentifiers: ["brand"], minItems: 1, maxItems: 1 } }
                 }
-              ]
-            }
-          }
+                {
+                    id: "body-type"
+                    name: "Body Type"
+                    type: itemRelations
+                    config: { itemRelations: { acceptedShapeIdentifiers: ["body-type"], maxItems: 1 } }
+                }
+                {
+                    id: "finish"
+                    name: "Finish"
+                    type: selection
+                    config: {
+                        selection: {
+                            options: [
+                                { key: "gloss", value: "Gloss" }
+                                { key: "satin", value: "Satin" }
+                                { key: "matte", value: "Matte" }
+                            ]
+                            discoverable: true
+                        }
+                    }
+                }
+                {
+                    id: "specs"
+                    name: "Specifications"
+                    type: contentChunk
+                    config: {
+                        contentChunk: {
+                            repeatable: false
+                            components: [
+                                {
+                                    id: "weight"
+                                    name: "Weight"
+                                    type: numeric
+                                    config: { numeric: { units: ["kg", "lb"] } }
+                                }
+                                {
+                                    id: "scale-length"
+                                    name: "Scale Length"
+                                    type: numeric
+                                    config: { numeric: { units: ["mm", "inch"] } }
+                                }
+                            ]
+                        }
+                    }
+                }
+                { id: "seo", name: "SEO", type: piece, config: { piece: { identifier: "seo" } } }
+            ]
+            variantComponents: [
+                { id: "fret-count", name: "Fret Count", type: numeric, config: { numeric: { discoverable: true } } }
+            ]
         }
-        {
-          id: "seo"
-          name: "SEO"
-          type: piece
-          config: { piece: { identifier: "seo" } }
+    ) {
+        ... on Shape {
+            identifier
+            name
+            type
         }
-      ]
-      variantComponents: [
-        {
-          id: "fret-count"
-          name: "Fret Count"
-          type: numeric
-          config: { numeric: { discoverable: true } }
+        ... on BasicError {
+            errorName
+            message
         }
-      ]
     }
-  ) {
-    ... on Shape {
-      identifier
-      name
-      type
-    }
-    ... on BasicError {
-      errorName
-      message
-    }
-  }
 }
 ```
 

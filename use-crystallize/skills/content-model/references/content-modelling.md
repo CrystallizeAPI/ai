@@ -94,9 +94,9 @@ Grids → Homepage features, campaigns, seasonal collections
 **Shapes:**
 
 - Product: Clothing Item
-  - Variants: Size (XS-XXL), Color
-  - Components: Material composition, care instructions, fit guide
-  - Relations: Brand (document), Collection (document), Materials (documents)
+    - Variants: Size (XS-XXL), Color
+    - Components: Material composition, care instructions, fit guide
+    - Relations: Brand (document), Collection (document), Materials (documents)
 
 **Topic Maps:**
 
@@ -115,9 +115,9 @@ Grids → Homepage features, campaigns, seasonal collections
 **Shapes:**
 
 - Product: Food Item
-  - Variants: Size/Weight
-  - Components: Nutrition facts, storage instructions, preparation
-  - Relations: Allergens (documents), Ingredients (products), Certifications (documents)
+    - Variants: Size/Weight
+    - Components: Nutrition facts, storage instructions, preparation
+    - Relations: Allergens (documents), Ingredients (products), Certifications (documents)
 
 **Topic Maps:**
 
@@ -136,9 +136,9 @@ Grids → Homepage features, campaigns, seasonal collections
 **Shapes:**
 
 - Product: Electronic Device
-  - Variants: Configuration (storage, RAM, color)
-  - Components: Technical specs (table), connectivity, dimensions
-  - Relations: Compatible Accessories (products), Brand (document)
+    - Variants: Configuration (storage, RAM, color)
+    - Components: Technical specs (table), connectivity, dimensions
+    - Relations: Compatible Accessories (products), Brand (document)
 
 **Topic Maps:**
 
@@ -157,9 +157,9 @@ Grids → Homepage features, campaigns, seasonal collections
 **Shapes:**
 
 - Product: Service Package
-  - Variants: Tier (Basic, Professional, Enterprise)
-  - Components: Features list, deliverables, terms
-  - Relations: Case Studies (documents), Industries (documents)
+    - Variants: Tier (Basic, Professional, Enterprise)
+    - Components: Features list, deliverables, terms
+    - Relations: Case Studies (documents), Industries (documents)
 
 **Topic Maps:**
 
@@ -178,9 +178,9 @@ Grids → Homepage features, campaigns, seasonal collections
 **Shapes:**
 
 - Product: Book/Course
-  - Variants: Format (Hardcover, Paperback, eBook, Audio)
-  - Components: Table of contents, sample chapter, reviews
-  - Relations: Authors (documents), Publishers (documents), Series (documents)
+    - Variants: Format (Hardcover, Paperback, eBook, Audio)
+    - Components: Table of contents, sample chapter, reviews
+    - Relations: Authors (documents), Publishers (documents), Series (documents)
 
 **Document:** Article/Post
 
@@ -459,14 +459,14 @@ Item Relations, Selection components, and numeric fields support validation:
 
 ```json
 {
-  "type": "itemRelations",
-  "config": {
-    "itemRelations": {
-      "acceptedShapeIdentifiers": ["brand"],
-      "minItems": 1,
-      "maxItems": 1
+    "type": "itemRelations",
+    "config": {
+        "itemRelations": {
+            "acceptedShapeIdentifiers": ["brand"],
+            "minItems": 1,
+            "maxItems": 1
+        }
     }
-  }
 }
 ```
 
@@ -491,14 +491,14 @@ Always restrict Item Relation components to specific shapes:
 
 ```json
 {
-  "id": "ingredients",
-  "type": "itemRelations",
-  "config": {
-    "itemRelations": {
-      "acceptedShapeIdentifiers": ["ingredient"],
-      "minItems": 1
+    "id": "ingredients",
+    "type": "itemRelations",
+    "config": {
+        "itemRelations": {
+            "acceptedShapeIdentifiers": ["ingredient"],
+            "minItems": 1
+        }
     }
-  }
 }
 ```
 

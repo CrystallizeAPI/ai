@@ -153,42 +153,39 @@ Promotions are resolved during cart hydration in the Shop API. The cart context 
 
 ```graphql
 mutation HydrateCartWithCoupon {
-  cart {
-    hydrate(
-      input: {
-        context: { market: ["eu-retail"], voucherCode: "WELCOME15" }
-        items: [
-          { sku: "TSHIRT-RED-L", quantity: 2 }
-          { sku: "HOODIE-BLK-M", quantity: 1 }
-        ]
-      }
-    ) {
-      cart {
-        items {
-          variant {
-            sku
-            name
-          }
-          quantity
-          price {
-            gross
-            net
-            currency
-            discount {
-              amount
-              percentage
+    cart {
+        hydrate(
+            input: {
+                context: { market: ["eu-retail"], voucherCode: "WELCOME15" }
+                items: [{ sku: "TSHIRT-RED-L", quantity: 2 }, { sku: "HOODIE-BLK-M", quantity: 1 }]
             }
-          }
+        ) {
+            cart {
+                items {
+                    variant {
+                        sku
+                        name
+                    }
+                    quantity
+                    price {
+                        gross
+                        net
+                        currency
+                        discount {
+                            amount
+                            percentage
+                        }
+                    }
+                }
+                total {
+                    gross
+                    net
+                    currency
+                    discount
+                }
+            }
         }
-        total {
-          gross
-          net
-          currency
-          discount
-        }
-      }
     }
-  }
 }
 ```
 
@@ -200,38 +197,33 @@ Promotions without triggers apply automatically — no coupon code needed:
 
 ```graphql
 mutation HydrateCart {
-  cart {
-    hydrate(
-      input: {
-        context: { markets: ["us-retail"] }
-        items: [{ sku: "SNEAKER-WHT-42", quantity: 3 }]
-      }
-    ) {
-      cart {
-        items {
-          variant {
-            sku
-          }
-          quantity
-          price {
-            gross
-            net
-            currency
-            discount {
-              amount
-              percentage
+    cart {
+        hydrate(input: { context: { markets: ["us-retail"] }, items: [{ sku: "SNEAKER-WHT-42", quantity: 3 }] }) {
+            cart {
+                items {
+                    variant {
+                        sku
+                    }
+                    quantity
+                    price {
+                        gross
+                        net
+                        currency
+                        discount {
+                            amount
+                            percentage
+                        }
+                    }
+                }
+                total {
+                    gross
+                    net
+                    currency
+                    discount
+                }
             }
-          }
         }
-        total {
-          gross
-          net
-          currency
-          discount
-        }
-      }
     }
-  }
 }
 ```
 

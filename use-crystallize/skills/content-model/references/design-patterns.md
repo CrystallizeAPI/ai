@@ -61,9 +61,9 @@ You have product attributes that are shared across many products, and those attr
 2. Create documents for each value (e.g., "Peanuts", "Gluten", "Dairy")
 3. Add an **Item Relation** component to the product shape
 4. Configure the Item Relation component:
-   - **Accepted shapes**: restrict to only the classification document shape (e.g., only "Allergen" documents)
-   - **Min relations**: enforce minimum links (e.g., at least 1 brand required)
-   - **Max relations**: limit how many (e.g., max 3 materials, or unlimited for allergens)
+    - **Accepted shapes**: restrict to only the classification document shape (e.g., only "Allergen" documents)
+    - **Min relations**: enforce minimum links (e.g., at least 1 brand required)
+    - **Max relations**: limit how many (e.g., max 3 materials, or unlimited for allergens)
 5. Products link to the relevant classification documents
 
 These configuration options act like foreign key constraints in a relational database, enforcing data integrity and guiding editors.
@@ -82,26 +82,26 @@ Product ──(Item Relation)──→ Classification Document
 
 ```json
 {
-  "identifier": "brand",
-  "name": "Brand",
-  "type": "document",
-  "components": [
-    { "id": "logo", "name": "Logo", "type": "images" },
-    { "id": "description", "name": "Description", "type": "richText" },
-    { "id": "website", "name": "Website", "type": "singleLine" }
-  ]
+    "identifier": "brand",
+    "name": "Brand",
+    "type": "document",
+    "components": [
+        { "id": "logo", "name": "Logo", "type": "images" },
+        { "id": "description", "name": "Description", "type": "richText" },
+        { "id": "website", "name": "Website", "type": "singleLine" }
+    ]
 }
 ```
 
 ```json
 {
-  "identifier": "allergen",
-  "name": "Allergen",
-  "type": "document",
-  "components": [
-    { "id": "icon", "name": "Icon", "type": "images" },
-    { "id": "severity", "name": "Severity", "type": "singleLine" }
-  ]
+    "identifier": "allergen",
+    "name": "Allergen",
+    "type": "document",
+    "components": [
+        { "id": "icon", "name": "Icon", "type": "images" },
+        { "id": "severity", "name": "Severity", "type": "singleLine" }
+    ]
 }
 ```
 
@@ -109,31 +109,31 @@ Product ──(Item Relation)──→ Classification Document
 
 ```json
 {
-  "identifier": "product",
-  "name": "Product",
-  "type": "product",
-  "components": [
-    {
-      "id": "brand",
-      "name": "Brand",
-      "type": "itemRelations",
-      "config": {
-        "acceptedShapeIdentifiers": ["brand"],
-        "minItems": 1,
-        "maxItems": 1
-      }
-    },
-    {
-      "id": "allergens",
-      "name": "Allergens",
-      "type": "itemRelations",
-      "config": {
-        "acceptedShapeIdentifiers": ["allergen"],
-        "minItems": 0,
-        "maxItems": 999
-      }
-    }
-  ]
+    "identifier": "product",
+    "name": "Product",
+    "type": "product",
+    "components": [
+        {
+            "id": "brand",
+            "name": "Brand",
+            "type": "itemRelations",
+            "config": {
+                "acceptedShapeIdentifiers": ["brand"],
+                "minItems": 1,
+                "maxItems": 1
+            }
+        },
+        {
+            "id": "allergens",
+            "name": "Allergens",
+            "type": "itemRelations",
+            "config": {
+                "acceptedShapeIdentifiers": ["allergen"],
+                "minItems": 0,
+                "maxItems": 999
+            }
+        }
+    ]
 }
 ```
 
@@ -183,8 +183,8 @@ Add a **repeating Chunk** to the parent item's shape. Each chunk entry contains:
 - **Numeric** — the quantity (200)
 - **Selection** or **Single Line** — the unit (g, pcs, m, L)
 - **Item Relation** — link to the ingredient/component product
-  - Configure **accepted shapes**: restrict to only the component shape (e.g., only "Ingredient" products)
-  - Configure **min/max relations**: typically min=1, max=1 per chunk entry (each entry links to exactly one item)
+    - Configure **accepted shapes**: restrict to only the component shape (e.g., only "Ingredient" products)
+    - Configure **min/max relations**: typically min=1, max=1 per chunk entry (each entry links to exactly one item)
 
 ```
 Parent Product
@@ -202,22 +202,22 @@ Parent Product
 
 ```json
 {
-  "identifier": "ingredient",
-  "name": "Ingredient",
-  "type": "product",
-  "components": [
-    {
-      "id": "nutritionInfo",
-      "name": "Nutrition Info",
-      "type": "propertiesTable"
-    },
-    {
-      "id": "allergens",
-      "name": "Allergens",
-      "type": "itemRelations",
-      "config": { "acceptedShapeIdentifiers": ["allergen"] }
-    }
-  ]
+    "identifier": "ingredient",
+    "name": "Ingredient",
+    "type": "product",
+    "components": [
+        {
+            "id": "nutritionInfo",
+            "name": "Nutrition Info",
+            "type": "propertiesTable"
+        },
+        {
+            "id": "allergens",
+            "name": "Allergens",
+            "type": "itemRelations",
+            "config": { "acceptedShapeIdentifiers": ["allergen"] }
+        }
+    ]
 }
 ```
 
@@ -225,54 +225,54 @@ Parent Product
 
 ```json
 {
-  "identifier": "recipe",
-  "name": "Recipe",
-  "type": "product",
-  "components": [
-    {
-      "id": "ingredients",
-      "name": "Ingredients",
-      "type": "contentChunk",
-      "config": {
-        "contentChunk": {
-          "repeatable": true,
-          "components": [
-            {
-              "id": "quantity",
-              "name": "Quantity",
-              "type": "numeric"
-            },
-            {
-              "id": "unit",
-              "name": "Unit",
-              "type": "selection",
-              "config": {
-                "selection": {
-                  "options": [
-                    { "key": "g", "value": "grams" },
-                    { "key": "ml", "value": "milliliters" },
-                    { "key": "pcs", "value": "pieces" }
-                  ]
+    "identifier": "recipe",
+    "name": "Recipe",
+    "type": "product",
+    "components": [
+        {
+            "id": "ingredients",
+            "name": "Ingredients",
+            "type": "contentChunk",
+            "config": {
+                "contentChunk": {
+                    "repeatable": true,
+                    "components": [
+                        {
+                            "id": "quantity",
+                            "name": "Quantity",
+                            "type": "numeric"
+                        },
+                        {
+                            "id": "unit",
+                            "name": "Unit",
+                            "type": "selection",
+                            "config": {
+                                "selection": {
+                                    "options": [
+                                        { "key": "g", "value": "grams" },
+                                        { "key": "ml", "value": "milliliters" },
+                                        { "key": "pcs", "value": "pieces" }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "id": "ingredient",
+                            "name": "Ingredient",
+                            "type": "itemRelations",
+                            "config": {
+                                "itemRelations": {
+                                    "acceptedShapeIdentifiers": ["ingredient"],
+                                    "minItems": 1,
+                                    "maxItems": 1
+                                }
+                            }
+                        }
+                    ]
                 }
-              }
-            },
-            {
-              "id": "ingredient",
-              "name": "Ingredient",
-              "type": "itemRelations",
-              "config": {
-                "itemRelations": {
-                  "acceptedShapeIdentifiers": ["ingredient"],
-                  "minItems": 1,
-                  "maxItems": 1
-                }
-              }
             }
-          ]
         }
-      }
-    }
-  ]
+    ]
 }
 ```
 
@@ -403,14 +403,14 @@ The classification (role/meaning) can be a **Selection** (simple label) or an **
 
 ```json
 {
-  "identifier": "author",
-  "name": "Author",
-  "type": "document",
-  "components": [
-    { "id": "bio", "name": "Biography", "type": "richText" },
-    { "id": "photo", "name": "Photo", "type": "images" },
-    { "id": "website", "name": "Website", "type": "singleLine" }
-  ]
+    "identifier": "author",
+    "name": "Author",
+    "type": "document",
+    "components": [
+        { "id": "bio", "name": "Biography", "type": "richText" },
+        { "id": "photo", "name": "Photo", "type": "images" },
+        { "id": "website", "name": "Website", "type": "singleLine" }
+    ]
 }
 ```
 
@@ -418,51 +418,51 @@ The classification (role/meaning) can be a **Selection** (simple label) or an **
 
 ```json
 {
-  "identifier": "book",
-  "name": "Book",
-  "type": "product",
-  "components": [
-    { "id": "description", "name": "Description", "type": "richText" },
-    {
-      "id": "contributors",
-      "name": "Contributors",
-      "type": "contentChunk",
-      "config": {
-        "contentChunk": {
-          "repeatable": true,
-          "components": [
-            {
-              "id": "person",
-              "name": "Person",
-              "type": "itemRelations",
-              "config": {
-                "itemRelations": {
-                  "acceptedShapeIdentifiers": ["author"],
-                  "minItems": 1,
-                  "maxItems": 1
+    "identifier": "book",
+    "name": "Book",
+    "type": "product",
+    "components": [
+        { "id": "description", "name": "Description", "type": "richText" },
+        {
+            "id": "contributors",
+            "name": "Contributors",
+            "type": "contentChunk",
+            "config": {
+                "contentChunk": {
+                    "repeatable": true,
+                    "components": [
+                        {
+                            "id": "person",
+                            "name": "Person",
+                            "type": "itemRelations",
+                            "config": {
+                                "itemRelations": {
+                                    "acceptedShapeIdentifiers": ["author"],
+                                    "minItems": 1,
+                                    "maxItems": 1
+                                }
+                            }
+                        },
+                        {
+                            "id": "role",
+                            "name": "Role",
+                            "type": "selection",
+                            "config": {
+                                "selection": {
+                                    "options": [
+                                        { "key": "writer", "value": "Writer" },
+                                        { "key": "illustrator", "value": "Illustrator" },
+                                        { "key": "editor", "value": "Editor" },
+                                        { "key": "translator", "value": "Translator" }
+                                    ]
+                                }
+                            }
+                        }
+                    ]
                 }
-              }
-            },
-            {
-              "id": "role",
-              "name": "Role",
-              "type": "selection",
-              "config": {
-                "selection": {
-                  "options": [
-                    { "key": "writer", "value": "Writer" },
-                    { "key": "illustrator", "value": "Illustrator" },
-                    { "key": "editor", "value": "Editor" },
-                    { "key": "translator", "value": "Translator" }
-                  ]
-                }
-              }
             }
-          ]
         }
-      }
-    }
-  ]
+    ]
 }
 ```
 
@@ -547,35 +547,35 @@ For large or reusable field sets, reference **Pieces** inside choice options ins
 
 ```json
 {
-  "id": "flower-type",
-  "name": "Flower Type",
-  "type": "choice",
-  "config": {
-    "choice": {
-      "choices": [
-        {
-          "id": "rose",
-          "name": "Rose",
-          "type": "piece",
-          "config": {
-            "piece": {
-              "identifier": "rose-attributes"
-            }
-          }
-        },
-        {
-          "id": "orchid",
-          "name": "Orchid",
-          "type": "piece",
-          "config": {
-            "piece": {
-              "identifier": "orchid-attributes"
-            }
-          }
+    "id": "flower-type",
+    "name": "Flower Type",
+    "type": "choice",
+    "config": {
+        "choice": {
+            "choices": [
+                {
+                    "id": "rose",
+                    "name": "Rose",
+                    "type": "piece",
+                    "config": {
+                        "piece": {
+                            "identifier": "rose-attributes"
+                        }
+                    }
+                },
+                {
+                    "id": "orchid",
+                    "name": "Orchid",
+                    "type": "piece",
+                    "config": {
+                        "piece": {
+                            "identifier": "orchid-attributes"
+                        }
+                    }
+                }
+            ]
         }
-      ]
     }
-  }
 }
 ```
 

@@ -10,13 +10,7 @@
     "homepage": "https://crystallize.com",
     "repository": "https://github.com/crystallizeapi/agent-toolkit",
     "license": "MIT",
-    "keywords": [
-        "commerce",
-        "headless",
-        "skills",
-        "mcp",
-        "crystallize"
-    ],
+    "keywords": ["commerce", "headless", "skills", "mcp", "crystallize"],
     "skills": "./skills/",
     "mcpServers": {
         "crystallize": {

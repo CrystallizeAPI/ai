@@ -33,29 +33,22 @@ Product: "Classic T-Shirt"
 1. Go to **Settings → Price Variants**
 2. Click **Add new variant**
 3. Set:
-   - **Name** — Human-readable (e.g. "US Dollar Retail")
-   - **Identifier** — Lowercase, hyphenated (e.g. `usd-retail`). Used in the API. Cannot be changed after creation.
-   - **Currency** — ISO 4217 code (e.g. `USD`, `EUR`, `NOK`, `GBP`, `SEK`, `DKK`, `JPY`, `CHF`)
+    - **Name** — Human-readable (e.g. "US Dollar Retail")
+    - **Identifier** — Lowercase, hyphenated (e.g. `usd-retail`). Used in the API. Cannot be changed after creation.
+    - **Currency** — ISO 4217 code (e.g. `USD`, `EUR`, `NOK`, `GBP`, `SEK`, `DKK`, `JPY`, `CHF`)
 4. Save
 
 ### Via PIM API
 
 ```graphql
 mutation {
-  priceVariant {
-    create(
-      input: {
-        tenantId: "your-tenant-id"
-        identifier: "eur-retail"
-        name: "EUR Retail"
-        currency: "EUR"
-      }
-    ) {
-      identifier
-      name
-      currency
+    priceVariant {
+        create(input: { tenantId: "your-tenant-id", identifier: "eur-retail", name: "EUR Retail", currency: "EUR" }) {
+            identifier
+            name
+            currency
+        }
     }
-  }
 }
 ```
 
@@ -63,21 +56,21 @@ mutation {
 
 ```json
 {
-  "version": "1.0.0",
-  "operations": [
-    {
-      "intent": "priceVariant/upsert",
-      "identifier": "usd-retail",
-      "name": "USD Retail",
-      "currency": "USD"
-    },
-    {
-      "intent": "priceVariant/upsert",
-      "identifier": "eur-retail",
-      "name": "EUR Retail",
-      "currency": "EUR"
-    }
-  ]
+    "version": "1.0.0",
+    "operations": [
+        {
+            "intent": "priceVariant/upsert",
+            "identifier": "usd-retail",
+            "name": "USD Retail",
+            "currency": "USD"
+        },
+        {
+            "intent": "priceVariant/upsert",
+            "identifier": "eur-retail",
+            "name": "EUR Retail",
+            "currency": "EUR"
+        }
+    ]
 }
 ```
 
@@ -89,23 +82,23 @@ Prices are set inside the `variants` array of a product upsert operation:
 
 ```json
 {
-  "intent": "product/upsert",
-  "language": "en",
-  "name": "Classic T-Shirt",
-  "shapeIdentifier": "product",
-  "resourceIdentifier": "TSHIRT-001",
-  "variants": [
-    {
-      "name": "Classic T-Shirt — Red L",
-      "sku": "TSHIRT-RED-L",
-      "isDefault": true,
-      "priceVariants": [
-        { "identifier": "retail", "price": 39.99 },
-        { "identifier": "sales", "price": 29.99 },
-        { "identifier": "b2b", "price": 18.0 }
-      ]
-    }
-  ]
+    "intent": "product/upsert",
+    "language": "en",
+    "name": "Classic T-Shirt",
+    "shapeIdentifier": "product",
+    "resourceIdentifier": "TSHIRT-001",
+    "variants": [
+        {
+            "name": "Classic T-Shirt — Red L",
+            "sku": "TSHIRT-RED-L",
+            "isDefault": true,
+            "priceVariants": [
+                { "identifier": "retail", "price": 39.99 },
+                { "identifier": "sales", "price": 29.99 },
+                { "identifier": "b2b", "price": 18.0 }
+            ]
+        }
+    ]
 }
 ```
 
@@ -113,23 +106,18 @@ Prices are set inside the `variants` array of a product upsert operation:
 
 ```graphql
 mutation UpdateVariantPrice {
-  product {
-    updateVariant(
-      productId: "product-id"
-      language: "en"
-      sku: "TSHIRT-RED-L"
-      input: {
-        priceVariants: [
-          { identifier: "retail", price: 39.99 }
-          { identifier: "sales", price: 29.99 }
-        ]
-      }
-    ) {
-      ... on Product {
-        id
-      }
+    product {
+        updateVariant(
+            productId: "product-id"
+            language: "en"
+            sku: "TSHIRT-RED-L"
+            input: { priceVariants: [{ identifier: "retail", price: 39.99 }, { identifier: "sales", price: 29.99 }] }
+        ) {
+            ... on Product {
+                id
+            }
+        }
     }
-  }
 }
 ```
 
@@ -139,21 +127,21 @@ mutation UpdateVariantPrice {
 
 ```graphql
 query {
-  browse {
-    product(language: en) {
-      hits {
-        name
-        defaultVariant {
-          defaultPrice # The first/default price variant value
-          priceVariants {
-            identifier
-            price
-            currency
-          }
+    browse {
+        product(language: en) {
+            hits {
+                name
+                defaultVariant {
+                    defaultPrice # The first/default price variant value
+                    priceVariants {
+                        identifier
+                        price
+                        currency
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }
 ```
 
@@ -161,32 +149,28 @@ query {
 
 ```graphql
 query {
-  browse {
-    product(language: en, path: "/shop/t-shirts/classic") {
-      hits {
-        name
-        defaultVariant {
-          priceVariants {
-            identifier
-            price
-            currency
-          }
+    browse {
+        product(language: en, path: "/shop/t-shirts/classic") {
+            hits {
+                name
+                defaultVariant {
+                    priceVariants {
+                        identifier
+                        price
+                        currency
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }
 ```
 
 In your frontend, filter by identifier:
 
 ```typescript
-const retailPrice = variant.priceVariants.find(
-  (pv) => pv.identifier === "retail",
-);
-const salesPrice = variant.priceVariants.find(
-  (pv) => pv.identifier === "sales",
-);
+const retailPrice = variant.priceVariants.find((pv) => pv.identifier === "retail");
+const salesPrice = variant.priceVariants.find((pv) => pv.identifier === "sales");
 ```
 
 ## Naming Convention Guide
@@ -227,21 +211,19 @@ The storefront checks: if `sales` exists and is lower than `retail`, show strike
 
 ```tsx
 function PriceDisplay({ priceVariants }) {
-  const retail = priceVariants.find((p) => p.identifier === "retail");
-  const sales = priceVariants.find((p) => p.identifier === "sales");
+    const retail = priceVariants.find((p) => p.identifier === "retail");
+    const sales = priceVariants.find((p) => p.identifier === "sales");
 
-  const onSale = sales && retail && sales.price < retail.price;
+    const onSale = sales && retail && sales.price < retail.price;
 
-  return (
-    <div>
-      {onSale && (
-        <span className="line-through text-gray-400">{retail.price}</span>
-      )}
-      <span className={onSale ? "text-red-600 font-bold" : ""}>
-        {onSale ? sales.price : retail.price} {retail.currency}
-      </span>
-    </div>
-  );
+    return (
+        <div>
+            {onSale && <span className="line-through text-gray-400">{retail.price}</span>}
+            <span className={onSale ? "text-red-600 font-bold" : ""}>
+                {onSale ? sales.price : retail.price} {retail.currency}
+            </span>
+        </div>
+    );
 }
 ```
 
@@ -251,11 +233,11 @@ Create one variant per currency, resolve which to show based on the customer's m
 
 ```typescript
 function getDisplayPrice(priceVariants, customerCurrency = "USD") {
-  return (
-    priceVariants.find((pv) => pv.currency === customerCurrency) ||
-    priceVariants.find((pv) => pv.identifier === "default") ||
-    priceVariants[0]
-  );
+    return (
+        priceVariants.find((pv) => pv.currency === customerCurrency) ||
+        priceVariants.find((pv) => pv.identifier === "default") ||
+        priceVariants[0]
+    );
 }
 ```
 
@@ -265,7 +247,7 @@ Use the checkout context / logged-in customer group to determine which variant t
 
 ```typescript
 function getPrice(priceVariants, isB2B = false) {
-  const identifier = isB2B ? "b2b" : "retail";
-  return priceVariants.find((pv) => pv.identifier === identifier);
+    const identifier = isB2B ? "b2b" : "retail";
+    return priceVariants.find((pv) => pv.identifier === identifier);
 }
 ```

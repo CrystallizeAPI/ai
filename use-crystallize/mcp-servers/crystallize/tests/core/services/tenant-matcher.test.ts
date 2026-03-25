@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { createTenantMatcher } from "../../../src/core/services/tenant-matcher";
 import { testTenants } from "../../utils/fixtures";
 

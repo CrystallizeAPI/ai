@@ -1,8 +1,16 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
 import { buildIntrospectionFromSDL } from "../../utils/fixtures";
 
-// Use full path for dynamic import
-const COMPACT_SCHEMA_BUILDER_PATH = "../../../src/core/services/compact-schema-builder";
+const mockFetchIntrospection = mock();
+mock.module("../../../src/core/services/compact-schema-builder", () => {
+    const actual = require("../../../src/core/services/compact-schema-builder");
+    return {
+        ...actual,
+        fetchIntrospection: mockFetchIntrospection,
+    };
+});
+
+import { createGraphlSchemaCompacter } from "../../../src/core/services/compact-schema-builder";
 
 const SCHEMA_SDL = `
     type Query {
@@ -37,31 +45,14 @@ const SCHEMA_SDL = `
 `;
 
 describe("compactSchemaBuilder", () => {
-    const originalFetch = globalThis.fetch;
-
     beforeEach(() => {
         const introspection = buildIntrospectionFromSDL(SCHEMA_SDL);
-        vi.stubGlobal(
-            "fetch",
-            vi.fn().mockResolvedValue({
-                ok: true,
-                json: () => Promise.resolve(introspection),
-            }),
-        );
+        mockFetchIntrospection.mockReset();
+        mockFetchIntrospection.mockResolvedValue(introspection);
     });
-
-    afterEach(() => {
-        vi.stubGlobal("fetch", originalFetch);
-    });
-
-    // Import after mock setup
-    async function getCompacter() {
-        const { createGraphlSchemaCompacter } = await import(COMPACT_SCHEMA_BUILDER_PATH);
-        return createGraphlSchemaCompacter();
-    }
 
     it("produces output containing Queries and Types sections", async () => {
-        const compacter = await getCompacter();
+        const compacter = createGraphlSchemaCompacter();
         const result = await compacter("https://api.example.com/graphql");
 
         expect(result).toContain("# Queries");
@@ -71,7 +62,7 @@ describe("compactSchemaBuilder", () => {
     });
 
     it("includes Mutations section when operations is 'both'", async () => {
-        const compacter = await getCompacter();
+        const compacter = createGraphlSchemaCompacter();
         const result = await compacter("https://api.example.com/graphql", { operations: "both" });
 
         expect(result).toContain("# Queries");
@@ -80,7 +71,7 @@ describe("compactSchemaBuilder", () => {
     });
 
     it("filters to queries only", async () => {
-        const compacter = await getCompacter();
+        const compacter = createGraphlSchemaCompacter();
         const result = await compacter("https://api.example.com/graphql", { operations: "queries" });
 
         expect(result).toContain("# Queries");
@@ -88,7 +79,7 @@ describe("compactSchemaBuilder", () => {
     });
 
     it("filters to mutations only", async () => {
-        const compacter = await getCompacter();
+        const compacter = createGraphlSchemaCompacter();
         const result = await compacter("https://api.example.com/graphql", { operations: "mutations" });
 
         expect(result).not.toContain("# Queries");
@@ -96,15 +87,13 @@ describe("compactSchemaBuilder", () => {
     });
 
     it("excludes unreachable types", async () => {
-        const compacter = await getCompacter();
+        const compacter = createGraphlSchemaCompacter();
         const result = await compacter("https://api.example.com/graphql");
 
         expect(result).not.toContain("Unreachable");
     });
 
     it("includes enum types", async () => {
-        // SortOrder is not reachable from any root query/mutation in this schema,
-        // so it should be excluded. Let's verify enums work with a reachable one.
         const sdl = `
             type Query {
                 products(sort: SortOrder): [Product!]!
@@ -118,15 +107,10 @@ describe("compactSchemaBuilder", () => {
             }
         `;
         const introspection = buildIntrospectionFromSDL(sdl);
-        vi.stubGlobal(
-            "fetch",
-            vi.fn().mockResolvedValue({
-                ok: true,
-                json: () => Promise.resolve(introspection),
-            }),
-        );
+        mockFetchIntrospection.mockReset();
+        mockFetchIntrospection.mockResolvedValue(introspection);
 
-        const compacter = await getCompacter();
+        const compacter = createGraphlSchemaCompacter();
         const result = await compacter("https://api.example.com/graphql");
 
         expect(result).toContain("# Enums");
@@ -156,38 +140,23 @@ describe("compactSchemaBuilder", () => {
             }
         `;
         const introspection = buildIntrospectionFromSDL(sdl);
-        vi.stubGlobal(
-            "fetch",
-            vi.fn().mockResolvedValue({
-                ok: true,
-                json: () => Promise.resolve(introspection),
-            }),
-        );
+        mockFetchIntrospection.mockReset();
+        mockFetchIntrospection.mockResolvedValue(introspection);
 
-        const compacter = await getCompacter();
+        const compacter = createGraphlSchemaCompacter();
         const result = await compacter("https://api.example.com/graphql");
 
-        // The Product type line should contain "name" but not "id" or "createdAt"
-        // since those are inherited from Node interface
         const productLine = result.split("\n").find((line: string) => line.startsWith("Product:"));
         expect(productLine).toBeDefined();
         expect(productLine).toContain("name");
-        // id and createdAt should NOT appear on the Product line (inherited from Node)
         expect(productLine).not.toContain("id:");
         expect(productLine).not.toContain("createdAt");
     });
 
     it("throws on failed introspection", async () => {
-        vi.stubGlobal(
-            "fetch",
-            vi.fn().mockResolvedValue({
-                ok: false,
-                status: 500,
-                statusText: "Internal Server Error",
-            }),
-        );
+        mockFetchIntrospection.mockRejectedValue(new Error("Introspection failed: 500 Internal Server Error"));
 
-        const compacter = await getCompacter();
+        const compacter = createGraphlSchemaCompacter();
         await expect(compacter("https://api.example.com/graphql")).rejects.toThrow("Introspection failed");
     });
 });

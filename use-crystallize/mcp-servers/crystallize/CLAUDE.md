@@ -5,12 +5,12 @@ MCP server built on **Hono**, **Cloudflare Workers**, and the **Model Context Pr
 ## Quick Reference
 
 ```bash
-pnpm dev          # Vite dev server with HMR
-pnpm build        # Production build
-pnpm deploy       # Build + deploy to Cloudflare
-pnpm codeclean    # oxlint --fix && oxfmt --write .
-pnpm type-check   # TypeScript check (no emit)
-pnpm cf-typegen   # Regenerate CloudflareBindings types
+bun dev          # Vite dev server with HMR
+bun build        # Production build
+bun deploy       # Build + deploy to Cloudflare
+bun codeclean    # oxlint --fix && oxfmt --write .
+bun type-check   # TypeScript check (no emit)
+bun cf-typegen   # Regenerate CloudflareBindings types
 ```
 
 ## Project Structure
@@ -185,7 +185,7 @@ Use `c.set()` / `c.get()` in middleware/handlers. Extend `Variables` when adding
 - **Hono JSX** — uses `hono/jsx`, not React. Import `JSX` from `hono/jsx/jsx-runtime`
 - **ESM only** — `"type": "module"` in package.json
 - **TypeScript** — strict mode, path imports use `.js` extensions for MCP SDK imports
-- Run `pnpm codeclean` before committing
+- Run `bun codeclean` before committing
 
 ## Key Dependencies
 
@@ -205,4 +205,4 @@ Use `c.set()` / `c.get()` in middleware/handlers. Extend `Variables` when adding
 - **Runtime**: Cloudflare Workers (with `nodejs_compat` flag)
 - **Deployment**: Wrangler CLI
 - **Smart placement** enabled in wrangler config
-- Bindings type generated via `pnpm cf-typegen` → `worker-configuration.d.ts`
+- Bindings type generated via `bun cf-typegen` → `worker-configuration.d.ts`

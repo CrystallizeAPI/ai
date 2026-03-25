@@ -30,7 +30,7 @@
         "**/.run/*/**": true
     },
     "files.associations": {
-        "*.css":"tailwindcss"
+        "*.css": "tailwindcss"
     },
     "todo-tree.general.tags": ["@todo:", "@fixme:", "@bug:"],
     "todo-tree.general.statusBar": "top three",
@@ -42,12 +42,12 @@
     },
     "todo-tree.highlights.customHighlight": {
         "TODOs": {
-          "icon": "flame",
-          "foreground": "#ff9900"
+            "icon": "flame",
+            "foreground": "#ff9900"
         },
         "BUGs": {
-          "icon": "bug",
-          "foreground": "#ff0000"
+            "icon": "bug",
+            "foreground": "#ff0000"
         }
     },
     "workbench.colorCustomizations": {
@@ -69,5 +69,5 @@
         "titleBar.inactiveBackground": "#00001a99",
         "titleBar.inactiveForeground": "#e7e7e799"
     },
-    "peacock.color": "#00001a",
+    "peacock.color": "#00001a"
 }

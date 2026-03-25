@@ -26,11 +26,11 @@ Choosing the right component for each piece of **additional** data determines ho
 | Arbitrary key-value specs (varied, not fixed)          | **Properties Table** |
 
 - **Numeric** → stores a number with one or more selectable units (e.g. g, mg, kg for weight; cm, m, in for length). Editors pick which unit applies when entering a value. Preferred when the metric is known and fixed — enables Discovery API filtering and sorting. Create one Numeric component per metric (e.g., `weight`, `length`, `power`).
-  - **Units config**: define the list of valid unit options in `config.numeric.units` as a string array — e.g. `["g", "mg", "kg"]`, `["cm", "m", "in"]`, `["W", "kW"]`. Editors can then select from these units when entering values. Leave empty if the unit is fixed/implied.
-  - **Example**: `{ "id": "weight", "name": "Weight", "type": "numeric", "config": { "numeric": { "units": ["g", "mg", "kg"] } } }`
+    - **Units config**: define the list of valid unit options in `config.numeric.units` as a string array — e.g. `["g", "mg", "kg"]`, `["cm", "m", "in"]`, `["W", "kW"]`. Editors can then select from these units when entering values. Leave empty if the unit is fixed/implied.
+    - **Example**: `{ "id": "weight", "name": "Weight", "type": "numeric", "config": { "numeric": { "units": ["g", "mg", "kg"] } } }`
 - **Properties Table** → key-value pairs in table format. Use when keys are arbitrary or user-defined. Does NOT enable typed filtering in Discovery. Use for: technical specification sheets where keys vary per product.
-  - **Fixed keys (configured in shape)**: Keys are predefined in the shape definition. Editors fill in values for preset keys. Useful when you know the specification names upfront but prefer a table layout over individual Numeric components.
-  - **Fluid/Dynamic keys (defined at content entry)**: Editors define both keys AND values when adding content. Useful for flexible technical specifications where key names vary by product category or are unpredictable.
+    - **Fixed keys (configured in shape)**: Keys are predefined in the shape definition. Editors fill in values for preset keys. Useful when you know the specification names upfront but prefer a table layout over individual Numeric components.
+    - **Fluid/Dynamic keys (defined at content entry)**: Editors define both keys AND values when adding content. Useful for flexible technical specifications where key names vary by product category or are unpredictable.
 
 **Rule of thumb**: If you always know the key name upfront → use Numeric. If the keys vary per item → use Properties Table.
 
@@ -54,11 +54,11 @@ Choosing the right component for each piece of **additional** data determines ho
 | Link to a curated grid of items                            | **Grid Relation** |
 
 - **Item Relation** → the backbone of all bridge design patterns. Links to one or more items. On product shapes, can link to specific variants (SKU-level). Use for: related products, brand references, ingredients, accessories, any semantic relationship.
-  - **Configuration options** (like relational database constraints):
-    - **Accepted shape identifiers**: restrict which shapes can be linked (e.g., only allow "Brand" documents, or only "Product" shapes)
-    - **Min relations**: minimum number of items that must be linked (e.g., every product must have at least 1 brand)
-    - **Max relations**: maximum number of items that can be linked (e.g., product can link to max 5 related products)
-  - These constraints enforce data integrity and guide editors to create consistent relationships.
+    - **Configuration options** (like relational database constraints):
+        - **Accepted shape identifiers**: restrict which shapes can be linked (e.g., only allow "Brand" documents, or only "Product" shapes)
+        - **Min relations**: minimum number of items that must be linked (e.g., every product must have at least 1 brand)
+        - **Max relations**: maximum number of items that can be linked (e.g., product can link to max 5 related products)
+    - These constraints enforce data integrity and guide editors to create consistent relationships.
 - **Grid Relation** → links to a curated grid. Use for: seasonal landing pages, campaign highlights, curated collections.
 
 **When choosing between Item Relation and Topic Maps for classification:**
@@ -76,10 +76,10 @@ Choosing the right component for each piece of **additional** data determines ho
 | Geographic coordinates                                      | **Location**  |
 
 - **Selection** → dropdown, radio buttons, or checkboxes with predefined options. Each option has a `key` (API value) and `value` (display label). Configure min/max selections to control behavior:
-  - **Radio/Enum pattern**: min=1, max=1, required → exactly one selection, renders as radio buttons or dropdown
-  - **Checkboxes pattern**: min=0, max=N → optional multi-select, renders as checkboxes, can be null
-    Use when the options are a fixed, small set that don't need their own content. If options need enrichment (images, descriptions), use Item Relations instead (Semantic Bridge pattern).
-  - **API option structure**: `{ key: "red", value: "Red", isPreselected?: Boolean }` — `key` is used in queries/filters, `value` is what editors see
+    - **Radio/Enum pattern**: min=1, max=1, required → exactly one selection, renders as radio buttons or dropdown
+    - **Checkboxes pattern**: min=0, max=N → optional multi-select, renders as checkboxes, can be null
+      Use when the options are a fixed, small set that don't need their own content. If options need enrichment (images, descriptions), use Item Relations instead (Semantic Bridge pattern).
+    - **API option structure**: `{ key: "red", value: "Red", isPreselected?: Boolean }` — `key` is used in queries/filters, `value` is what editors see
 - **Switch** → true/false toggle. Use for: "Featured", "On Sale", "Available in store", "Organic certified".
 - **Datetime** → date with optional time (type: `datetime`). Use for: launch date, preorder availability, expiration, event scheduling.
 - **Location** → latitude/longitude. Use for: store locator, pickup points, product origin.
@@ -95,22 +95,22 @@ Choosing the right component for each piece of **additional** data determines ho
 These are **structural components** — they don't store data directly but organize other components:
 
 - **Chunk (contentChunk)** → a group of components that belong together (repeatable OR single occurrence)
-  - **Can be repeatable:** Enable `repeatable: true` to create lists (ingredients, specifications, addresses)
-  - **Can be single:** Use `repeatable: false` (or omit) for one-time groups that only occur once in the model
-  - **When to use chunk:** Fields are tightly coupled and specific to one location in your content model
-  - **Examples (repeatable):** Ingredients list, multiple addresses, product specifications, USP items
-  - **Examples (non-repeatable):** SEO metadata (title+description+keywords as one group), single shipping address, environment settings
-  - **Decision rule:** If this exact group structure only appears once in the entire content model → use a non-repeatable chunk instead of creating a piece
-  - Building block for all bridge patterns (semantic, quantised, conditional, composite)
-  - **A chunk must always have at least 1 child component — empty chunks are invalid.**
+    - **Can be repeatable:** Enable `repeatable: true` to create lists (ingredients, specifications, addresses)
+    - **Can be single:** Use `repeatable: false` (or omit) for one-time groups that only occur once in the model
+    - **When to use chunk:** Fields are tightly coupled and specific to one location in your content model
+    - **Examples (repeatable):** Ingredients list, multiple addresses, product specifications, USP items
+    - **Examples (non-repeatable):** SEO metadata (title+description+keywords as one group), single shipping address, environment settings
+    - **Decision rule:** If this exact group structure only appears once in the entire content model → use a non-repeatable chunk instead of creating a piece
+    - Building block for all bridge patterns (semantic, quantised, conditional, composite)
+    - **A chunk must always have at least 1 child component — empty chunks are invalid.**
 - **Choice (choice, componentChoice)** → select exactly ONE structure from a set. The editor picks which form applies, and only sees fields for that choice. Implements the **Polymorphic Choice** pattern. Use when a concept has multiple valid but mutually exclusive representations.
 - **Multiple Choice (componentMultipleChoice)** → select ONE OR MORE structures from a set. Similar to Choice but allows combining forms. Use when multiple structural forms can coexist on the same item.
-  - **Common pattern**: Define each option as a **Piece** (reusable component group) for consistency across shapes
-  - **Validation**: `allowDuplicates` (API field) — when `false`, each choice can only be selected once; when `true`, editors can add the same choice multiple times (e.g., two Banner sections on a page)
-  - **Use cases**:
-    - **Page builders**: Multiple Choice of section Pieces (Banner, Testimonials, Product Grid, Text Block) — editors add/remove/reorder sections
-    - **Polymorphic products**: Products that are similar but details vary — add fragmented Pieces (Physical Attributes, Digital License, Subscription Terms) that editors select based on product type
-    - **Flexible content**: Any scenario where an item can have multiple coexisting structural forms
+    - **Common pattern**: Define each option as a **Piece** (reusable component group) for consistency across shapes
+    - **Validation**: `allowDuplicates` (API field) — when `false`, each choice can only be selected once; when `true`, editors can add the same choice multiple times (e.g., two Banner sections on a page)
+    - **Use cases**:
+        - **Page builders**: Multiple Choice of section Pieces (Banner, Testimonials, Product Grid, Text Block) — editors add/remove/reorder sections
+        - **Polymorphic products**: Products that are similar but details vary — add fragmented Pieces (Physical Attributes, Digital License, Subscription Terms) that editors select based on product type
+        - **Flexible content**: Any scenario where an item can have multiple coexisting structural forms
 
 ### Critical Nesting Rule for Structural Components
 
@@ -399,14 +399,14 @@ Valid values: `"body"`, `"title"`, `"images"`, `"videos"`, `"structure"`
 
 ```json
 {
-  "id": "body",
-  "name": "Body Content",
-  "type": "paragraphCollection",
-  "config": {
-    "paragraphCollection": {
-      "multilingual": ["title", "body", "images", "videos"]
+    "id": "body",
+    "name": "Body Content",
+    "type": "paragraphCollection",
+    "config": {
+        "paragraphCollection": {
+            "multilingual": ["title", "body", "images", "videos"]
+        }
     }
-  }
 }
 ```
 
@@ -488,38 +488,38 @@ Material Document Shape
 When querying the Catalogue API or Discovery API, you specify the desired language using the `language` parameter. This parameter can be passed:
 
 1. **At the top level** of queries (most common):
-   - `catalogue(path: "/shop/chair", language: "en")`
-   - `grid(id: "...", language: "en")`
-   - `topics(name: "Brands", language: "en")`
-   - `productVariants(skus: [...], language: "en")`
+    - `catalogue(path: "/shop/chair", language: "en")`
+    - `grid(id: "...", language: "en")`
+    - `topics(name: "Brands", language: "en")`
+    - `productVariants(skus: [...], language: "en")`
 
 2. **On specific relationship fields** (for nested language queries):
-   - `Image.topics(language: "en")` — get topic associations in a specific language
-   - `ImageShowcase.items(language: "en")` — get showcase items in a specific language
-   - `PriceList.products(language: "en")` — get products from price list in a specific language
+    - `Image.topics(language: "en")` — get topic associations in a specific language
+    - `ImageShowcase.items(language: "en")` — get showcase items in a specific language
+    - `PriceList.products(language: "en")` — get products from price list in a specific language
 
 **Example query with language parameter:**
 
 ```graphql
 query GetProduct($path: String!, $language: String!) {
-  catalogue(path: $path, language: $language) {
-    name
-    ... on Product {
-      variants {
-        sku
+    catalogue(path: $path, language: $language) {
         name
-        price
-      }
-      # Component fields
-      description {
-        plainText
-      }
-      # Relationship components can specify language
-      brand {
-        name # Automatically uses parent query language
-      }
+        ... on Product {
+            variants {
+                sku
+                name
+                price
+            }
+            # Component fields
+            description {
+                plainText
+            }
+            # Relationship components can specify language
+            brand {
+                name # Automatically uses parent query language
+            }
+        }
     }
-  }
 }
 ```
 
@@ -540,8 +540,7 @@ query GetProduct($path: String!, $language: String!) {
 ```javascript
 // Frontend decides how to handle missing translations
 const title = product.title || product.defaultLanguageTitle || "Untitled";
-const description =
-  product.description || product.defaultLanguageDescription || "";
+const description = product.description || product.defaultLanguageDescription || "";
 ```
 
 This gives you full control over fallback behavior based on your business rules (show default language? show "translation missing"? hide the field?).
@@ -819,12 +818,12 @@ Every component type supports validation rules to enforce data integrity and gui
 **Do you need to group fields together?**
 
 1. **Will this exact group be used in 2+ locations?** (multiple shapes OR multiple pieces)
-   - YES → Use a **Piece** (reusable)
-   - NO → Continue to step 2
+    - YES → Use a **Piece** (reusable)
+    - NO → Continue to step 2
 
 2. **Will this group repeat multiple times in the same location?** (like a list)
-   - YES → Use a **Chunk with `repeatable: true`**
-   - NO → Use a **Chunk with `repeatable: false`** (or omit repeatable property)
+    - YES → Use a **Chunk with `repeatable: true`**
+    - NO → Use a **Chunk with `repeatable: false`** (or omit repeatable property)
 
 ### Examples
 

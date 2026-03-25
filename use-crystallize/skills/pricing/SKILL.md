@@ -2,8 +2,8 @@
 name: pricing
 description: Design and implement pricing strategies in Crystallize using Price Variants, Price Lists, Promotions, and Markets. Use when recommending pricing structures, setting up multi-currency support, configuring B2B/B2C pricing, planning promotional campaigns, defining markets, or advising on pricing architecture for commerce projects. Also use when the user asks about currencies, multi-market setup, was/now pricing, strikethrough prices, wholesale pricing, coupon codes, discount campaigns, tiered pricing, cart discounts, tax-inclusive/exclusive pricing, or any question about how prices work in Crystallize — even if they don't explicitly mention "pricing".
 metadata:
-  author: Crystallize
-  version: "2.0"
+    author: Crystallize
+    version: "2.0"
 ---
 
 # Crystallize Pricing Skill
@@ -359,28 +359,28 @@ When advising on pricing setup, ask these discovery questions:
 ### Discovery Questions
 
 1. **Business Model**
-   - "Is this B2C, B2B, or both?"
-   - "Do you have tiered pricing for different customer groups?"
+    - "Is this B2C, B2B, or both?"
+    - "Do you have tiered pricing for different customer groups?"
 
 2. **Geographic Scope**
-   - "Which markets/countries do you sell to?"
-   - "Do you need separate currencies, or do you use a single currency?"
-   - "Are prices manually set per region, or derived from a base price?"
+    - "Which markets/countries do you sell to?"
+    - "Do you need separate currencies, or do you use a single currency?"
+    - "Are prices manually set per region, or derived from a base price?"
 
 3. **Sales Strategy**
-   - "Do you run sales or show 'was/now' pricing?"
-   - "Do you use coupon codes or promotional campaigns?"
-   - "Do you have seasonal pricing patterns?"
+    - "Do you run sales or show 'was/now' pricing?"
+    - "Do you use coupon codes or promotional campaigns?"
+    - "Do you have seasonal pricing patterns?"
 
 4. **Customer Relationships**
-   - "Do you have wholesale/B2B customers with negotiated rates?"
-   - "Do you have a loyalty or membership programme?"
-   - "Do individual customers have unique pricing agreements?"
+    - "Do you have wholesale/B2B customers with negotiated rates?"
+    - "Do you have a loyalty or membership programme?"
+    - "Do individual customers have unique pricing agreements?"
 
 5. **Complexity Assessment**
-   - "How many products are in your catalogue?"
-   - "How often do prices change?"
-   - "Who manages pricing? (technical team vs merchandisers)"
+    - "How many products are in your catalogue?"
+    - "How often do prices change?"
+    - "Who manages pricing? (technical team vs merchandisers)"
 
 ### Response Framework
 

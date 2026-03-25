@@ -39,22 +39,18 @@ Filter by any attribute, component, or price range. Get facet counts for buildin
 
 ```graphql
 {
-  search(
-    language: en
-    filters: { type_in: [product] }
-    pagination: { limit: 20, after: "XXXX" }
-  ) {
-    summary {
-      totalHits
-      facets
-      endCursor: endToken
+    search(language: en, filters: { type_in: [product] }, pagination: { limit: 20, after: "XXXX" }) {
+        summary {
+            totalHits
+            facets
+            endCursor: endToken
+        }
+        hits {
+            id
+            name
+            path
+        }
     }
-    hits {
-      id
-      name
-      path
-    }
-  }
 }
 ```
 
@@ -62,12 +58,12 @@ Filter by any attribute, component, or price range. Get facet counts for buildin
 
 ```graphql
 {
-  search(language: en, filters: { shape: { equals: "sneaker" } }) {
-    hits {
-      name
-      path
+    search(language: en, filters: { shape: { equals: "sneaker" } }) {
+        hits {
+            name
+            path
+        }
     }
-  }
 }
 ```
 
@@ -75,15 +71,12 @@ Filter by any attribute, component, or price range. Get facet counts for buildin
 
 ```graphql
 {
-  search(
-    language: en
-    filters: { price_sales: { range: { gte: 20, lte: 20 } } }
-  ) {
-    hits {
-      name
-      path
+    search(language: en, filters: { price_sales: { range: { gte: 20, lte: 20 } } }) {
+        hits {
+            name
+            path
+        }
     }
-  }
 }
 ```
 
@@ -91,12 +84,12 @@ Filter by any attribute, component, or price range. Get facet counts for buildin
 
 ```graphql
 {
-  search(language: en, term: "plop") {
-    hits {
-      name
-      path
+    search(language: en, term: "plop") {
+        hits {
+            name
+            path
+        }
     }
-  }
 }
 ```
 
@@ -108,21 +101,21 @@ The `browse` API provides **shape-typed access** — each shape becomes its own 
 
 ```graphql
 {
-  browse {
-    product(language: en, pagination: { limit: 25 }) {
-      hits {
-        name
-        path
-        defaultVariant {
-          sku
-          defaultPrice
-          firstImage {
-            url
-          }
+    browse {
+        product(language: en, pagination: { limit: 25 }) {
+            hits {
+                name
+                path
+                defaultVariant {
+                    sku
+                    defaultPrice
+                    firstImage {
+                        url
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }
 ```
 
@@ -130,26 +123,26 @@ The `browse` API provides **shape-typed access** — each shape becomes its own 
 
 ```graphql
 {
-  browse {
-    category(language: en, path: "/shop/*") {
-      hits {
-        name
-        path
-        children(language: en) {
-          hits {
-            ... on product {
-              name
-              path
-              defaultVariant {
-                sku
-                defaultPrice
-              }
+    browse {
+        category(language: en, path: "/shop/*") {
+            hits {
+                name
+                path
+                children(language: en) {
+                    hits {
+                        ... on product {
+                            name
+                            path
+                            defaultVariant {
+                                sku
+                                defaultPrice
+                            }
+                        }
+                    }
+                }
             }
-          }
         }
-      }
     }
-  }
 }
 ```
 
@@ -161,26 +154,26 @@ The `browse` API provides **shape-typed access** — each shape becomes its own 
 
 ```graphql
 {
-  folder: browse {
-    category(language: en, path: "/shop") {
-      hits {
-        name
-        path
-      }
-    }
-  }
-  products: browse {
-    product(language: en, path: "/shop/*") {
-      hits {
-        name
-        path
-        defaultVariant {
-          sku
-          defaultPrice
+    folder: browse {
+        category(language: en, path: "/shop") {
+            hits {
+                name
+                path
+            }
         }
-      }
     }
-  }
+    products: browse {
+        product(language: en, path: "/shop/*") {
+            hits {
+                name
+                path
+                defaultVariant {
+                    sku
+                    defaultPrice
+                }
+            }
+        }
+    }
 }
 ```
 
@@ -192,22 +185,19 @@ Use `paginationToken` (returned as `endCursor` in summary) for efficient, consis
 
 ```graphql
 {
-  browse {
-    product(
-      language: en
-      pagination: { limit: 25, after: "CURSOR_FROM_PREVIOUS_PAGE" }
-    ) {
-      summary {
-        totalHits
-        hasMoreHits
-        endCursor
-      }
-      hits {
-        name
-        path
-      }
+    browse {
+        product(language: en, pagination: { limit: 25, after: "CURSOR_FROM_PREVIOUS_PAGE" }) {
+            summary {
+                totalHits
+                hasMoreHits
+                endCursor
+            }
+            hits {
+                name
+                path
+            }
+        }
     }
-  }
 }
 ```
 
@@ -223,17 +213,17 @@ The same cursor pattern works with `search`:
 
 ```graphql
 {
-  search(language: en, pagination: { limit: 20, after: "CURSOR" }) {
-    summary {
-      totalHits
-      hasMoreHits
-      endCursor
+    search(language: en, pagination: { limit: 20, after: "CURSOR" }) {
+        summary {
+            totalHits
+            hasMoreHits
+            endCursor
+        }
+        hits {
+            name
+            path
+        }
     }
-    hits {
-      name
-      path
-    }
-  }
 }
 ```
 
@@ -243,15 +233,15 @@ Get counts for filter values:
 
 ```graphql
 {
-  search(language: en, term: "blue", facets: { shape: { limit: 5 } }) {
-    summary {
-      facets
+    search(language: en, term: "blue", facets: { shape: { limit: 5 } }) {
+        summary {
+            facets
+        }
+        hits {
+            name
+            path
+        }
     }
-    hits {
-      name
-      path
-    }
-  }
 }
 ```
 

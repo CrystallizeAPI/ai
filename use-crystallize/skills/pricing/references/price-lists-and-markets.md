@@ -25,20 +25,20 @@ The identifier is used in the API and checkout context. Choose it carefully — 
 
 ```graphql
 mutation CreateMarket {
-  market {
-    create(
-      input: {
-        tenantId: "your-tenant-id"
-        identifier: "eu-retail"
-        name: "EU Retail"
-        customerIdentifiers: []
-        type: B2C
-      }
-    ) {
-      identifier
-      name
+    market {
+        create(
+            input: {
+                tenantId: "your-tenant-id"
+                identifier: "eu-retail"
+                name: "EU Retail"
+                customerIdentifiers: []
+                type: B2C
+            }
+        ) {
+            identifier
+            name
+        }
     }
-  }
 }
 ```
 
@@ -89,31 +89,28 @@ At checkout time, the storefront sets the market in the cart context:
 
 ```graphql
 mutation HydrateCart {
-  cart {
-    hydrate(
-      context: { markets: ["eu-retail"] }
-      input: { items: [{ sku: "TSHIRT-RED-L", quantity: 1 }] }
-    ) {
-      cart {
-        items {
-          variant {
-            sku
-            name
-          }
-          price {
-            gross
-            net
-            currency
-          }
+    cart {
+        hydrate(context: { markets: ["eu-retail"] }, input: { items: [{ sku: "TSHIRT-RED-L", quantity: 1 }] }) {
+            cart {
+                items {
+                    variant {
+                        sku
+                        name
+                    }
+                    price {
+                        gross
+                        net
+                        currency
+                    }
+                }
+                total {
+                    gross
+                    net
+                    currency
+                }
+            }
         }
-        total {
-          gross
-          net
-          currency
-        }
-      }
     }
-  }
 }
 ```
 
@@ -136,35 +133,35 @@ Price lists override or adjust the base price (from price variants) for specific
 1. Go to **Special Prices → Price Lists**
 2. Click **Add new**
 3. Configure:
-   - **Name and identifier** — e.g. "EU Summer Sale", `eu-summer-sale`
-   - **Products** — All products, or specific ones (drag-and-drop / bulk select)
-   - **Price variants** — Which variant(s) this list adjusts
-   - **Adjustment type** — Percentage, relative value, or absolute price
-   - **Period** (optional) — Start and end dates
-   - **Target** — Market, customer group, or individual customer
+    - **Name and identifier** — e.g. "EU Summer Sale", `eu-summer-sale`
+    - **Products** — All products, or specific ones (drag-and-drop / bulk select)
+    - **Price variants** — Which variant(s) this list adjusts
+    - **Adjustment type** — Percentage, relative value, or absolute price
+    - **Period** (optional) — Start and end dates
+    - **Target** — Market, customer group, or individual customer
 
 ### Via PIM API
 
 ```graphql
 mutation CreatePriceList {
-  priceList {
-    create(
-      input: {
-        tenantId: "your-tenant-id"
-        identifier: "eu-summer-sale"
-        name: "EU Summer Sale"
-        modifierType: PERCENTAGE
-        priceVariants: ["retail"]
-        selectedProductVariants: { type: ALL }
-        targetAudience: { marketIdentifiers: ["eu-retail"] }
-        startDate: "2025-06-01T00:00:00Z"
-        endDate: "2025-08-31T23:59:59Z"
-      }
-    ) {
-      identifier
-      name
+    priceList {
+        create(
+            input: {
+                tenantId: "your-tenant-id"
+                identifier: "eu-summer-sale"
+                name: "EU Summer Sale"
+                modifierType: PERCENTAGE
+                priceVariants: ["retail"]
+                selectedProductVariants: { type: ALL }
+                targetAudience: { marketIdentifiers: ["eu-retail"] }
+                startDate: "2025-06-01T00:00:00Z"
+                endDate: "2025-08-31T23:59:59Z"
+            }
+        ) {
+            identifier
+            name
+        }
     }
-  }
 }
 ```
 

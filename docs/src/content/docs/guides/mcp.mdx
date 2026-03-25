@@ -3,8 +3,8 @@ title: Crystallize MCP Server
 description: Connect your AI coding agent or chatbot to Crystallize using the Model Context Protocol (MCP) to query and mutate your tenant data.
 ---
 
-import { Steps, Code, Badge, Card, CardGrid } from '@astrojs/starlight/components';
-import McpTools from '../../../ui/components/astro/McpTools.astro';
+import { Steps, Code, Badge, Card, CardGrid } from "@astrojs/starlight/components";
+import McpTools from "../../../ui/components/astro/McpTools.astro";
 
 The Crystallize MCP Server lets AI agents interact with your Crystallize tenant through the [Model Context Protocol](https://modelcontextprotocol.io/). It runs on Cloudflare Workers and provides authenticated access to query and mutate your Crystallize data.
 
@@ -12,20 +12,23 @@ The Crystallize MCP Server lets AI agents interact with your Crystallize tenant 
 
 <CardGrid>
     <Card title="Query Data" icon="magnifier">
-        Read catalogue items, products, orders, customers, and more from your tenant using Core, Discovery, Catalogue, and Shop APIs.
+        Read catalogue items, products, orders, customers, and more from your tenant using Core, Discovery, Catalogue,
+        and Shop APIs.
     </Card>
     <Card title="Fetch Content Model" icon="document">
         Retrieve and inspect your tenant's shapes, components, and content structure to understand your schema.
     </Card>
     <Card title="Introspect GraphQL Schemas" icon="setting">
-        Fetch compacted GraphQL schemas for the Catalogue and Discovery APIs to understand available queries, types, and fields before writing queries.
+        Fetch compacted GraphQL schemas for the Catalogue and Discovery APIs to understand available queries, types, and
+        fields before writing queries.
     </Card>
     <Card title="Mutate Data" icon="pencil">
         Create and update items, manage orders, handle checkout flows, and modify your content structure.
         <Badge variant="danger" text="Coming Soon" />
     </Card>
     <Card title="Access Skills" icon="open-book">
-        Get on-demand documentation about Crystallize concepts like content modeling, pricing, and information architecture.
+        Get on-demand documentation about Crystallize concepts like content modeling, pricing, and information
+        architecture.
     </Card>
 </CardGrid>
 
@@ -47,6 +50,7 @@ The Crystallize MCP Server lets AI agents interact with your Crystallize tenant 
         --header "X-Crystallize-Access-Token-Id: ACCESS_TOKEN_ID" \
         --header "X-Crystallize-Access-Token-Secret: ACCESS_TOKEN_SECRET"
     ```
+
     This works with any MCP-compatible client (Claude Desktop, Claude Code, Cursor, Windsurf, etc.).
 
 3. **Verify the connection**
@@ -67,9 +71,9 @@ The following tools are auto-generated from the [MCP Server source code](https:/
 
 The MCP Server requires two headers on every request:
 
-| Header | Description |
-|--------|-------------|
-| `X-Crystallize-Access-Token-Id` | Your Crystallize access token ID |
+| Header                              | Description                          |
+| ----------------------------------- | ------------------------------------ |
+| `X-Crystallize-Access-Token-Id`     | Your Crystallize access token ID     |
 | `X-Crystallize-Access-Token-Secret` | Your Crystallize access token secret |
 
 These credentials are passed through to Crystallize APIs, so the agent operates with the same permissions as the token's associated user.

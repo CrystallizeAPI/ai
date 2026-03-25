@@ -24,47 +24,47 @@ This is the backbone of the page builder. A shape (e.g. `landing-page`, `categor
 
 ```json
 {
-  "id": "blocks",
-  "type": "componentMultipleChoice",
-  "name": "Blocks",
-  "config": {
-    "componentMultipleChoice": {
-      "multilingual": true,
-      "allowDuplicates": true,
-      "choices": [
-        {
-          "id": "banner",
-          "type": "piece",
-          "config": { "piece": { "identifier": "banner" } }
-        },
-        {
-          "id": "feature-highlights",
-          "type": "piece",
-          "config": { "piece": { "identifier": "feature-highlights" } }
-        },
-        {
-          "id": "product-slider",
-          "type": "piece",
-          "config": { "piece": { "identifier": "product-slider" } }
-        },
-        {
-          "id": "story-slider",
-          "type": "piece",
-          "config": { "piece": { "identifier": "story-slider" } }
-        },
-        {
-          "id": "picture-grid",
-          "type": "piece",
-          "config": { "piece": { "identifier": "picture-grid" } }
-        },
-        {
-          "id": "category-slider",
-          "type": "piece",
-          "config": { "piece": { "identifier": "category-slider" } }
+    "id": "blocks",
+    "type": "componentMultipleChoice",
+    "name": "Blocks",
+    "config": {
+        "componentMultipleChoice": {
+            "multilingual": true,
+            "allowDuplicates": true,
+            "choices": [
+                {
+                    "id": "banner",
+                    "type": "piece",
+                    "config": { "piece": { "identifier": "banner" } }
+                },
+                {
+                    "id": "feature-highlights",
+                    "type": "piece",
+                    "config": { "piece": { "identifier": "feature-highlights" } }
+                },
+                {
+                    "id": "product-slider",
+                    "type": "piece",
+                    "config": { "piece": { "identifier": "product-slider" } }
+                },
+                {
+                    "id": "story-slider",
+                    "type": "piece",
+                    "config": { "piece": { "identifier": "story-slider" } }
+                },
+                {
+                    "id": "picture-grid",
+                    "type": "piece",
+                    "config": { "piece": { "identifier": "picture-grid" } }
+                },
+                {
+                    "id": "category-slider",
+                    "type": "piece",
+                    "config": { "piece": { "identifier": "category-slider" } }
+                }
+            ]
         }
-      ]
     }
-  }
 }
 ```
 
@@ -93,48 +93,48 @@ Every block piece embeds the `layout` piece as a component. This gives editors p
 
 ```json
 {
-  "identifier": "layout",
-  "components": [
-    {
-      "id": "display-width",
-      "type": "selection",
-      "config": {
-        "selection": {
-          "options": [
-            { "key": "stretch", "value": "Stretch" },
-            { "key": "contain", "value": "Contain" }
-          ]
+    "identifier": "layout",
+    "components": [
+        {
+            "id": "display-width",
+            "type": "selection",
+            "config": {
+                "selection": {
+                    "options": [
+                        { "key": "stretch", "value": "Stretch" },
+                        { "key": "contain", "value": "Contain" }
+                    ]
+                }
+            }
+        },
+        {
+            "id": "theme",
+            "type": "selection",
+            "config": {
+                "selection": {
+                    "options": [
+                        { "key": "light", "value": "Light" },
+                        { "key": "dark", "value": "Dark" },
+                        { "key": "muted", "value": "Muted" },
+                        { "key": "pastel", "value": "Pastel" },
+                        { "key": "vivid", "value": "Vivid" }
+                    ]
+                }
+            }
+        },
+        {
+            "id": "background-media",
+            "type": "componentChoice",
+            "config": {
+                "componentChoice": {
+                    "choices": [
+                        { "id": "image", "type": "images" },
+                        { "id": "video", "type": "videos" }
+                    ]
+                }
+            }
         }
-      }
-    },
-    {
-      "id": "theme",
-      "type": "selection",
-      "config": {
-        "selection": {
-          "options": [
-            { "key": "light", "value": "Light" },
-            { "key": "dark", "value": "Dark" },
-            { "key": "muted", "value": "Muted" },
-            { "key": "pastel", "value": "Pastel" },
-            { "key": "vivid", "value": "Vivid" }
-          ]
-        }
-      }
-    },
-    {
-      "id": "background-media",
-      "type": "componentChoice",
-      "config": {
-        "componentChoice": {
-          "choices": [
-            { "id": "image", "type": "images" },
-            { "id": "video", "type": "videos" }
-          ]
-        }
-      }
-    }
-  ]
+    ]
 }
 ```
 
@@ -193,16 +193,16 @@ Used when a field should have one value from a set of _structurally different_ t
 
 ```json
 {
-  "id": "background-media",
-  "type": "componentChoice",
-  "config": {
-    "componentChoice": {
-      "choices": [
-        { "id": "image", "type": "images" },
-        { "id": "video", "type": "videos" }
-      ]
+    "id": "background-media",
+    "type": "componentChoice",
+    "config": {
+        "componentChoice": {
+            "choices": [
+                { "id": "image", "type": "images" },
+                { "id": "video", "type": "videos" }
+            ]
+        }
     }
-  }
 }
 ```
 
@@ -218,18 +218,18 @@ Used inside a piece when you need an editor-managed list of structured items tha
 
 ```json
 {
-  "id": "usp",
-  "type": "contentChunk",
-  "config": {
-    "contentChunk": {
-      "repeatable": true,
-      "components": [
-        { "id": "headline", "type": "singleLine" },
-        { "id": "description", "type": "richText" },
-        { "id": "icon", "type": "images" }
-      ]
+    "id": "usp",
+    "type": "contentChunk",
+    "config": {
+        "contentChunk": {
+            "repeatable": true,
+            "components": [
+                { "id": "headline", "type": "singleLine" },
+                { "id": "description", "type": "richText" },
+                { "id": "icon", "type": "images" }
+            ]
+        }
     }
-  }
 }
 ```
 
@@ -300,15 +300,15 @@ category (folder shape)  ← same blocks component as landing-page
 ```js
 // Example pattern
 blocks.map((block) => {
-  switch (block.__typename || block.type) {
-    case "banner":
-      return <Banner {...block} />;
-    case "feature-highlights":
-      return <FeatureHighlights {...block} />;
-    case "product-slider":
-      return <ProductSlider {...block} />;
-    // ...
-  }
+    switch (block.__typename || block.type) {
+        case "banner":
+            return <Banner {...block} />;
+        case "feature-highlights":
+            return <FeatureHighlights {...block} />;
+        case "product-slider":
+            return <ProductSlider {...block} />;
+        // ...
+    }
 });
 ```
 
@@ -316,11 +316,11 @@ blocks.map((block) => {
 
 ```jsx
 <BlockWrapper
-  displayWidth={block.layout.displayWidth} // "stretch" | "contain"
-  theme={block.layout.theme} // "light" | "dark" | ...
-  backgroundMedia={block.layout.backgroundMedia}
+    displayWidth={block.layout.displayWidth} // "stretch" | "contain"
+    theme={block.layout.theme} // "light" | "dark" | ...
+    backgroundMedia={block.layout.backgroundMedia}
 >
-  <Banner {...block} />
+    <Banner {...block} />
 </BlockWrapper>
 ```
 

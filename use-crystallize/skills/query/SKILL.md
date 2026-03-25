@@ -2,8 +2,8 @@
 name: get-data-from-crystallize
 description: Query Crystallize APIs for product data, content, and commerce information. Use this skill when fetching product catalogs, listing items, searching products, filtering by attributes, browsing categories, building storefronts, retrieving cart data, reading orders or customers, building admin dashboards, getting item details by path or ID, implementing faceted navigation, paginating results, or reading any data from Crystallize. Covers Core API, Discovery API, Catalogue API, and Shop API queries. Also use when the user asks about GraphQL queries against Crystallize, reading product variants, getting component data, checking stock levels, or any read operation — even if they don't explicitly say "query".
 metadata:
-  author: Crystallize
-  version: "2.0"
+    author: Crystallize
+    version: "2.0"
 ---
 
 # Crystallize Query Skill
@@ -62,44 +62,44 @@ The Core API provides full read/write access with advanced filtering capabilitie
 ```graphql
 # Example: Get item with components
 query GetItem {
-  item(id: "item-id", language: "en") {
-    ... on Product {
-      id
-      name
-      components {
-        componentId
-        content
-      }
-      defaultVariant {
-        sku
-        price
-        stock
-      }
+    item(id: "item-id", language: "en") {
+        ... on Product {
+            id
+            name
+            components {
+                componentId
+                content
+            }
+            defaultVariant {
+                sku
+                price
+                stock
+            }
+        }
     }
-  }
 }
 
 # Example: List orders filtered by customer
 query ListOrders {
-  orders(
-    tenantId: "tenant-id"
-    first: 20
-    filter: { customerIdentifier: "customer@example.com" }
-    sort: { field: createdAt, direction: desc }
-  ) {
-    edges {
-      node {
-        id
-        total {
-          gross
-          currency
+    orders(
+        tenantId: "tenant-id"
+        first: 20
+        filter: { customerIdentifier: "customer@example.com" }
+        sort: { field: createdAt, direction: desc }
+    ) {
+        edges {
+            node {
+                id
+                total {
+                    gross
+                    currency
+                }
+                customer {
+                    identifier
+                }
+            }
         }
-        customer {
-          identifier
-        }
-      }
     }
-  }
 }
 ```
 
@@ -121,55 +121,55 @@ The Discovery API has two entry points: `search` for full-text queries with face
 ```graphql
 # Example: Browse products by shape with pagination
 {
-  browse {
-    product(language: en, pagination: { limit: 25 }) {
-      summary {
-        totalHits
-        hasMoreHits
-        endCursor
-      }
-      hits {
-        name
-        path
-        ... on Product {
-          defaultVariant {
-            sku
-            defaultPrice
-            firstImage {
-              url
+    browse {
+        product(language: en, pagination: { limit: 25 }) {
+            summary {
+                totalHits
+                hasMoreHits
+                endCursor
             }
-          }
+            hits {
+                name
+                path
+                ... on Product {
+                    defaultVariant {
+                        sku
+                        defaultPrice
+                        firstImage {
+                            url
+                        }
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }
 
 # Example: Search with facets and filtering
 {
-  search(
-    language: en
-    term: "green"
-    filters: { type_in: [product] }
-    facets: { shape: { limit: 5 } }
-    pagination: { limit: 20 }
-  ) {
-    summary {
-      totalHits
-      hasMoreHits
-      endCursor
-      facets
-    }
-    hits {
-      name
-      path
-      ... on product {
-        defaultVariant {
-          defaultPrice
+    search(
+        language: en
+        term: "green"
+        filters: { type_in: [product] }
+        facets: { shape: { limit: 5 } }
+        pagination: { limit: 20 }
+    ) {
+        summary {
+            totalHits
+            hasMoreHits
+            endCursor
+            facets
         }
-      }
+        hits {
+            name
+            path
+            ... on product {
+                defaultVariant {
+                    defaultPrice
+                }
+            }
+        }
     }
-  }
 }
 ```
 
@@ -179,16 +179,16 @@ Use for deterministic reads when you know the exact path:
 
 ```graphql
 {
-  catalogue(language: "en", path: "/shop/plants") {
-    name
-    ... on Product {
-      variants {
-        sku
+    catalogue(language: "en", path: "/shop/plants") {
         name
-        price
-      }
+        ... on Product {
+            variants {
+                sku
+                name
+                price
+            }
+        }
     }
-  }
 }
 ```
 
@@ -198,22 +198,22 @@ Retrieve cart and order intent data:
 
 ```graphql
 query {
-  cart(id: "cart-id") {
-    id
-    items {
-      sku
-      name
-      quantity
-      price {
-        gross
-        net
-      }
+    cart(id: "cart-id") {
+        id
+        items {
+            sku
+            name
+            quantity
+            price {
+                gross
+                net
+            }
+        }
+        total {
+            gross
+            net
+        }
     }
-    total {
-      gross
-      net
-    }
-  }
 }
 ```
 

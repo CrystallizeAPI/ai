@@ -2,8 +2,8 @@
 name: information-architecture
 description: Design folder hierarchies and navigation structures in Crystallize. Create category trees, organize products and content, plan URL structures, and build scalable information architectures. Use when designing storefront navigation, category pages, collection structures, content organization, mega menus, or site maps. Also use when the user mentions organizing their catalog, planning their store structure, restructuring navigation, or asks how to organize products or content in Crystallize — even if they don't explicitly say "information architecture."
 metadata:
-  author: Crystallize
-  version: "1.1"
+    author: Crystallize
+    version: "1.1"
 ---
 
 # Crystallize Information Architecture Skill
@@ -17,24 +17,24 @@ Before generating a folder structure, ask clarifying questions to understand the
 ### Key Discovery Questions
 
 1. **What are you selling or publishing?**
-   - "What kind of products or content will this store have?"
-   - "Is this B2C, B2B, or both?"
+    - "What kind of products or content will this store have?"
+    - "Is this B2C, B2B, or both?"
 
 2. **How do customers browse?**
-   - "Do customers need to browse products in multiple ways? (e.g., by category AND by brand)"
-   - "Would you like collections like 'New Arrivals', 'Sale', or seasonal collections?"
+    - "Do customers need to browse products in multiple ways? (e.g., by category AND by brand)"
+    - "Would you like collections like 'New Arrivals', 'Sale', or seasonal collections?"
 
 3. **Content Strategy**
-   - "What content pages do you need? (About, Blog, Support, etc.)"
-   - "Do you have editorial content like guides, lookbooks, or tutorials?"
+    - "What content pages do you need? (About, Blog, Support, etc.)"
+    - "Do you have editorial content like guides, lookbooks, or tutorials?"
 
 4. **Multi-Market Commerce**
-   - "Do you sell in multiple markets or regions with different product assortments?"
-   - "Do different markets have different pricing, availability, or content needs?"
+    - "Do you sell in multiple markets or regions with different product assortments?"
+    - "Do different markets have different pricing, availability, or content needs?"
 
 5. **Scale & Growth**
-   - "How many products/categories do you expect to have?"
-   - "Any planned expansion to new categories or markets?"
+    - "How many products/categories do you expect to have?"
+    - "Any planned expansion to new categories or markets?"
 
 After gathering answers to at least questions 1-3, propose an initial folder structure. It's easier for users to react to a concrete proposal than to answer more abstract questions. Present the tree, explain the reasoning, and iterate from there.
 
@@ -266,21 +266,21 @@ Folder operations use the mass-operations format:
 
 ```json
 {
-  "version": "0.0.1",
-  "operations": [
-    {
-      "name": "Shop",
-      "shapeIdentifier": "category",
-      "parentPath": "/",
-      "intent": "folder/upsert"
-    },
-    {
-      "name": "Men",
-      "shapeIdentifier": "category",
-      "parentPath": "/shop",
-      "intent": "folder/upsert"
-    }
-  ]
+    "version": "0.0.1",
+    "operations": [
+        {
+            "name": "Shop",
+            "shapeIdentifier": "category",
+            "parentPath": "/",
+            "intent": "folder/upsert"
+        },
+        {
+            "name": "Men",
+            "shapeIdentifier": "category",
+            "parentPath": "/shop",
+            "intent": "folder/upsert"
+        }
+    ]
 }
 ```
 

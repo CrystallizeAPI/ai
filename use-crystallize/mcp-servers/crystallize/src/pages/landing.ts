@@ -245,460 +245,462 @@ const physicsScript = /* js */ `
 `;
 
 export function landingPage(): HtmlEscapedString {
-    return html`<!doctype html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Crystallize MCP Server — Commerce Data, MCP-Ready</title>
-        <meta name="description" content="Connect your AI coding agent to Crystallize. Query product catalogs, fetch content models, introspect schemas — all through natural language via the Model Context Protocol." />
-        <link rel="canonical" href="https://mcp.crystallize.com" />
+    return html`
+        <!doctype html>
+        <html lang="en">
+            <head>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <title>Crystallize MCP Server — Commerce Data, MCP-Ready</title>
+                <meta
+                    name="description"
+                    content="Connect your AI coding agent to Crystallize. Query product catalogs, fetch content models, introspect schemas — all through natural language via the Model Context Protocol."
+                />
+                <link rel="canonical" href="https://mcp.crystallize.com" />
 
-        <link rel="icon" type="image/svg+xml" href="https://crystallize.com/crystallize-logo/crystallize-logo.svg" />
-        <link rel="shortcut icon" href="https://crystallize.com/favicon.ico" />
+                <link rel="icon" type="image/svg+xml" href="https://crystallize.com/crystallize-logo/crystallize-logo.svg" />
+                <link rel="shortcut icon" href="https://crystallize.com/favicon.ico" />
 
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://mcp.crystallize.com" />
-        <meta property="og:title" content="Crystallize MCP Server — Commerce Data, MCP-Ready" />
-        <meta property="og:description" content="Connect your AI coding agent to Crystallize. Query product catalogs, fetch content models, introspect schemas — all through natural language via the Model Context Protocol." />
-        <meta property="og:image" content="https://media.crystallize.com/crystallize_marketing/24/10/29/1/crystallize-meta-image.jpg" />
+                <meta property="og:type" content="website" />
+                <meta property="og:url" content="https://mcp.crystallize.com" />
+                <meta property="og:title" content="Crystallize MCP Server — Commerce Data, MCP-Ready" />
+                <meta
+                    property="og:description"
+                    content="Connect your AI coding agent to Crystallize. Query product catalogs, fetch content models, introspect schemas — all through natural language via the Model Context Protocol."
+                />
+                <meta
+                    property="og:image"
+                    content="https://media.crystallize.com/crystallize_marketing/24/10/29/1/crystallize-meta-image.jpg"
+                />
 
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Crystallize MCP Server — Commerce Data, MCP-Ready" />
-        <meta name="twitter:description" content="Connect your AI coding agent to Crystallize. Query product catalogs, fetch content models, introspect schemas — all through natural language via the Model Context Protocol." />
-        <meta name="twitter:image" content="https://media.crystallize.com/crystallize_marketing/24/10/29/1/crystallize-meta-image.jpg" />
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:title" content="Crystallize MCP Server — Commerce Data, MCP-Ready" />
+                <meta
+                    name="twitter:description"
+                    content="Connect your AI coding agent to Crystallize. Query product catalogs, fetch content models, introspect schemas — all through natural language via the Model Context Protocol."
+                />
+                <meta
+                    name="twitter:image"
+                    content="https://media.crystallize.com/crystallize_marketing/24/10/29/1/crystallize-meta-image.jpg"
+                />
 
-        <script type="application/ld+json">
-        {
-          "@context": "https://schema.org",
-          "@type": "SoftwareApplication",
-          "name": "Crystallize MCP Server",
-          "url": "https://mcp.crystallize.com",
-          "description": "Connect your AI coding agent to Crystallize via the Model Context Protocol. Query product catalogs, fetch content models, and introspect schemas through natural language.",
-          "applicationCategory": "DeveloperApplication",
-          "operatingSystem": "Any",
-          "offers": { "@type": "Offer", "price": "0" },
-          "provider": {
-            "@type": "Organization",
-            "name": "Crystallize AS",
-            "url": "https://crystallize.com",
-            "logo": "https://crystallize.com/static/logo.png",
-            "email": "hello@crystallize.com"
-          }
-        }
-        </script>
+                <script type="application/ld+json">
+                    {
+                        "@context": "https://schema.org",
+                        "@type": "SoftwareApplication",
+                        "name": "Crystallize MCP Server",
+                        "url": "https://mcp.crystallize.com",
+                        "description": "Connect your AI coding agent to Crystallize via the Model Context Protocol. Query product catalogs, fetch content models, and introspect schemas through natural language.",
+                        "applicationCategory": "DeveloperApplication",
+                        "operatingSystem": "Any",
+                        "offers": { "@type": "Offer", "price": "0" },
+                        "provider": {
+                            "@type": "Organization",
+                            "name": "Crystallize AS",
+                            "url": "https://crystallize.com",
+                            "logo": "https://crystallize.com/static/logo.png",
+                            "email": "hello@crystallize.com"
+                        }
+                    }
+                </script>
 
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Roboto+Serif:wght@400;700&family=Roboto:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
-        <style>
-          *,
-          *::before,
-          *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-          }
-          html,
-          body {
-            height: 100%;
-            overflow: hidden;
-          }
-          body {
-            background: #1a1333;
-            color: #fff;
-            font-family: "Roboto", sans-serif;
-          }
-          #pinball {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-            touch-action: none;
-          }
+                <link rel="preconnect" href="https://fonts.googleapis.com" />
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+                <link
+                    href="https://fonts.googleapis.com/css2?family=Roboto+Serif:wght@400;700&family=Roboto:wght@400;500&display=swap"
+                    rel="stylesheet"
+                />
+                <style>
+                    *,
+                    *::before,
+                    *::after {
+                        box-sizing: border-box;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    html,
+                    body {
+                        height: 100%;
+                        overflow: hidden;
+                    }
+                    body {
+                        background: #1a1333;
+                        color: #fff;
+                        font-family: "Roboto", sans-serif;
+                    }
+                    #pinball {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        z-index: 0;
+                        touch-action: none;
+                    }
 
-          #content {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 10;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 24px;
-            pointer-events: none;
-          }
-          #content > * {
-            pointer-events: auto;
-          }
-          h1 {
-            font-family: "Roboto Serif", Georgia, serif;
-            font-size: 4rem;
-            font-weight: 700;
-            line-height: 1.08;
-            letter-spacing: -0.02em;
-            margin-bottom: 16px;
-            color: #fff;
-          }
-          .description {
-            font-family: "Roboto", sans-serif;
-            font-size: 1.25rem;
-            line-height: 1.55;
-            opacity: 0.55;
-            max-width: 600px;
-            margin-bottom: 32px;
-            font-weight: 400;
-          }
-          .code-block {
-            position: relative;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            padding: 14px 52px 14px 16px;
-            max-width: 640px;
-            width: 100%;
-            text-align: left;
-          }
-          pre {
-            margin: 0;
-            font-size: 12px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            line-height: 1.6;
-            color: rgba(255, 255, 255, 0.75);
-            font-family: "SF Mono", SFMono-Regular, Consolas, monospace;
-          }
-          .copy-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(255, 191, 74, 0.3);
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            padding: 5px 10px;
-            font-size: 11px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.15s;
-          }
-          .copy-btn:hover {
-            background: rgba(255, 191, 74, 0.65);
-          }
-          .hint {
-            margin-top: 14px;
-            font-size: 0.78rem;
-            opacity: 0.3;
-          }
-          .hint a {
-            color: rgba(255, 191, 74, 0.85);
-            text-decoration: none;
-          }
-          .hint a:hover {
-            text-decoration: underline;
-          }
+                    #content {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 10;
+                        overflow-y: auto;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        text-align: center;
+                        padding: 24px;
+                        pointer-events: none;
+                    }
+                    #content > * {
+                        pointer-events: auto;
+                    }
+                    h1 {
+                        font-family: "Roboto Serif", Georgia, serif;
+                        font-size: 4rem;
+                        font-weight: 700;
+                        line-height: 1.08;
+                        letter-spacing: -0.02em;
+                        margin-bottom: 16px;
+                        color: #fff;
+                    }
+                    .description {
+                        font-family: "Roboto", sans-serif;
+                        font-size: 1.25rem;
+                        line-height: 1.55;
+                        opacity: 0.55;
+                        max-width: 600px;
+                        margin-bottom: 32px;
+                        font-weight: 400;
+                    }
+                    .code-block {
+                        position: relative;
+                        background: rgba(255, 255, 255, 0.06);
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+                        border-radius: 10px;
+                        padding: 14px 52px 14px 16px;
+                        max-width: 640px;
+                        width: 100%;
+                        text-align: left;
+                    }
+                    pre {
+                        margin: 0;
+                        font-size: 12px;
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                        line-height: 1.6;
+                        color: rgba(255, 255, 255, 0.75);
+                        font-family: "SF Mono", SFMono-Regular, Consolas, monospace;
+                    }
+                    .copy-btn {
+                        position: absolute;
+                        top: 10px;
+                        right: 10px;
+                        background: rgba(255, 191, 74, 0.3);
+                        color: #fff;
+                        border: none;
+                        border-radius: 6px;
+                        padding: 5px 10px;
+                        font-size: 11px;
+                        font-weight: 700;
+                        cursor: pointer;
+                        transition: background 0.15s;
+                    }
+                    .copy-btn:hover {
+                        background: rgba(255, 191, 74, 0.65);
+                    }
+                    .hint {
+                        margin-top: 14px;
+                        font-size: 0.78rem;
+                        opacity: 0.3;
+                    }
+                    .hint a {
+                        color: rgba(255, 191, 74, 0.85);
+                        text-decoration: none;
+                    }
+                    .hint a:hover {
+                        text-decoration: underline;
+                    }
 
-          /* ── Top-left logo ── */
-          #top-logo {
-            position: fixed;
-            top: 20px;
-            left: 24px;
-            z-index: 20;
-            pointer-events: auto;
-          }
-          #top-logo img {
-            height: 56px;
-            opacity: 0.85;
-            display: block;
-          }
+                    /* ── Top-left logo ── */
+                    #top-logo {
+                        position: fixed;
+                        top: 20px;
+                        left: 24px;
+                        z-index: 20;
+                        pointer-events: auto;
+                    }
+                    #top-logo img {
+                        height: 56px;
+                        opacity: 0.85;
+                        display: block;
+                    }
 
-          /* ── Feature grid ── */
-          .features-grid {
-            display: flex;
-            flex-direction: row;
-            gap: 8px;
-            max-width: 860px;
-            width: 100%;
-            margin-top: 64px;
-          }
-          .feature-card {
-            flex: 1;
-            position: relative;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.07);
-            border-radius: 10px;
-            padding: 16px 12px 14px;
-            text-align: left;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            transition:
-              border-color 0.35s ease,
-              box-shadow 0.35s ease,
-              background 0.35s ease;
-          }
-          .feature-card.hit {
-            border-color: rgba(0, 186, 255, 0.5);
-            box-shadow:
-              0 0 24px rgba(0, 186, 255, 0.25),
-              inset 0 0 12px rgba(0, 186, 255, 0.08);
-            background: rgba(0, 186, 255, 0.04);
-          }
-          .feature-icon {
-            width: 34px;
-            height: 34px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 10px;
-            color: #fff;
-            flex-shrink: 0;
-          }
-          .feature-card h3 {
-            font-family: "Roboto", sans-serif;
-            font-size: 0.78rem;
-            font-weight: 500;
-            color: rgba(255, 255, 255, 0.92);
-            letter-spacing: -0.01em;
-          }
-          .badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            font-size: 0.58rem;
-            font-weight: 600;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            padding: 3px 8px;
-            border-radius: 4px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            color: rgba(255, 255, 255, 0.7);
-          }
-          .sling-hint {
-            margin-top: 18px;
-            font-size: 0.72rem;
-            opacity: 0.2;
-            font-style: italic;
-            pointer-events: none;
-          }
-          @media (max-width: 860px) {
-            .features-grid {
-              flex-direction: column;
-            }
-          }
-          @media (max-width: 700px) {
-            #top-logo {
-              left: 0;
-              right: 0;
-              top: 16px;
-              display: flex;
-              justify-content: center;
-            }
-            #top-logo img {
-              height: 36px;
-            }
-            html,
-            body {
-              overflow: auto;
-              height: auto;
-            }
-            #pinball {
-              display: none;
-            }
-            #content {
-              position: relative;
-              padding: calc(52px + 2.808rem) 24px 64px;
-              justify-content: flex-start;
-            }
-            h1 {
-              font-size: 2.6rem;
-            }
-            .description {
-              font-size: 1.05rem;
-            }
-            .features-grid {
-              margin-top: 40px;
-              gap: 10px;
-            }
-            .feature-card {
-              padding: 20px 16px;
-            }
-          }
-          @media (max-width: 480px) {
-            h1 {
-              font-size: 2rem;
-            }
-            pre {
-              font-size: 10.5px;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <canvas id="pinball"></canvas>
+                    /* ── Feature grid ── */
+                    .features-grid {
+                        display: flex;
+                        flex-direction: row;
+                        gap: 8px;
+                        max-width: 860px;
+                        width: 100%;
+                        margin-top: 64px;
+                    }
+                    .feature-card {
+                        flex: 1;
+                        position: relative;
+                        background: rgba(255, 255, 255, 0.03);
+                        border: 1px solid rgba(255, 255, 255, 0.07);
+                        border-radius: 10px;
+                        padding: 16px 12px 14px;
+                        text-align: left;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        transition:
+                            border-color 0.35s ease,
+                            box-shadow 0.35s ease,
+                            background 0.35s ease;
+                    }
+                    .feature-card.hit {
+                        border-color: rgba(0, 186, 255, 0.5);
+                        box-shadow:
+                            0 0 24px rgba(0, 186, 255, 0.25),
+                            inset 0 0 12px rgba(0, 186, 255, 0.08);
+                        background: rgba(0, 186, 255, 0.04);
+                    }
+                    .feature-icon {
+                        width: 34px;
+                        height: 34px;
+                        border-radius: 8px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin-bottom: 10px;
+                        color: #fff;
+                        flex-shrink: 0;
+                    }
+                    .feature-card h3 {
+                        font-family: "Roboto", sans-serif;
+                        font-size: 0.78rem;
+                        font-weight: 500;
+                        color: rgba(255, 255, 255, 0.92);
+                        letter-spacing: -0.01em;
+                    }
+                    .badge {
+                        position: absolute;
+                        top: 10px;
+                        right: 10px;
+                        font-size: 0.58rem;
+                        font-weight: 600;
+                        letter-spacing: 0.06em;
+                        text-transform: uppercase;
+                        padding: 3px 8px;
+                        border-radius: 4px;
+                        background: rgba(0, 0, 0, 0.5);
+                        border: 1px solid rgba(255, 255, 255, 0.12);
+                        color: rgba(255, 255, 255, 0.7);
+                    }
+                    .sling-hint {
+                        margin-top: 18px;
+                        font-size: 0.72rem;
+                        opacity: 0.2;
+                        font-style: italic;
+                        pointer-events: none;
+                    }
+                    @media (max-width: 860px) {
+                        .features-grid {
+                            flex-direction: column;
+                        }
+                    }
+                    @media (max-width: 700px) {
+                        #top-logo {
+                            left: 0;
+                            right: 0;
+                            top: 16px;
+                            display: flex;
+                            justify-content: center;
+                        }
+                        #top-logo img {
+                            height: 36px;
+                        }
+                        html,
+                        body {
+                            overflow: auto;
+                            height: auto;
+                        }
+                        #pinball {
+                            display: none;
+                        }
+                        #content {
+                            position: relative;
+                            padding: calc(52px + 2.808rem) 24px 64px;
+                            justify-content: flex-start;
+                        }
+                        h1 {
+                            font-size: 2.6rem;
+                        }
+                        .description {
+                            font-size: 1.05rem;
+                        }
+                        .features-grid {
+                            margin-top: 40px;
+                            gap: 10px;
+                        }
+                        .feature-card {
+                            padding: 20px 16px;
+                        }
+                    }
+                    @media (max-width: 480px) {
+                        h1 {
+                            font-size: 2rem;
+                        }
+                        pre {
+                            font-size: 10.5px;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <canvas id="pinball"></canvas>
 
-        <div id="top-logo">
-          <img
-            src="https://crystallize.com/crystallize-logo/crystallize-logo.svg"
-            alt="Crystallize"
-          />
-        </div>
+                <div id="top-logo">
+                    <img src="https://crystallize.com/crystallize-logo/crystallize-logo.svg" alt="Crystallize" />
+                </div>
 
-        <div id="content">
-          <h1>Commerce data.<br />MCP-ready.</h1>
-          <p class="description">
-            Connect your coding agent to Crystallize. Query catalogs, mutate
-            content, manage pricing — all through natural language.
-          </p>
+                <div id="content">
+                    <h1>Commerce data.<br />MCP-ready.</h1>
+                    <p class="description">
+                        Connect your coding agent to Crystallize. Query catalogs, mutate content, manage pricing — all through
+                        natural language.
+                    </p>
 
-          <div class="code-block">
-            <button class="copy-btn">Copy</button>
-            <pre id="cmd">${command}</pre>
-          </div>
+                    <div class="code-block">
+                        <button class="copy-btn">Copy</button>
+                        <pre id="cmd">${command}</pre>
+                    </div>
 
-          <p class="hint">
-            Get tokens at
-            <a href="https://app.crystallize.com" target="_blank" rel="noopener"
-              >app.crystallize.com</a
-            >
-            → Settings → Access Tokens
-          </p>
+                    <p class="hint">
+                        Get tokens at
+                        <a href="https://app.crystallize.com" target="_blank" rel="noopener">app.crystallize.com</a>
+                        → Settings → Access Tokens
+                    </p>
 
-          <div class="features-grid">
-            <div class="feature-card">
-              <div class="feature-icon" style="background:rgba(0,186,255,0.18)">
-                <svg
-                  width="17"
-                  height="17"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="rgba(0,186,255,0.9)"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                >
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="m21 21-4.35-4.35" />
-                </svg>
-              </div>
-              <h3>Query Data</h3>
-            </div>
-            <div class="feature-card">
-              <div
-                class="feature-icon"
-                style="background:rgba(168,85,247,0.18)"
-              >
-                <svg
-                  width="17"
-                  height="17"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="rgba(168,85,247,0.9)"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                >
-                  <path
-                    d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
-                  />
-                </svg>
-              </div>
-              <h3>Fetch Content Model</h3>
-            </div>
-            <div class="feature-card">
-              <div class="feature-icon" style="background:rgba(34,197,94,0.18)">
-                <svg
-                  width="17"
-                  height="17"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="rgba(34,197,94,0.9)"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                >
-                  <polyline points="16 18 22 12 16 6" />
-                  <polyline points="8 6 2 12 8 18" />
-                </svg>
-              </div>
-              <h3>Introspect Schemas</h3>
-            </div>
-            <div class="feature-card">
-              <div class="feature-icon" style="background:rgba(244,63,94,0.18)">
-                <svg
-                  width="17"
-                  height="17"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="rgba(244,63,94,0.9)"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                >
-                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                </svg>
-              </div>
-              <h3>Mutate Data</h3>
-              <span class="badge">Coming Soon</span>
-            </div>
-            <div class="feature-card">
-              <div
-                class="feature-icon"
-                style="background:rgba(99,102,241,0.18)"
-              >
-                <svg
-                  width="17"
-                  height="17"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="rgba(99,102,241,0.9)"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                >
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                </svg>
-              </div>
-              <h3>Access Skills</h3>
-            </div>
-          </div>
+                    <div class="features-grid">
+                        <div class="feature-card">
+                            <div class="feature-icon" style="background: rgba(0, 186, 255, 0.18)">
+                                <svg
+                                    width="17"
+                                    height="17"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="rgba(0,186,255,0.9)"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                >
+                                    <circle cx="11" cy="11" r="7" />
+                                    <path d="m21 21-4.35-4.35" />
+                                </svg>
+                            </div>
+                            <h3>Query Data</h3>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon" style="background: rgba(168, 85, 247, 0.18)">
+                                <svg
+                                    width="17"
+                                    height="17"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="rgba(168,85,247,0.9)"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                >
+                                    <path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                                </svg>
+                            </div>
+                            <h3>Fetch Content Model</h3>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon" style="background: rgba(34, 197, 94, 0.18)">
+                                <svg
+                                    width="17"
+                                    height="17"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="rgba(34,197,94,0.9)"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                >
+                                    <polyline points="16 18 22 12 16 6" />
+                                    <polyline points="8 6 2 12 8 18" />
+                                </svg>
+                            </div>
+                            <h3>Introspect Schemas</h3>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon" style="background: rgba(244, 63, 94, 0.18)">
+                                <svg
+                                    width="17"
+                                    height="17"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="rgba(244,63,94,0.9)"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                >
+                                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                </svg>
+                            </div>
+                            <h3>Mutate Data</h3>
+                            <span class="badge">Coming Soon</span>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon" style="background: rgba(99, 102, 241, 0.18)">
+                                <svg
+                                    width="17"
+                                    height="17"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="rgba(99,102,241,0.9)"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                >
+                                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                                </svg>
+                            </div>
+                            <h3>Access Skills</h3>
+                        </div>
+                    </div>
 
-          <p class="sling-hint">Drag anywhere to slingshot products ✨</p>
-        </div>
+                    <p class="sling-hint">Drag anywhere to slingshot products ✨</p>
+                </div>
 
-        <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
-        <script>
-          document
-            .querySelector(".copy-btn")
-            .addEventListener("click", function () {
-              var btn = this;
-              var code = document.getElementById("cmd").textContent;
-              navigator.clipboard
-                .writeText(code)
-                .then(function () {
-                  btn.textContent = "Copied!";
-                  btn.disabled = true;
-                  setTimeout(function () {
-                    btn.textContent = "Copy";
-                    btn.disabled = false;
-                  }, 3000);
-                })
-                .catch(function () {
-                  btn.textContent = "Error!";
-                });
-            });
-        </script>
-        <script>
-          ${raw(physicsScript)};
-        </script>
-      </body>
-    </html>` as HtmlEscapedString;
+                <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
+                <script>
+                    document.querySelector(".copy-btn").addEventListener("click", function () {
+                        var btn = this;
+                        var code = document.getElementById("cmd").textContent;
+                        navigator.clipboard
+                            .writeText(code)
+                            .then(function () {
+                                btn.textContent = "Copied!";
+                                btn.disabled = true;
+                                setTimeout(function () {
+                                    btn.textContent = "Copy";
+                                    btn.disabled = false;
+                                }, 3000);
+                            })
+                            .catch(function () {
+                                btn.textContent = "Error!";
+                            });
+                    });
+                </script>
+                <script>
+                    ${raw(physicsScript)};
+                </script>
+            </body>
+        </html>
+    ` as HtmlEscapedString;
 }

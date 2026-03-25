@@ -1,12 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
 import { buildIntrospectionFromSDL } from "../../utils/fixtures";
 
-vi.mock("../../../src/core/services/compact-schema-builder", () => ({
-    fetchIntrospection: vi.fn(),
+const mockFetchIntrospection = mock();
+mock.module("../../../src/core/services/compact-schema-builder", () => ({
+    fetchIntrospection: mockFetchIntrospection,
 }));
 
 import { createGraphqlQueryCorrector } from "../../../src/core/services/graphql-query-corrector";
-import { fetchIntrospection } from "../../../src/core/services/compact-schema-builder";
 
 const SCHEMA_SDL = `
     type Query {
@@ -37,7 +37,8 @@ describe("graphqlQueryCorrector", () => {
 
     beforeEach(() => {
         const introspection = buildIntrospectionFromSDL(SCHEMA_SDL);
-        vi.mocked(fetchIntrospection).mockResolvedValue(introspection as never);
+        mockFetchIntrospection.mockReset();
+        mockFetchIntrospection.mockResolvedValue(introspection as never);
     });
 
     it("returns null for a valid query", async () => {

@@ -10,33 +10,33 @@ Convert a placed cart into an order. The cart must be in "placed" state first (v
 
 ```graphql
 mutation CreateOrderFromCart($id: UUID!, $input: OrderFromCartInput) {
-  createFromCart(id: $id, input: $input) {
-    id
-    coreId
-    type
-    paymentStatus
-    total {
-      gross
-      net
-      taxAmount
-      currency
+    createFromCart(id: $id, input: $input) {
+        id
+        coreId
+        type
+        paymentStatus
+        total {
+            gross
+            net
+            taxAmount
+            currency
+        }
+        items {
+            name
+            sku
+            quantity
+            price {
+                gross
+                net
+            }
+        }
+        customer {
+            firstName
+            lastName
+            email
+        }
+        createdAt
     }
-    items {
-      name
-      sku
-      quantity
-      price {
-        gross
-        net
-      }
-    }
-    customer {
-      firstName
-      lastName
-      email
-    }
-    createdAt
-  }
 }
 ```
 
@@ -44,11 +44,11 @@ Variables:
 
 ```json
 {
-  "id": "cart-uuid-here",
-  "input": {
-    "type": "standard",
-    "paymentStatus": "paid"
-  }
+    "id": "cart-uuid-here",
+    "input": {
+        "type": "standard",
+        "paymentStatus": "paid"
+    }
 }
 ```
 
@@ -70,28 +70,28 @@ Create an order without a cart (e.g., for POS, imports, or manual order creation
 
 ```graphql
 mutation CreateOrder($input: OrderInput!) {
-  create(input: $input) {
-    id
-    coreId
-    type
-    paymentStatus
-    total {
-      gross
-      net
-      taxAmount
-      currency
+    create(input: $input) {
+        id
+        coreId
+        type
+        paymentStatus
+        total {
+            gross
+            net
+            taxAmount
+            currency
+        }
+        items {
+            name
+            sku
+            quantity
+            price {
+                gross
+                net
+            }
+        }
+        createdAt
     }
-    items {
-      name
-      sku
-      quantity
-      price {
-        gross
-        net
-      }
-    }
-    createdAt
-  }
 }
 ```
 
@@ -99,59 +99,59 @@ Variables:
 
 ```json
 {
-  "input": {
-    "customer": {
-      "isGuest": false,
-      "firstName": "John",
-      "lastName": "Doe",
-      "email": "john@example.com",
-      "identifier": "john@example.com",
-      "addresses": [
-        {
-          "type": "billing",
-          "street": "123 Main St",
-          "city": "New York",
-          "postalCode": "10001",
-          "country": "US"
+    "input": {
+        "customer": {
+            "isGuest": false,
+            "firstName": "John",
+            "lastName": "Doe",
+            "email": "john@example.com",
+            "identifier": "john@example.com",
+            "addresses": [
+                {
+                    "type": "billing",
+                    "street": "123 Main St",
+                    "city": "New York",
+                    "postalCode": "10001",
+                    "country": "US"
+                },
+                {
+                    "type": "delivery",
+                    "street": "456 Oak Ave",
+                    "city": "Brooklyn",
+                    "postalCode": "11201",
+                    "country": "US"
+                }
+            ]
         },
-        {
-          "type": "delivery",
-          "street": "456 Oak Ave",
-          "city": "Brooklyn",
-          "postalCode": "11201",
-          "country": "US"
-        }
-      ]
-    },
-    "items": [
-      {
-        "name": "Robot Action Figure",
-        "sku": "robot-pink-standard",
-        "quantity": 2,
-        "productId": "product-id",
-        "imageUrl": "https://example.com/robot.jpg",
-        "price": {
-          "gross": 49.99,
-          "net": 39.99
-        }
-      }
-    ],
-    "type": "standard",
-    "paymentStatus": "paid",
-    "payments": [
-      {
-        "provider": "stripe",
-        "transactionId": "pi_abc123",
-        "amount": 99.98,
-        "method": "card",
-        "createdAt": "2025-01-15T10:30:00Z"
-      }
-    ],
-    "meta": [
-      { "key": "source", "value": "web" },
-      { "key": "campaign", "value": "summer-sale" }
-    ]
-  }
+        "items": [
+            {
+                "name": "Robot Action Figure",
+                "sku": "robot-pink-standard",
+                "quantity": 2,
+                "productId": "product-id",
+                "imageUrl": "https://example.com/robot.jpg",
+                "price": {
+                    "gross": 49.99,
+                    "net": 39.99
+                }
+            }
+        ],
+        "type": "standard",
+        "paymentStatus": "paid",
+        "payments": [
+            {
+                "provider": "stripe",
+                "transactionId": "pi_abc123",
+                "amount": 99.98,
+                "method": "card",
+                "createdAt": "2025-01-15T10:30:00Z"
+            }
+        ],
+        "meta": [
+            { "key": "source", "value": "web" },
+            { "key": "campaign", "value": "summer-sale" }
+        ]
+    }
 }
 ```
 
@@ -258,17 +258,17 @@ Add payment records to an existing order.
 
 ```graphql
 mutation AddPayments($id: UUID!, $payments: [OrderPaymentInput!]!) {
-  addPayments(id: $id, payments: $payments) {
-    id
-    paymentStatus
-    payments {
-      provider
-      transactionId
-      amount
-      method
-      createdAt
+    addPayments(id: $id, payments: $payments) {
+        id
+        paymentStatus
+        payments {
+            provider
+            transactionId
+            amount
+            method
+            createdAt
+        }
     }
-  }
 }
 ```
 
@@ -276,16 +276,16 @@ Variables:
 
 ```json
 {
-  "id": "order-uuid",
-  "payments": [
-    {
-      "provider": "stripe",
-      "transactionId": "pi_xyz789",
-      "amount": 99.98,
-      "method": "card",
-      "createdAt": "2025-01-15T10:30:00Z"
-    }
-  ]
+    "id": "order-uuid",
+    "payments": [
+        {
+            "provider": "stripe",
+            "transactionId": "pi_xyz789",
+            "amount": 99.98,
+            "method": "card",
+            "createdAt": "2025-01-15T10:30:00Z"
+        }
+    ]
 }
 ```
 
@@ -295,15 +295,15 @@ Replace all payment records on an order.
 
 ```graphql
 mutation SetPayments($id: UUID!, $payments: [OrderPaymentInput!]!) {
-  setPayments(id: $id, payments: $payments) {
-    id
-    paymentStatus
-    payments {
-      provider
-      transactionId
-      amount
+    setPayments(id: $id, payments: $payments) {
+        id
+        paymentStatus
+        payments {
+            provider
+            transactionId
+            amount
+        }
     }
-  }
 }
 ```
 
@@ -313,10 +313,10 @@ Set or merge metadata on an order.
 
 ```graphql
 mutation SetOrderMeta($id: UUID, $meta: [KeyValueInput], $merge: Boolean) {
-  setMeta(id: $id, meta: $meta, merge: $merge) {
-    id
-    meta
-  }
+    setMeta(id: $id, meta: $meta, merge: $merge) {
+        id
+        meta
+    }
 }
 ```
 
@@ -324,12 +324,12 @@ Variables:
 
 ```json
 {
-  "id": "order-uuid",
-  "meta": [
-    { "key": "fulfillment_status", "value": "shipped" },
-    { "key": "tracking_number", "value": "1Z999AA10123456784" }
-  ],
-  "merge": true
+    "id": "order-uuid",
+    "meta": [
+        { "key": "fulfillment_status", "value": "shipped" },
+        { "key": "tracking_number", "value": "1Z999AA10123456784" }
+    ],
+    "merge": true
 }
 ```
 
@@ -341,15 +341,15 @@ Update the customer information on an existing order.
 
 ```graphql
 mutation SetOrderCustomer($id: UUID!, $customer: CustomerInput!) {
-  setCustomer(id: $id, customer: $customer) {
-    id
-    customer {
-      firstName
-      lastName
-      email
-      identifier
+    setCustomer(id: $id, customer: $customer) {
+        id
+        customer {
+            firstName
+            lastName
+            email
+            identifier
+        }
     }
-  }
 }
 ```
 
@@ -359,22 +359,20 @@ Create a new order from an existing subscription contract, using its current pha
 
 ```graphql
 mutation CreateFromSubscription($subscriptionContractId: UUID!) {
-  createFromSubscriptionContract(
-    subscriptionContractId: $subscriptionContractId
-  ) {
-    id
-    type
-    items {
-      name
-      sku
-      quantity
-      subscription {
-        name
-        start
-        end
-      }
+    createFromSubscriptionContract(subscriptionContractId: $subscriptionContractId) {
+        id
+        type
+        items {
+            name
+            sku
+            quantity
+            subscription {
+                name
+                start
+                end
+            }
+        }
     }
-  }
 }
 ```
 
@@ -386,13 +384,13 @@ Add an order to a pipeline stage while keeping it in any existing stages.
 
 ```graphql
 mutation AddToStage($id: UUID!, $pipeline: String!, $stage: String!) {
-  addToStage(id: $id, pipeline: $pipeline, stage: $stage) {
-    id
-    pipelines {
-      identifier
-      stage
+    addToStage(id: $id, pipeline: $pipeline, stage: $stage) {
+        id
+        pipelines {
+            identifier
+            stage
+        }
     }
-  }
 }
 ```
 
@@ -400,9 +398,9 @@ Variables:
 
 ```json
 {
-  "id": "order-uuid",
-  "pipeline": "fulfillment",
-  "stage": "shipped"
+    "id": "order-uuid",
+    "pipeline": "fulfillment",
+    "stage": "shipped"
 }
 ```
 
@@ -410,13 +408,13 @@ Variables:
 
 ```graphql
 mutation RemoveFromPipeline($id: UUID!, $pipeline: String!) {
-  removeFromPipeline(id: $id, pipeline: $pipeline) {
-    id
-    pipelines {
-      identifier
-      stage
+    removeFromPipeline(id: $id, pipeline: $pipeline) {
+        id
+        pipelines {
+            identifier
+            stage
+        }
     }
-  }
 }
 ```
 
@@ -517,42 +515,36 @@ The full checkout flow spans both `/cart` and `/order` endpoints:
 ```graphql
 # Step 1: Hydrate cart (on /cart endpoint)
 mutation {
-  hydrate(input: { items: [{ sku: "product-sku", quantity: 1 }] }) {
-    id
-  }
+    hydrate(input: { items: [{ sku: "product-sku", quantity: 1 }] }) {
+        id
+    }
 }
 
 # Step 2: Set customer info (on /cart endpoint)
 mutation {
-  setCustomer(
-    id: "cart-id"
-    customer: { firstName: "John", lastName: "Doe", email: "john@example.com" }
-  ) {
-    id
-  }
+    setCustomer(id: "cart-id", customer: { firstName: "John", lastName: "Doe", email: "john@example.com" }) {
+        id
+    }
 }
 
 # Step 3: Place the cart (on /cart endpoint)
 mutation {
-  place(id: "cart-id") {
-    id
-  }
+    place(id: "cart-id") {
+        id
+    }
 }
 
 # Step 4: Create order from cart (on /order endpoint — DIFFERENT ENDPOINT!)
 mutation {
-  createFromCart(
-    id: "cart-id"
-    input: { type: standard, paymentStatus: paid }
-  ) {
-    id
-    coreId
-    total {
-      gross
-      net
-      currency
+    createFromCart(id: "cart-id", input: { type: standard, paymentStatus: paid }) {
+        id
+        coreId
+        total {
+            gross
+            net
+            currency
+        }
     }
-  }
 }
 ```
 

@@ -34,11 +34,11 @@ For search, filtering, and faceting, use the Discovery API instead.
 
 ```graphql
 {
-  catalogue(language: "en", path: "/shop/plants") {
-    name
-    path
-    type
-  }
+    catalogue(language: "en", path: "/shop/plants") {
+        name
+        path
+        type
+    }
 }
 ```
 
@@ -46,21 +46,21 @@ For search, filtering, and faceting, use the Discovery API instead.
 
 ```graphql
 {
-  catalogue(language: "en", path: "/shop/furniture/dining-chair") {
-    name
-    ... on Product {
-      variants {
-        sku
+    catalogue(language: "en", path: "/shop/furniture/dining-chair") {
         name
-        price
-        stock
-        attributes {
-          attribute
-          value
+        ... on Product {
+            variants {
+                sku
+                name
+                price
+                stock
+                attributes {
+                    attribute
+                    value
+                }
+            }
         }
-      }
     }
-  }
 }
 ```
 
@@ -68,16 +68,16 @@ For search, filtering, and faceting, use the Discovery API instead.
 
 ```graphql
 {
-  catalogue(language: "en", path: "/shop/plants") {
-    name
-    ... on Folder {
-      children {
+    catalogue(language: "en", path: "/shop/plants") {
         name
-        path
-        type
-      }
+        ... on Folder {
+            children {
+                name
+                path
+                type
+            }
+        }
     }
-  }
 }
 ```
 
@@ -85,20 +85,20 @@ For search, filtering, and faceting, use the Discovery API instead.
 
 ```graphql
 {
-  catalogue(language: "en", path: "/blog/welcome-post") {
-    name
-    ... on Document {
-      components {
-        id
+    catalogue(language: "en", path: "/blog/welcome-post") {
         name
-        content {
-          ... on RichTextContent {
-            html
-          }
+        ... on Document {
+            components {
+                id
+                name
+                content {
+                    ... on RichTextContent {
+                        html
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }
 ```
 

@@ -2,8 +2,8 @@
 name: permissions
 description: Manage user roles, permissions, and access control in Crystallize. Use when configuring field-level permissions (read-only or hidden fields for specific roles), managing user roles and team access, setting up access tokens with specific scopes, controlling who can view/edit specific content areas or component fields, designing role-based access for multi-team tenants, or planning permission strategies for content workflows.
 metadata:
-  author: Crystallize
-  version: "2.0"
+    author: Crystallize
+    version: "2.0"
 ---
 
 # Crystallize Permissions & Access Control
@@ -77,8 +77,8 @@ Field-level permissions are configured per **shape resource** in the Roles & Per
 3. Under **Shapes** resource, click on a specific shape
 4. You'll see all components on that shape
 5. For each component, toggle:
-   - **Read-Only** — Field appears greyed out, cannot be edited
-   - **Hide Component Completely** — Field is invisible to this role
+    - **Read-Only** — Field appears greyed out, cannot be edited
+    - **Hide Component Completely** — Field is invisible to this role
 
 ### Supported fields
 
@@ -155,13 +155,13 @@ Permissions can be queried and configured via the **Core API** under the `user` 
 
 ```graphql
 query GetRoles {
-  user {
-    roles {
-      id
-      name
-      tenantPermissions
+    user {
+        roles {
+            id
+            name
+            tenantPermissions
+        }
     }
-  }
 }
 ```
 
@@ -169,13 +169,13 @@ query GetRoles {
 
 ```graphql
 query GetRole($roleId: ID!) {
-  user {
-    role(id: $roleId) {
-      id
-      name
-      tenantPermissions
+    user {
+        role(id: $roleId) {
+            id
+            name
+            tenantPermissions
+        }
     }
-  }
 }
 ```
 
@@ -183,14 +183,14 @@ query GetRole($roleId: ID!) {
 
 ```graphql
 mutation CreateRole {
-  user {
-    role {
-      create(input: { name: "Content Editor" }) {
-        id
-        name
-      }
+    user {
+        role {
+            create(input: { name: "Content Editor" }) {
+                id
+                name
+            }
+        }
     }
-  }
 }
 ```
 

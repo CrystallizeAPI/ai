@@ -2,7 +2,7 @@ import { createGraphlSchemaCompacter, INTROSPECTION_QUERY } from "../src/core/se
 
 const url = process.argv[2];
 if (!url) {
-    console.error("Usage: npx tsx test-compacter.ts <graphql-endpoint-url>");
+    console.error("Usage: bun test-compacter.ts <graphql-endpoint-url>");
     process.exit(1);
 }
 

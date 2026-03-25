@@ -23,26 +23,26 @@ See [SKILL.md](../SKILL.md) for endpoint URLs and authentication headers.
 
 ```graphql
 mutation CreateProduct {
-  product {
-    create(
-      input: {
-        tenantId: "tenant-id"
-        shapeIdentifier: "sneaker"
-        name: "Air Max 2024"
-        tree: { parentId: "folder-id" }
-      }
-    ) {
-      ... on Product {
-        id
-        name
-        path
-      }
-      ... on BasicError {
-        errorName
-        message
-      }
+    product {
+        create(
+            input: {
+                tenantId: "tenant-id"
+                shapeIdentifier: "sneaker"
+                name: "Air Max 2024"
+                tree: { parentId: "folder-id" }
+            }
+        ) {
+            ... on Product {
+                id
+                name
+                path
+            }
+            ... on BasicError {
+                errorName
+                message
+            }
+        }
     }
-  }
 }
 ```
 
@@ -50,21 +50,21 @@ mutation CreateProduct {
 
 ```graphql
 mutation CreateDocument {
-  document {
-    create(
-      input: {
-        tenantId: "tenant-id"
-        shapeIdentifier: "blog-post"
-        name: "Welcome to Our Store"
-        tree: { parentId: "blog-folder-id" }
-      }
-    ) {
-      ... on Document {
-        id
-        name
-      }
+    document {
+        create(
+            input: {
+                tenantId: "tenant-id"
+                shapeIdentifier: "blog-post"
+                name: "Welcome to Our Store"
+                tree: { parentId: "blog-folder-id" }
+            }
+        ) {
+            ... on Document {
+                id
+                name
+            }
+        }
     }
-  }
 }
 ```
 
@@ -72,21 +72,21 @@ mutation CreateDocument {
 
 ```graphql
 mutation CreateFolder {
-  folder {
-    create(
-      input: {
-        tenantId: "tenant-id"
-        shapeIdentifier: "category"
-        name: "Summer Collection"
-        tree: { parentId: "shop-folder-id" }
-      }
-    ) {
-      ... on Folder {
-        id
-        name
-      }
+    folder {
+        create(
+            input: {
+                tenantId: "tenant-id"
+                shapeIdentifier: "category"
+                name: "Summer Collection"
+                tree: { parentId: "shop-folder-id" }
+            }
+        ) {
+            ... on Folder {
+                id
+                name
+            }
+        }
     }
-  }
 }
 ```
 
@@ -96,14 +96,14 @@ Publishing makes the item visible on the storefront. Creating an item does NOT p
 
 ```graphql
 mutation PublishItem {
-  item {
-    publish(id: "item-id", language: "en", includeDescendants: false) {
-      ... on Item {
-        id
-        publishedAt
-      }
+    item {
+        publish(id: "item-id", language: "en", includeDescendants: false) {
+            ... on Item {
+                id
+                publishedAt
+            }
+        }
     }
-  }
 }
 ```
 
@@ -113,13 +113,13 @@ Set `includeDescendants: true` to publish all children (useful for folders).
 
 ```graphql
 mutation UnpublishItem {
-  item {
-    unpublish(id: "item-id", language: "en", includeDescendants: false) {
-      ... on Item {
-        id
-      }
+    item {
+        unpublish(id: "item-id", language: "en", includeDescendants: false) {
+            ... on Item {
+                id
+            }
+        }
     }
-  }
 }
 ```
 
@@ -127,17 +127,17 @@ mutation UnpublishItem {
 
 ```graphql
 mutation DeleteItem {
-  item {
-    delete(id: "item-id") {
-      ... on Item {
-        id
-      }
-      ... on BasicError {
-        errorName
-        message
-      }
+    item {
+        delete(id: "item-id") {
+            ... on Item {
+                id
+            }
+            ... on BasicError {
+                errorName
+                message
+            }
+        }
     }
-  }
 }
 ```
 
@@ -147,20 +147,17 @@ Deleting a folder with children will fail unless children are moved or deleted f
 
 ```graphql
 mutation MoveItem {
-  item {
-    moveToTree(
-      itemId: "item-id"
-      input: { parentId: "new-parent-folder-id", position: 0 }
-    ) {
-      ... on Item {
-        id
-        tree {
-          parentId
-          path
+    item {
+        moveToTree(itemId: "item-id", input: { parentId: "new-parent-folder-id", position: 0 }) {
+            ... on Item {
+                id
+                tree {
+                    parentId
+                    path
+                }
+            }
         }
-      }
     }
-  }
 }
 ```
 
@@ -174,26 +171,24 @@ Use `updateComponent` to change individual fields on an item. Each call targets 
 
 ```graphql
 mutation UpdateRichText {
-  item {
-    updateComponent(
-      itemId: "item-id"
-      language: "en"
-      component: {
-        componentId: "description"
-        richText: {
-          html: "<p>New product description with <strong>rich text</strong></p>"
+    item {
+        updateComponent(
+            itemId: "item-id"
+            language: "en"
+            component: {
+                componentId: "description"
+                richText: { html: "<p>New product description with <strong>rich text</strong></p>" }
+            }
+        ) {
+            ... on Item {
+                id
+                updatedAt
+            }
+            ... on BasicError {
+                message
+            }
         }
-      }
-    ) {
-      ... on Item {
-        id
-        updatedAt
-      }
-      ... on BasicError {
-        message
-      }
     }
-  }
 }
 ```
 
@@ -201,20 +196,17 @@ mutation UpdateRichText {
 
 ```graphql
 mutation UpdateSingleLine {
-  item {
-    updateComponent(
-      itemId: "item-id"
-      language: "en"
-      component: {
-        componentId: "tagline"
-        singleLine: { text: "Premium quality materials" }
-      }
-    ) {
-      ... on Item {
-        id
-      }
+    item {
+        updateComponent(
+            itemId: "item-id"
+            language: "en"
+            component: { componentId: "tagline", singleLine: { text: "Premium quality materials" } }
+        ) {
+            ... on Item {
+                id
+            }
+        }
     }
-  }
 }
 ```
 
@@ -222,17 +214,17 @@ mutation UpdateSingleLine {
 
 ```graphql
 mutation UpdateNumeric {
-  item {
-    updateComponent(
-      itemId: "item-id"
-      language: "en"
-      component: { componentId: "weight", numeric: { number: 1.5, unit: "kg" } }
-    ) {
-      ... on Item {
-        id
-      }
+    item {
+        updateComponent(
+            itemId: "item-id"
+            language: "en"
+            component: { componentId: "weight", numeric: { number: 1.5, unit: "kg" } }
+        ) {
+            ... on Item {
+                id
+            }
+        }
     }
-  }
 }
 ```
 
@@ -240,17 +232,17 @@ mutation UpdateNumeric {
 
 ```graphql
 mutation UpdateSwitch {
-  item {
-    updateComponent(
-      itemId: "item-id"
-      language: "en"
-      component: { componentId: "featured", boolean: { value: true } }
-    ) {
-      ... on Item {
-        id
-      }
+    item {
+        updateComponent(
+            itemId: "item-id"
+            language: "en"
+            component: { componentId: "featured", boolean: { value: true } }
+        ) {
+            ... on Item {
+                id
+            }
+        }
     }
-  }
 }
 ```
 
@@ -258,22 +250,20 @@ mutation UpdateSwitch {
 
 ```graphql
 mutation UpdateImages {
-  item {
-    updateComponent(
-      itemId: "item-id"
-      language: "en"
-      component: {
-        componentId: "gallery"
-        images: [
-          { key: "image-key-from-upload", altText: "Product front view" }
-        ]
-      }
-    ) {
-      ... on Item {
-        id
-      }
+    item {
+        updateComponent(
+            itemId: "item-id"
+            language: "en"
+            component: {
+                componentId: "gallery"
+                images: [{ key: "image-key-from-upload", altText: "Product front view" }]
+            }
+        ) {
+            ... on Item {
+                id
+            }
+        }
     }
-  }
 }
 ```
 
@@ -281,17 +271,17 @@ mutation UpdateImages {
 
 ```graphql
 mutation UpdateSelection {
-  item {
-    updateComponent(
-      itemId: "item-id"
-      language: "en"
-      component: { componentId: "color", selection: { keys: ["red"] } }
-    ) {
-      ... on Item {
-        id
-      }
+    item {
+        updateComponent(
+            itemId: "item-id"
+            language: "en"
+            component: { componentId: "color", selection: { keys: ["red"] } }
+        ) {
+            ... on Item {
+                id
+            }
+        }
     }
-  }
 }
 ```
 
@@ -299,20 +289,20 @@ mutation UpdateSelection {
 
 ```graphql
 mutation UpdateItemRelations {
-  item {
-    updateComponent(
-      itemId: "item-id"
-      language: "en"
-      component: {
-        componentId: "related-products"
-        itemRelations: { itemIds: ["related-item-id-1", "related-item-id-2"] }
-      }
-    ) {
-      ... on Item {
-        id
-      }
+    item {
+        updateComponent(
+            itemId: "item-id"
+            language: "en"
+            component: {
+                componentId: "related-products"
+                itemRelations: { itemIds: ["related-item-id-1", "related-item-id-2"] }
+            }
+        ) {
+            ... on Item {
+                id
+            }
+        }
     }
-  }
 }
 ```
 
@@ -320,31 +310,31 @@ mutation UpdateItemRelations {
 
 ```graphql
 mutation UpdateChunk {
-  item {
-    updateComponent(
-      itemId: "item-id"
-      language: "en"
-      component: {
-        componentId: "specifications"
-        contentChunk: {
-          chunks: [
-            [
-              { componentId: "label", singleLine: { text: "Weight" } }
-              { componentId: "value", singleLine: { text: "1.5 kg" } }
-            ]
-            [
-              { componentId: "label", singleLine: { text: "Dimensions" } }
-              { componentId: "value", singleLine: { text: "30x20x10 cm" } }
-            ]
-          ]
+    item {
+        updateComponent(
+            itemId: "item-id"
+            language: "en"
+            component: {
+                componentId: "specifications"
+                contentChunk: {
+                    chunks: [
+                        [
+                            { componentId: "label", singleLine: { text: "Weight" } }
+                            { componentId: "value", singleLine: { text: "1.5 kg" } }
+                        ]
+                        [
+                            { componentId: "label", singleLine: { text: "Dimensions" } }
+                            { componentId: "value", singleLine: { text: "30x20x10 cm" } }
+                        ]
+                    ]
+                }
+            }
+        ) {
+            ... on Item {
+                id
+            }
         }
-      }
-    ) {
-      ... on Item {
-        id
-      }
     }
-  }
 }
 ```
 
@@ -360,53 +350,45 @@ This replaces all variants on the product. Include all variants you want to keep
 
 ```graphql
 mutation SetVariants {
-  product {
-    setVariants(
-      productId: "product-id"
-      language: "en"
-      variants: [
-        {
-          sku: "sneaker-red-42"
-          name: "Red - Size 42"
-          isDefault: true
-          price: 129.99
-          stock: 50
-          attributes: [
-            { attribute: "color", value: "Red" }
-            { attribute: "size", value: "42" }
-          ]
-          images: [
-            { key: "uploaded-image-key", altText: "Red sneaker size 42" }
-          ]
+    product {
+        setVariants(
+            productId: "product-id"
+            language: "en"
+            variants: [
+                {
+                    sku: "sneaker-red-42"
+                    name: "Red - Size 42"
+                    isDefault: true
+                    price: 129.99
+                    stock: 50
+                    attributes: [{ attribute: "color", value: "Red" }, { attribute: "size", value: "42" }]
+                    images: [{ key: "uploaded-image-key", altText: "Red sneaker size 42" }]
+                }
+                {
+                    sku: "sneaker-blue-42"
+                    name: "Blue - Size 42"
+                    isDefault: false
+                    price: 129.99
+                    stock: 30
+                    attributes: [{ attribute: "color", value: "Blue" }, { attribute: "size", value: "42" }]
+                }
+            ]
+        ) {
+            ... on Product {
+                id
+                variants {
+                    sku
+                    name
+                    price
+                    stock
+                }
+            }
+            ... on BasicError {
+                errorName
+                message
+            }
         }
-        {
-          sku: "sneaker-blue-42"
-          name: "Blue - Size 42"
-          isDefault: false
-          price: 129.99
-          stock: 30
-          attributes: [
-            { attribute: "color", value: "Blue" }
-            { attribute: "size", value: "42" }
-          ]
-        }
-      ]
-    ) {
-      ... on Product {
-        id
-        variants {
-          sku
-          name
-          price
-          stock
-        }
-      }
-      ... on BasicError {
-        errorName
-        message
-      }
     }
-  }
 }
 ```
 
@@ -426,31 +408,25 @@ Attributes define the variant matrix (e.g., color + size). They appear as filter
 
 ```graphql
 mutation CreateIndividual {
-  customer {
-    createIndividual(
-      input: {
-        tenantId: "tenant-id"
-        firstName: "Jane"
-        lastName: "Smith"
-        email: "jane@example.com"
-        phone: "+1234567890"
-        addresses: [
-          {
-            type: "delivery"
-            street: "123 Main St"
-            city: "New York"
-            postalCode: "10001"
-            country: "US"
-          }
-        ]
-      }
-    ) {
-      ... on Customer {
-        id
-        identifier
-      }
+    customer {
+        createIndividual(
+            input: {
+                tenantId: "tenant-id"
+                firstName: "Jane"
+                lastName: "Smith"
+                email: "jane@example.com"
+                phone: "+1234567890"
+                addresses: [
+                    { type: "delivery", street: "123 Main St", city: "New York", postalCode: "10001", country: "US" }
+                ]
+            }
+        ) {
+            ... on Customer {
+                id
+                identifier
+            }
+        }
     }
-  }
 }
 ```
 
@@ -458,21 +434,16 @@ mutation CreateIndividual {
 
 ```graphql
 mutation CreateOrganization {
-  customer {
-    createOrganization(
-      input: {
-        tenantId: "tenant-id"
-        name: "Acme Corp"
-        email: "contact@acme.com"
-        taxId: "XX123456789"
-      }
-    ) {
-      ... on Customer {
-        id
-        identifier
-      }
+    customer {
+        createOrganization(
+            input: { tenantId: "tenant-id", name: "Acme Corp", email: "contact@acme.com", taxId: "XX123456789" }
+        ) {
+            ... on Customer {
+                id
+                identifier
+            }
+        }
     }
-  }
 }
 ```
 
@@ -480,13 +451,13 @@ mutation CreateOrganization {
 
 ```graphql
 mutation UpdateCustomer {
-  customer {
-    update(id: "customer-id", input: { firstName: "Jane", lastName: "Doe" }) {
-      ... on Customer {
-        id
-      }
+    customer {
+        update(id: "customer-id", input: { firstName: "Jane", lastName: "Doe" }) {
+            ... on Customer {
+                id
+            }
+        }
     }
-  }
 }
 ```
 
@@ -494,17 +465,17 @@ mutation UpdateCustomer {
 
 ```graphql
 mutation DeleteCustomer {
-  customer {
-    delete(id: "customer-id") {
-      ... on Customer {
-        id
-      }
-      ... on BasicError {
-        errorName
-        message
-      }
+    customer {
+        delete(id: "customer-id") {
+            ... on Customer {
+                id
+            }
+            ... on BasicError {
+                errorName
+                message
+            }
+        }
     }
-  }
 }
 ```
 
@@ -516,17 +487,14 @@ mutation DeleteCustomer {
 
 ```graphql
 mutation UpdateOrder {
-  order {
-    update(
-      id: "order-id"
-      input: { meta: [{ key: "tracking_number", value: "1Z999AA10123456784" }] }
-    ) {
-      ... on Order {
-        id
-        updatedAt
-      }
+    order {
+        update(id: "order-id", input: { meta: [{ key: "tracking_number", value: "1Z999AA10123456784" }] }) {
+            ... on Order {
+                id
+                updatedAt
+            }
+        }
     }
-  }
 }
 ```
 
@@ -540,22 +508,22 @@ Images in Crystallize are uploaded to the tenant's media library, then reference
 
 ```graphql
 mutation UploadImageFromURL {
-  fileUpload {
-    uploadFromUrl(
-      tenantId: "tenant-id"
-      url: "https://example.com/product-photo.jpg"
-      fileName: "product-photo.jpg"
-    ) {
-      ... on FileContent {
-        key
-        url
-      }
-      ... on BasicError {
-        errorName
-        message
-      }
+    fileUpload {
+        uploadFromUrl(
+            tenantId: "tenant-id"
+            url: "https://example.com/product-photo.jpg"
+            fileName: "product-photo.jpg"
+        ) {
+            ... on FileContent {
+                key
+                url
+            }
+            ... on BasicError {
+                errorName
+                message
+            }
+        }
     }
-  }
 }
 ```
 
@@ -571,17 +539,17 @@ Flows model item workflows (e.g., Draft > Review > Published). Items can be move
 
 ```graphql
 mutation SetFlowStage {
-  item {
-    setFlowStage(itemId: "item-id", stageId: "stage-id") {
-      ... on Item {
-        id
-      }
-      ... on BasicError {
-        errorName
-        message
-      }
+    item {
+        setFlowStage(itemId: "item-id", stageId: "stage-id") {
+            ... on Item {
+                id
+            }
+            ... on BasicError {
+                errorName
+                message
+            }
+        }
     }
-  }
 }
 ```
 

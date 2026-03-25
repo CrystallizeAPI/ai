@@ -160,21 +160,21 @@ Pieces appear in the API as nested objects:
 
 ```graphql
 {
-  catalogue(path: "/products/coffee") {
-    ... on Product {
-      components {
-        id
-        content {
-          ... on ParagraphCollectionContent {
-            paragraphs {
-              title
-              body
+    catalogue(path: "/products/coffee") {
+        ... on Product {
+            components {
+                id
+                content {
+                    ... on ParagraphCollectionContent {
+                        paragraphs {
+                            title
+                            body
+                        }
+                    }
+                }
             }
-          }
         }
-      }
     }
-  }
 }
 ```
 

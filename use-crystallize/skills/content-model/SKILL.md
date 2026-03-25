@@ -2,8 +2,8 @@
 name: content-model
 description: Design content models in Crystallize using Shapes, Pieces, Components, Topic Maps, and Grids. Create product structures, define document types, build taxonomies, organize catalogue items, design relationships between items, implement classification bridges, configure item relations with shape restrictions, and architect scalable data models. Use when modeling content, creating shapes, defining components, building taxonomies, designing relationship patterns, implementing semantic bridges, configuring product variants, or structuring catalogue hierarchies.
 metadata:
-  author: Crystallize
-  version: "3.0"
+    author: Crystallize
+    version: "3.0"
 ---
 
 # Crystallize Content Model Skill
@@ -106,8 +106,8 @@ See [Shapes Reference](references/shapes.md) and [Content Modelling Guide](refer
 ### "I need to link to other items"
 
 - **Item Relation** → Link to catalogue items (products, documents, folders)
-  - **Always use `acceptedShapeIdentifiers`** to restrict which shapes can be linked
-  - Set `minItems`/`maxItems` for cardinality constraints
+    - **Always use `acceptedShapeIdentifiers`** to restrict which shapes can be linked
+    - Set `minItems`/`maxItems` for cardinality constraints
 - **Grid Relation** → Link to curated grids
 
 ### "I need controlled options"
@@ -120,34 +120,34 @@ See [Shapes Reference](references/shapes.md) and [Content Modelling Guide](refer
 ### "I need to group fields"
 
 - **Chunk (contentChunk)** → Group of related fields (can be repeatable or single)
-  - **Use chunk when:** Fields are specific to one location and won't be reused elsewhere
-  - **Repeatable chunk:** For lists (ingredients, specifications, USP items, CTA buttons)
-    - Examples: Width/Height/Depth (repeating for multiple dimensions), Street/City/Zip (repeating addresses)
-  - **Non-repeatable chunk:** For one-time field groups (metadata, settings, single address)
-    - Examples: SEO fields (title/description/keywords as one group), single shipping address, contact info block
-  - **Decision:** If the group only occurs once in the entire content model → use non-repeatable chunk
-  - Can be used inside pieces for nested grouping
-  - NOT a direct child of componentMultipleChoice
+    - **Use chunk when:** Fields are specific to one location and won't be reused elsewhere
+    - **Repeatable chunk:** For lists (ingredients, specifications, USP items, CTA buttons)
+        - Examples: Width/Height/Depth (repeating for multiple dimensions), Street/City/Zip (repeating addresses)
+    - **Non-repeatable chunk:** For one-time field groups (metadata, settings, single address)
+        - Examples: SEO fields (title/description/keywords as one group), single shipping address, contact info block
+    - **Decision:** If the group only occurs once in the entire content model → use non-repeatable chunk
+    - Can be used inside pieces for nested grouping
+    - NOT a direct child of componentMultipleChoice
 - **Piece** → Reusable component groups needed in multiple places
-  - **Use piece when:** The exact same structure will be used in multiple shapes OR multiple pieces
-  - Examples: Banner sections (used across landing pages, products, articles), Hero blocks (reused), Author bios (appears in articles and testimonials)
-  - Think: "Will this exact structure be used in 2+ locations?"
-  - **Rule:** If only used once → use chunk instead of piece
-  - Perfect for componentMultipleChoice options (page builder pattern)
+    - **Use piece when:** The exact same structure will be used in multiple shapes OR multiple pieces
+    - Examples: Banner sections (used across landing pages, products, articles), Hero blocks (reused), Author bios (appears in articles and testimonials)
+    - Think: "Will this exact structure be used in 2+ locations?"
+    - **Rule:** If only used once → use chunk instead of piece
+    - Perfect for componentMultipleChoice options (page builder pattern)
 - **Choice** → One of N mutually exclusive forms (polymorphic)
-  - **MUST have at least 2 choices** - Single option is invalid
+    - **MUST have at least 2 choices** - Single option is invalid
 - **Component Choice (componentChoice)** → Similar to choice but for component-level choices
-  - **MUST have at least 2 choices** - Single option is invalid
-  - **EVERY choice item MUST have a `type` field** - choices with no `type` or with a raw `components` array are invalid API structures
-  - When each choice needs multiple fields → create a `piece/upsert` operation for each, then reference with `{ "type": "piece", "config": { "piece": { "identifier": "..." } } }`
+    - **MUST have at least 2 choices** - Single option is invalid
+    - **EVERY choice item MUST have a `type` field** - choices with no `type` or with a raw `components` array are invalid API structures
+    - When each choice needs multiple fields → create a `piece/upsert` operation for each, then reference with `{ "type": "piece", "config": { "piece": { "identifier": "..." } } }`
 - **Multiple Choice (componentMultipleChoice)** → Multiple coexisting forms (page builders)
-  - **MUST have at least 2 choices** - Single option is invalid
-  - Use when: Editors choose between different content types at the same location
-  - **Valid children**: Piece references (`type: "piece"`) or single regular components (images, singleLine, etc.)
-  - **NEVER as children**: contentChunk, choice, componentChoice, or nested componentMultipleChoice
-  - **NEVER**: anonymous objects with only a `components` array and no `type` field — these are not valid API structures
-  - Common pattern: Page sections where each option is a piece (Banner, Hero, USP, Gallery)
-  - Examples: Blocks (banner piece, hero piece, usp piece), Content areas (text piece, video piece)
+    - **MUST have at least 2 choices** - Single option is invalid
+    - Use when: Editors choose between different content types at the same location
+    - **Valid children**: Piece references (`type: "piece"`) or single regular components (images, singleLine, etc.)
+    - **NEVER as children**: contentChunk, choice, componentChoice, or nested componentMultipleChoice
+    - **NEVER**: anonymous objects with only a `components` array and no `type` field — these are not valid API structures
+    - Common pattern: Page sections where each option is a piece (Banner, Hero, USP, Gallery)
+    - Examples: Blocks (banner piece, hero piece, usp piece), Content areas (text piece, video piece)
 
 ### Structural Component Nesting Rules
 
@@ -174,27 +174,27 @@ componentChoice/componentMultipleChoice
 
 ```json
 {
-  "id": "type",
-  "name": "Product Type",
-  "type": "componentChoice",
-  "config": {
-    "componentChoice": {
-      "choices": [
-        {
-          "id": "fresh-flowers",
-          "name": "Fresh Flowers",
-          "type": "piece",
-          "config": { "piece": { "identifier": "fresh-flowers-details" } }
-        },
-        {
-          "id": "arrangement",
-          "name": "Flower Arrangement",
-          "type": "piece",
-          "config": { "piece": { "identifier": "arrangement-details" } }
+    "id": "type",
+    "name": "Product Type",
+    "type": "componentChoice",
+    "config": {
+        "componentChoice": {
+            "choices": [
+                {
+                    "id": "fresh-flowers",
+                    "name": "Fresh Flowers",
+                    "type": "piece",
+                    "config": { "piece": { "identifier": "fresh-flowers-details" } }
+                },
+                {
+                    "id": "arrangement",
+                    "name": "Flower Arrangement",
+                    "type": "piece",
+                    "config": { "piece": { "identifier": "arrangement-details" } }
+                }
+            ]
         }
-      ]
     }
-  }
 }
 ```
 
@@ -220,15 +220,15 @@ For complete component reference with nesting rules, validation, and localizatio
 
 ```json
 {
-  "id": "brand",
-  "type": "itemRelations",
-  "config": {
-    "itemRelations": {
-      "acceptedShapeIdentifiers": ["brand"],
-      "minItems": 1,
-      "maxItems": 1
+    "id": "brand",
+    "type": "itemRelations",
+    "config": {
+        "itemRelations": {
+            "acceptedShapeIdentifiers": ["brand"],
+            "minItems": 1,
+            "maxItems": 1
+        }
     }
-  }
 }
 ```
 
@@ -242,28 +242,28 @@ For complete component reference with nesting rules, validation, and localizatio
 
 ```json
 {
-  "id": "ingredients",
-  "type": "contentChunk",
-  "config": {
-    "contentChunk": {
-      "repeatable": true,
-      "components": [
-        { "id": "quantity", "type": "numeric" },
-        { "id": "unit", "type": "selection" },
-        {
-          "id": "ingredient",
-          "type": "itemRelations",
-          "config": {
-            "itemRelations": {
-              "acceptedShapeIdentifiers": ["ingredient"],
-              "minItems": 1,
-              "maxItems": 1
-            }
-          }
+    "id": "ingredients",
+    "type": "contentChunk",
+    "config": {
+        "contentChunk": {
+            "repeatable": true,
+            "components": [
+                { "id": "quantity", "type": "numeric" },
+                { "id": "unit", "type": "selection" },
+                {
+                    "id": "ingredient",
+                    "type": "itemRelations",
+                    "config": {
+                        "itemRelations": {
+                            "acceptedShapeIdentifiers": ["ingredient"],
+                            "minItems": 1,
+                            "maxItems": 1
+                        }
+                    }
+                }
+            ]
         }
-      ]
     }
-  }
 }
 ```
 
@@ -274,8 +274,8 @@ For complete component reference with nesting rules, validation, and localizatio
 ```json
 // ❌ Bad - editors can link ANY shape
 {
-  "type": "itemRelations",
-  "config": { "itemRelations": {} }
+    "type": "itemRelations",
+    "config": { "itemRelations": {} }
 }
 ```
 
@@ -284,14 +284,14 @@ For complete component reference with nesting rules, validation, and localizatio
 ```json
 // ✅ Good - enforces semantic meaning
 {
-  "type": "itemRelations",
-  "config": {
-    "itemRelations": {
-      "acceptedShapeIdentifiers": ["brand"],
-      "minItems": 1,
-      "maxItems": 1
+    "type": "itemRelations",
+    "config": {
+        "itemRelations": {
+            "acceptedShapeIdentifiers": ["brand"],
+            "minItems": 1,
+            "maxItems": 1
+        }
     }
-  }
 }
 ```
 
@@ -395,34 +395,34 @@ For complete pattern details with examples, see [Design Patterns Reference](refe
 **Use the polymorphic product/folder pattern when:**
 
 1. **Similarity threshold**: Two or more product/folder shapes share 50%+ of their components
-   - Example: Plant and Vase both have description and SEO components
+    - Example: Plant and Vase both have description and SEO components
 
 2. **Common base components**: Shapes have the same foundational components but differ in specialized attributes
-   - Common: description, SEO, images, pricing
-   - Differ: plant-specific fields (care-level, light-requirement) vs vase-specific fields (material, dimensions)
+    - Common: description, SEO, images, pricing
+    - Differ: plant-specific fields (care-level, light-requirement) vs vase-specific fields (material, dimensions)
 
 3. **Semantic similarity**: Items represent variations of the same concept rather than fundamentally different entities
-   - Example: Guitar, Amplifier, and Pedal are all music equipment (consolidate into "Music Product")
-   - Example: Plant and Vase are both home decor items (consolidate into "Home Decor Product")
+    - Example: Guitar, Amplifier, and Pedal are all music equipment (consolidate into "Music Product")
+    - Example: Plant and Vase are both home decor items (consolidate into "Home Decor Product")
 
 ### When NOT to Consolidate
 
 **Keep shapes separate when:**
 
 1. **Fundamentally different purposes**: Items serve completely different business functions
-   - Product vs Folder (different shape types)
-   - Apparel vs Digital Download (different fulfillment, no pricing overlap)
+    - Product vs Folder (different shape types)
+    - Apparel vs Digital Download (different fulfillment, no pricing overlap)
 
 2. **Low component overlap**: Less than 30% of components are shared
-   - Consolidation would create a confusing, bloated shape
+    - Consolidation would create a confusing, bloated shape
 
 3. **Different business logic**: Items require distinct workflows, permissions, or integrations
-   - Separate checkout flows
-   - Different inventory systems
-   - Distinct pricing models
+    - Separate checkout flows
+    - Different inventory systems
+    - Distinct pricing models
 
 4. **Editor clarity**: The consolidated shape would confuse content editors
-   - Too many conditional fields make editing difficult
+    - Too many conditional fields make editing difficult
 
 ### Consolidation Approach
 
@@ -468,59 +468,59 @@ Shape: Vase (product)
 
 ```json
 {
-  "intent": "shape/upsert",
-  "identifier": "product",
-  "name": "Product",
-  "type": "product",
-  "components": [
-    {
-      "id": "product-type",
-      "name": "Product Type",
-      "type": "selection",
-      "config": {
-        "selection": {
-          "options": [
-            { "key": "plant", "value": "Plant" },
-            { "key": "vase", "value": "Vase" }
-          ]
-        }
-      }
-    },
-    { "id": "description", "name": "Description", "type": "richText" },
-    {
-      "id": "variant-attributes",
-      "name": "Product Details",
-      "type": "choice",
-      "config": {
-        "choice": {
-          "choices": [
-            {
-              "id": "plant",
-              "name": "Plant Details",
-              "type": "piece",
-              "config": {
-                "piece": { "identifier": "plant-attributes" }
-              }
-            },
-            {
-              "id": "vase",
-              "name": "Vase Details",
-              "type": "piece",
-              "config": {
-                "piece": { "identifier": "vase-attributes" }
-              }
+    "intent": "shape/upsert",
+    "identifier": "product",
+    "name": "Product",
+    "type": "product",
+    "components": [
+        {
+            "id": "product-type",
+            "name": "Product Type",
+            "type": "selection",
+            "config": {
+                "selection": {
+                    "options": [
+                        { "key": "plant", "value": "Plant" },
+                        { "key": "vase", "value": "Vase" }
+                    ]
+                }
             }
-          ]
+        },
+        { "id": "description", "name": "Description", "type": "richText" },
+        {
+            "id": "variant-attributes",
+            "name": "Product Details",
+            "type": "choice",
+            "config": {
+                "choice": {
+                    "choices": [
+                        {
+                            "id": "plant",
+                            "name": "Plant Details",
+                            "type": "piece",
+                            "config": {
+                                "piece": { "identifier": "plant-attributes" }
+                            }
+                        },
+                        {
+                            "id": "vase",
+                            "name": "Vase Details",
+                            "type": "piece",
+                            "config": {
+                                "piece": { "identifier": "vase-attributes" }
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "id": "seo",
+            "name": "SEO",
+            "type": "piece",
+            "config": { "piece": { "identifier": "seo" } }
         }
-      }
-    },
-    {
-      "id": "seo",
-      "name": "SEO",
-      "type": "piece",
-      "config": { "piece": { "identifier": "seo" } }
-    }
-  ]
+    ]
 }
 ```
 
@@ -528,98 +528,98 @@ Shape: Vase (product)
 
 ```json
 {
-  "intent": "piece/upsert",
-  "identifier": "plant-attributes",
-  "name": "Plant Attributes",
-  "components": [
-    {
-      "id": "care-level",
-      "name": "Care Level",
-      "type": "itemRelations",
-      "config": {
-        "itemRelations": {
-          "acceptedShapeIdentifiers": ["care-level"],
-          "minItems": 1,
-          "maxItems": 1
+    "intent": "piece/upsert",
+    "identifier": "plant-attributes",
+    "name": "Plant Attributes",
+    "components": [
+        {
+            "id": "care-level",
+            "name": "Care Level",
+            "type": "itemRelations",
+            "config": {
+                "itemRelations": {
+                    "acceptedShapeIdentifiers": ["care-level"],
+                    "minItems": 1,
+                    "maxItems": 1
+                }
+            }
+        },
+        {
+            "id": "light-requirement",
+            "name": "Light Requirement",
+            "type": "selection",
+            "config": {
+                "selection": {
+                    "options": [
+                        { "key": "low", "value": "Low Light" },
+                        { "key": "medium", "value": "Medium Light" },
+                        { "key": "bright", "value": "Bright Light" },
+                        { "key": "direct", "value": "Direct Sunlight" }
+                    ]
+                }
+            }
+        },
+        {
+            "id": "mature-size",
+            "name": "Mature Size",
+            "type": "selection",
+            "config": {
+                "selection": {
+                    "options": [
+                        { "key": "small", "value": "Small (under 12\")" },
+                        { "key": "medium", "value": "Medium (12-24\")" },
+                        { "key": "large", "value": "Large (24-48\")" },
+                        { "key": "xl", "value": "Extra Large (48\"+)" }
+                    ]
+                }
+            }
         }
-      }
-    },
-    {
-      "id": "light-requirement",
-      "name": "Light Requirement",
-      "type": "selection",
-      "config": {
-        "selection": {
-          "options": [
-            { "key": "low", "value": "Low Light" },
-            { "key": "medium", "value": "Medium Light" },
-            { "key": "bright", "value": "Bright Light" },
-            { "key": "direct", "value": "Direct Sunlight" }
-          ]
-        }
-      }
-    },
-    {
-      "id": "mature-size",
-      "name": "Mature Size",
-      "type": "selection",
-      "config": {
-        "selection": {
-          "options": [
-            { "key": "small", "value": "Small (under 12\")" },
-            { "key": "medium", "value": "Medium (12-24\")" },
-            { "key": "large", "value": "Large (24-48\")" },
-            { "key": "xl", "value": "Extra Large (48\"+)" }
-          ]
-        }
-      }
-    }
-  ]
+    ]
 }
 ```
 
 ```json
 {
-  "intent": "piece/upsert",
-  "identifier": "vase-attributes",
-  "name": "Vase Attributes",
-  "components": [
-    {
-      "id": "material",
-      "name": "Material",
-      "type": "itemRelations",
-      "config": {
-        "itemRelations": {
-          "acceptedShapeIdentifiers": ["material"],
-          "minItems": 1,
-          "maxItems": 3
-        }
-      }
-    },
-    {
-      "id": "dimensions",
-      "name": "Dimensions",
-      "type": "contentChunk",
-      "config": {
-        "contentChunk": {
-          "components": [
-            {
-              "id": "height",
-              "name": "Height",
-              "type": "numeric",
-              "config": { "numeric": { "units": ["cm", "in"] } }
-            },
-            {
-              "id": "diameter",
-              "name": "Diameter",
-              "type": "numeric",
-              "config": { "numeric": { "units": ["cm", "in"] } }
+    "intent": "piece/upsert",
+    "identifier": "vase-attributes",
+    "name": "Vase Attributes",
+    "components": [
+        {
+            "id": "material",
+            "name": "Material",
+            "type": "itemRelations",
+            "config": {
+                "itemRelations": {
+                    "acceptedShapeIdentifiers": ["material"],
+                    "minItems": 1,
+                    "maxItems": 3
+                }
             }
-          ]
+        },
+        {
+            "id": "dimensions",
+            "name": "Dimensions",
+            "type": "contentChunk",
+            "config": {
+                "contentChunk": {
+                    "components": [
+                        {
+                            "id": "height",
+                            "name": "Height",
+                            "type": "numeric",
+                            "config": { "numeric": { "units": ["cm", "in"] } }
+                        },
+                        {
+                            "id": "diameter",
+                            "name": "Diameter",
+                            "type": "numeric",
+                            "config": { "numeric": { "units": ["cm", "in"] } }
+                        }
+                    ]
+                }
+            }
         }
-      }
-    }
-  ]
+    ]
 }
 ```
 
@@ -656,13 +656,13 @@ A reusable piece for SEO metadata, commonly added to products, folders (landing 
 
 ```json
 {
-  "identifier": "seo",
-  "name": "SEO",
-  "components": [
-    { "id": "title", "name": "Title", "type": "singleLine" },
-    { "id": "description", "name": "Description", "type": "richText" },
-    { "id": "image", "name": "Image", "type": "images" }
-  ]
+    "identifier": "seo",
+    "name": "SEO",
+    "components": [
+        { "id": "title", "name": "Title", "type": "singleLine" },
+        { "id": "description", "name": "Description", "type": "richText" },
+        { "id": "image", "name": "Image", "type": "images" }
+    ]
 }
 ```
 
@@ -670,10 +670,10 @@ Usage in a shape:
 
 ```json
 {
-  "id": "seo",
-  "name": "SEO",
-  "type": "piece",
-  "config": { "identifier": "seo" }
+    "id": "seo",
+    "name": "SEO",
+    "type": "piece",
+    "config": { "identifier": "seo" }
 }
 ```
 
@@ -829,92 +829,90 @@ Components can reference pieces (via `type: "piece"`) and shapes (via `itemRelat
 
 ```json
 {
-  "version": "1.0.0",
-  "operations": [
-    // Phase 1: Create piece containers (no components)
-    {
-      "intent": "piece/upsert",
-      "identifier": "seo",
-      "name": "SEO"
-    },
-    {
-      "intent": "piece/upsert",
-      "identifier": "hero",
-      "name": "Hero Section"
-    },
-    // Phase 2: Create shape containers (no components)
-    {
-      "intent": "shape/upsert",
-      "identifier": "product",
-      "name": "Product",
-      "type": "product"
-    },
-    {
-      "intent": "shape/upsert",
-      "identifier": "brand",
-      "name": "Brand",
-      "type": "document"
-    },
-    // Phase 3: Update pieces with components (same identifier - upsert updates existing)
-    {
-      "intent": "piece/upsert",
-      "identifier": "seo",
-      "name": "SEO",
-      "components": [
-        { "id": "title", "name": "SEO Title", "type": "singleLine" },
-        { "id": "description", "name": "SEO Description", "type": "singleLine" }
-      ]
-    },
-    {
-      "intent": "piece/upsert",
-      "identifier": "hero",
-      "name": "Hero Section",
-      "components": [
-        { "id": "headline", "name": "Headline", "type": "singleLine" },
-        { "id": "image", "name": "Hero Image", "type": "images" }
-      ]
-    },
-    // Phase 4: Update shapes with components (can now safely reference pieces)
-    {
-      "intent": "shape/upsert",
-      "identifier": "product",
-      "name": "Product",
-      "type": "product",
-      "components": [
-        { "id": "description", "name": "Description", "type": "richText" },
+    "version": "1.0.0",
+    "operations": [
+        // Phase 1: Create piece containers (no components)
         {
-          "id": "seo",
-          "name": "SEO",
-          "type": "piece",
-          "config": { "piece": { "identifier": "seo" } }
+            "intent": "piece/upsert",
+            "identifier": "seo",
+            "name": "SEO"
         },
         {
-          "id": "brand",
-          "name": "Brand",
-          "type": "itemRelations",
-          "config": {
-            "itemRelations": {
-              "maxItems": 1,
-              "acceptedShapeIdentifiers": ["brand"]
-            }
-          }
+            "intent": "piece/upsert",
+            "identifier": "hero",
+            "name": "Hero Section"
+        },
+        // Phase 2: Create shape containers (no components)
+        {
+            "intent": "shape/upsert",
+            "identifier": "product",
+            "name": "Product",
+            "type": "product"
+        },
+        {
+            "intent": "shape/upsert",
+            "identifier": "brand",
+            "name": "Brand",
+            "type": "document"
+        },
+        // Phase 3: Update pieces with components (same identifier - upsert updates existing)
+        {
+            "intent": "piece/upsert",
+            "identifier": "seo",
+            "name": "SEO",
+            "components": [
+                { "id": "title", "name": "SEO Title", "type": "singleLine" },
+                { "id": "description", "name": "SEO Description", "type": "singleLine" }
+            ]
+        },
+        {
+            "intent": "piece/upsert",
+            "identifier": "hero",
+            "name": "Hero Section",
+            "components": [
+                { "id": "headline", "name": "Headline", "type": "singleLine" },
+                { "id": "image", "name": "Hero Image", "type": "images" }
+            ]
+        },
+        // Phase 4: Update shapes with components (can now safely reference pieces)
+        {
+            "intent": "shape/upsert",
+            "identifier": "product",
+            "name": "Product",
+            "type": "product",
+            "components": [
+                { "id": "description", "name": "Description", "type": "richText" },
+                {
+                    "id": "seo",
+                    "name": "SEO",
+                    "type": "piece",
+                    "config": { "piece": { "identifier": "seo" } }
+                },
+                {
+                    "id": "brand",
+                    "name": "Brand",
+                    "type": "itemRelations",
+                    "config": {
+                        "itemRelations": {
+                            "maxItems": 1,
+                            "acceptedShapeIdentifiers": ["brand"]
+                        }
+                    }
+                }
+            ],
+            "variantComponents": [{ "id": "gtin", "name": "GTIN", "type": "singleLine" }]
+        },
+        {
+            "intent": "shape/upsert",
+            "identifier": "brand",
+            "name": "Brand",
+            "type": "document",
+            "components": [
+                { "id": "description", "name": "Description", "type": "richText" },
+                { "id": "logo", "name": "Logo", "type": "images" }
+            ]
         }
-      ],
-      "variantComponents": [
-        { "id": "gtin", "name": "GTIN", "type": "singleLine" }
-      ]
-    },
-    {
-      "intent": "shape/upsert",
-      "identifier": "brand",
-      "name": "Brand",
-      "type": "document",
-      "components": [
-        { "id": "description", "name": "Description", "type": "richText" },
-        { "id": "logo", "name": "Logo", "type": "images" }
-      ]
-    }
-  ]
+    ]
 }
 ```
 

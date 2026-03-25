@@ -53,34 +53,34 @@ Authorization: Bearer YOUR_JWT_TOKEN
 
 ```graphql
 query {
-  cart(id: "cart-id-here") {
-    id
-    state
-    isStale
-    isExpired
-    createdAt
-    updatedAt
-    items {
-      sku
-      name
-      quantity
-      managed
-      origin
-      images {
-        url
-      }
-      price {
-        gross
-        net
-        taxAmount
-      }
+    cart(id: "cart-id-here") {
+        id
+        state
+        isStale
+        isExpired
+        createdAt
+        updatedAt
+        items {
+            sku
+            name
+            quantity
+            managed
+            origin
+            images {
+                url
+            }
+            price {
+                gross
+                net
+                taxAmount
+            }
+        }
+        total {
+            gross
+            net
+            taxAmount
+        }
     }
-    total {
-      gross
-      net
-      taxAmount
-    }
-  }
 }
 ```
 
@@ -90,26 +90,26 @@ Retrieve cart formatted for order creation:
 
 ```graphql
 query {
-  cartAsOrderIntent(id: "cart-id-here") {
-    customer {
-      firstName
-      lastName
-      email
+    cartAsOrderIntent(id: "cart-id-here") {
+        customer {
+            firstName
+            lastName
+            email
+        }
+        cart {
+            sku
+            name
+            quantity
+            price {
+                gross
+                net
+            }
+        }
+        total {
+            gross
+            net
+        }
     }
-    cart {
-      sku
-      name
-      quantity
-      price {
-        gross
-        net
-      }
-    }
-    total {
-      gross
-      net
-    }
-  }
 }
 ```
 
