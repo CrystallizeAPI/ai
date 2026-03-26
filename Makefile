@@ -21,7 +21,7 @@ install: ## Install
 
 .PHONY: codeclean
 codeclean: ## Code Clean
-	@bun x oxfmt --write .
+	@npx oxfmt --write .
 	@cd use-crystallize/mcp-servers/crystallize && bun run type-check
 	@cd use-crystallize/mcp-servers/crystallize && bun run lint
 
