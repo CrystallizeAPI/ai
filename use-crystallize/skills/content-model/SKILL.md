@@ -67,6 +67,10 @@ Product variants have additional built-ins: `sku`, `images`, `videos`, `price`, 
 
 **Components are the additional fields you define** beyond these built-ins. For product shapes, use `variantComponents` in the shape definition to add custom components directly to product variants (e.g., custom certifications, variant-level specs).
 
+**`variantComponents` supports all component types**, including structured components: `contentChunk`, `componentChoice`, `componentMultipleChoice`, and `piece` references. This means you can add repeating field groups, polymorphic choices, or reusable pieces directly on variants — not just simple fields like `singleLine` or `numeric`. For example, a product variant can have a `contentChunk` for packaging dimensions, or a `componentChoice` for variant-specific technical specs.
+
+**`variantComponents` require the same type discipline as product-level components** — apply the Component Selection Guide below. Measurable values (weight, voltage, length) → `numeric` with units. Controlled options (connection type, material) → `selection`. Free-form identifiers → `singleLine`. Do not default everything to `singleLine`.
+
 **IMPORTANT:** Do NOT add components for price or stock - these are native properties managed through the product variant's built-in fields. Only create custom price/stock components for specific edge cases (e.g., tiered pricing models, subscription pricing, price modifiers for configurators).
 
 **Product Identification:** The built-in `sku` field on product variants is the primary product identifier — use it for GTIN, EAN, ISBN, or any single identifier. Do NOT add a separate `gtin` or `ean` single-line component on the variant. If a product needs **multiple identifiers** (e.g., both ISBN-10 and ISBN-13, or a GTIN plus a legacy system ID), add an **identifiers chunk** with named fields to the shape:
@@ -773,6 +777,8 @@ Piece: "SEO"  (not "SEO Metadata")
 
 ❌ **Flat component lists** - Group related fields with Chunks for better structure
 
+❌ **Flat singleLine variant components** - `variantComponents` follow the same type rules as product-level components. Voltage, length, weight → `numeric` with units. Connection type, material, animal version → `selection` with options. Only use `singleLine` for genuinely free-form text (a color label, a custom code). A variant story full of `singleLine` is a modeling smell.
+
 ❌ **Mixing variant data with product data** - Use variant attributes (built-in) for size/color/sku
 
 ❌ **Adding GTIN/EAN/ISBN as a variant component** - The built-in `sku` field handles single product identifiers. For multiple identifiers, add a chunk with named single-line components (e.g., `isbn-10`, `isbn-13`, `gtin`, `ean`, `upc`, `legacy-id`) at the shape level, not on the variant.
@@ -900,7 +906,15 @@ Components can reference pieces (via `type: "piece"`) and shapes (via `itemRelat
                     }
                 }
             ],
-            "variantComponents": [{ "id": "gtin", "name": "GTIN", "type": "singleLine" }]
+            "variantComponents": [
+                { "id": "weight", "name": "Weight", "type": "numeric", "config": { "numeric": { "units": ["g", "kg"], "discoverable": true } } },
+                {
+                    "id": "color",
+                    "name": "Color",
+                    "type": "selection",
+                    "config": { "selection": { "options": [{ "key": "black", "value": "Black" }, { "key": "white", "value": "White" }] } }
+                }
+            ]
         },
         {
             "intent": "shape/upsert",
