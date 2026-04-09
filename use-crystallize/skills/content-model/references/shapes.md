@@ -32,6 +32,8 @@ Use `variantComponents` when you need variant-level data beyond the built-in SKU
 - Variant-level specs that differ per variant (e.g., battery capacity per size)
 - Custom variant identifiers (e.g., manufacturer variant codes)
 
+**`variantComponents` supports all component types**, including structured components: `contentChunk`, `componentChoice`, `componentMultipleChoice`, and `piece` references. You are not limited to simple fields — you can model rich, grouped, or polymorphic data directly on variants.
+
 ```graphql
 mutation {
     createShape(
@@ -49,7 +51,7 @@ mutation {
                 }
             ]
             variantComponents: [
-                # Variant-level custom components
+                # Simple variant-level components
                 {
                     id: "battery-capacity"
                     name: "Battery Capacity"
@@ -61,6 +63,29 @@ mutation {
                     name: "Color Name"
                     type: singleLine
                     config: { singleLine: { multilingual: true } }
+                }
+                # Structured variant-level component (contentChunk)
+                {
+                    id: "packaging"
+                    name: "Packaging Dimensions"
+                    type: contentChunk
+                    config: {
+                        contentChunk: {
+                            components: [
+                                { id: "width", name: "Width", type: numeric, config: { numeric: { units: ["cm", "in"] } } }
+                                { id: "height", name: "Height", type: numeric, config: { numeric: { units: ["cm", "in"] } } }
+                                { id: "depth", name: "Depth", type: numeric, config: { numeric: { units: ["cm", "in"] } } }
+                                { id: "weight", name: "Weight", type: numeric, config: { numeric: { units: ["g", "kg"] } } }
+                            ]
+                        }
+                    }
+                }
+                # Piece reference on a variant
+                {
+                    id: "certifications"
+                    name: "Certifications"
+                    type: piece
+                    config: { piece: { identifier: "variant-certifications" } }
                 }
             ]
         }

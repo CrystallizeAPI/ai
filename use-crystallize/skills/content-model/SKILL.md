@@ -67,6 +67,8 @@ Product variants have additional built-ins: `sku`, `images`, `videos`, `price`, 
 
 **Components are the additional fields you define** beyond these built-ins. For product shapes, use `variantComponents` in the shape definition to add custom components directly to product variants (e.g., custom certifications, variant-level specs).
 
+**`variantComponents` supports all component types**, including structured components: `contentChunk`, `componentChoice`, `componentMultipleChoice`, and `piece` references. This means you can add repeating field groups, polymorphic choices, or reusable pieces directly on variants — not just simple fields like `singleLine` or `numeric`. For example, a product variant can have a `contentChunk` for packaging dimensions, or a `componentChoice` for variant-specific technical specs.
+
 **`variantComponents` require the same type discipline as product-level components** — apply the Component Selection Guide below. Measurable values (weight, voltage, length) → `numeric` with units. Controlled options (connection type, material) → `selection`. Free-form identifiers → `singleLine`. Do not default everything to `singleLine`.
 
 **IMPORTANT:** Do NOT add components for price or stock - these are native properties managed through the product variant's built-in fields. Only create custom price/stock components for specific edge cases (e.g., tiered pricing models, subscription pricing, price modifiers for configurators).
