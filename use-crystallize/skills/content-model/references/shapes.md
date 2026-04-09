@@ -74,6 +74,8 @@ mutation {
 
 > **Note:** Do not use `variantComponents` for fields that are the same across all variants — those belong in `components` (product level).
 
+> **Type discipline:** `variantComponents` follow the exact same component type rules as product-level components. Use `numeric` (with units) for measurable values like voltage, length, weight, or wattage. Use `selection` for controlled options like connection type, material, or animal version. Reserve `singleLine` for genuinely free-form text. A variant story full of `singleLine` components is a modeling smell — it loses queryability, unit awareness, and editor guardrails.
+
 ### Document Shape
 
 Used for editorial and marketing content. **Documents are leaf nodes and cannot have children.**
