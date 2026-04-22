@@ -15,7 +15,7 @@ export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
             {
                 error: "Unauthorized: provide X-Crystallize-Access-Token-Id/Secret headers or a connect.sid cookie",
             },
-            401,
+            403,
         );
     }
 
@@ -24,29 +24,33 @@ export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
         ...(sessionId ? { sessionId } : { accessTokenId, accessTokenSecret }),
     });
 
-    const response = await client.pimApi<{
-        me: {
-            tenants: Array<{
-                tenant: AuthContext["tenants"][number];
-            }>;
-        };
-    }>(meQuery);
+    try {
+        const response = await client.pimApi<{
+            me: {
+                tenants: Array<{
+                    tenant: AuthContext["tenants"][number];
+                }>;
+            };
+        }>(meQuery);
 
-    if (!response || !response.me || !response.me.tenants || response.me.tenants.length === 0) {
-        return c.json({ error: "Unauthorized: invalid credentials" }, 401);
+        if (!response || !response.me || !response.me.tenants || response.me.tenants.length === 0) {
+            return c.json({ error: "Unauthorized: invalid credentials" }, 403);
+        }
+
+        const tenants = response.me.tenants.map((t) => t.tenant);
+
+        if (sessionId) {
+            c.set("authContext", { type: "session", sessionId, tenants });
+        } else {
+            c.set("authContext", {
+                type: "token",
+                accessTokenId: accessTokenId!,
+                accessTokenSecret: accessTokenSecret!,
+                tenants,
+            });
+        }
+        await next();
+    } catch (error) {
+        return c.json({ error: "Unauthorized: authentication failed" }, 403);
     }
-
-    const tenants = response.me.tenants.map((t) => t.tenant);
-
-    if (sessionId) {
-        c.set("authContext", { type: "session", sessionId, tenants });
-    } else {
-        c.set("authContext", {
-            type: "token",
-            accessTokenId: accessTokenId!,
-            accessTokenSecret: accessTokenSecret!,
-            tenants,
-        });
-    }
-    await next();
 });
