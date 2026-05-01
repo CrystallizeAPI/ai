@@ -1,6 +1,6 @@
 {
     "name": "use-crystallize",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "description": "Everything you need to use Crystallize with your agent, skills, agents, commands, hooks and MCP servers.",
     "author": {
         "name": "Crystallize",

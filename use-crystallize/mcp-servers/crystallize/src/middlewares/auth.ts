@@ -50,7 +50,7 @@ export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
             });
         }
         await next();
-    } catch (error) {
+    } catch {
         return c.json({ error: "Unauthorized: authentication failed" }, 403);
     }
 });

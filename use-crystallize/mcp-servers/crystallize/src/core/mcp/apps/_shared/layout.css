@@ -1,0 +1,107 @@
+:root {
+    color-scheme: light dark;
+    --bg: light-dark(#f7f7f8, #1a1a1a);
+    --card: light-dark(#ffffff, #242424);
+    --border: light-dark(#e5e5e5, #333);
+    --text: light-dark(#1a1a1a, #f5f5f5);
+    --muted: light-dark(#666, #999);
+    --accent: light-dark(#7c3aed, #a78bfa);
+    --crystallize-orange: #fd943a;
+    --crystallize-orange-light: #ffbb72;
+    --crystallize-orange-pale: #ffd6a5;
+    --crystallize-orange-cream: #ffedd5;
+    --header-bg: light-dark(rgba(255, 255, 255, 0.75), rgba(20, 20, 20, 0.75));
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+}
+
+.layout-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--header-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.layout-header .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.layout-header .brand .logo {
+    width: 22px;
+    height: 32px;
+    display: block;
+    flex-shrink: 0;
+}
+
+.layout-header .brand .wordmark {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+}
+
+.layout-header .brand .wordmark .name {
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+}
+
+.layout-header .brand .wordmark .tag {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 500;
+}
+
+.layout-header .divider {
+    width: 1px;
+    align-self: stretch;
+    background: var(--border);
+    margin: 0 4px;
+}
+
+.layout-header .app-title {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.layout-header .spacer {
+    flex: 1;
+}
+
+.layout-main {
+    padding: 16px;
+}

@@ -21,21 +21,21 @@ describe("authMiddleware", () => {
         });
     });
 
-    it("returns 401 when headers are missing", async () => {
+    it("returns 403 when headers are missing", async () => {
         const res = await app.request("/test");
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(403);
         const body = (await res.json()) as { error: string };
         expect(body.error).toContain("Unauthorized");
     });
 
-    it("returns 401 when only one header is provided", async () => {
+    it("returns 403 when only one header is provided", async () => {
         const res = await app.request("/test", {
             headers: { "X-Crystallize-Access-Token-Id": "some-id" },
         });
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(403);
     });
 
-    it("returns 401 when pimApi returns empty tenants", async () => {
+    it("returns 403 when pimApi returns empty tenants", async () => {
         const mockPimApi = mock().mockResolvedValue({ me: { tenants: [] } });
         mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
@@ -46,12 +46,12 @@ describe("authMiddleware", () => {
             },
         });
 
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(403);
         const body = (await res.json()) as { error: string };
         expect(body.error).toContain("invalid credentials");
     });
 
-    it("returns 401 when pimApi returns null", async () => {
+    it("returns 403 when pimApi returns null", async () => {
         const mockPimApi = mock().mockResolvedValue(null);
         mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
@@ -62,7 +62,7 @@ describe("authMiddleware", () => {
             },
         });
 
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(403);
     });
 
     it("sets authContext and proceeds on valid token", async () => {

@@ -72,10 +72,30 @@ mutation {
                     config: {
                         contentChunk: {
                             components: [
-                                { id: "width", name: "Width", type: numeric, config: { numeric: { units: ["cm", "in"] } } }
-                                { id: "height", name: "Height", type: numeric, config: { numeric: { units: ["cm", "in"] } } }
-                                { id: "depth", name: "Depth", type: numeric, config: { numeric: { units: ["cm", "in"] } } }
-                                { id: "weight", name: "Weight", type: numeric, config: { numeric: { units: ["g", "kg"] } } }
+                                {
+                                    id: "width"
+                                    name: "Width"
+                                    type: numeric
+                                    config: { numeric: { units: ["cm", "in"] } }
+                                }
+                                {
+                                    id: "height"
+                                    name: "Height"
+                                    type: numeric
+                                    config: { numeric: { units: ["cm", "in"] } }
+                                }
+                                {
+                                    id: "depth"
+                                    name: "Depth"
+                                    type: numeric
+                                    config: { numeric: { units: ["cm", "in"] } }
+                                }
+                                {
+                                    id: "weight"
+                                    name: "Weight"
+                                    type: numeric
+                                    config: { numeric: { units: ["g", "kg"] } }
+                                }
                             ]
                         }
                     }

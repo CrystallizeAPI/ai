@@ -907,12 +907,24 @@ Components can reference pieces (via `type: "piece"`) and shapes (via `itemRelat
                 }
             ],
             "variantComponents": [
-                { "id": "weight", "name": "Weight", "type": "numeric", "config": { "numeric": { "units": ["g", "kg"], "discoverable": true } } },
+                {
+                    "id": "weight",
+                    "name": "Weight",
+                    "type": "numeric",
+                    "config": { "numeric": { "units": ["g", "kg"], "discoverable": true } }
+                },
                 {
                     "id": "color",
                     "name": "Color",
                     "type": "selection",
-                    "config": { "selection": { "options": [{ "key": "black", "value": "Black" }, { "key": "white", "value": "White" }] } }
+                    "config": {
+                        "selection": {
+                            "options": [
+                                { "key": "black", "value": "Black" },
+                                { "key": "white", "value": "White" }
+                            ]
+                        }
+                    }
                 }
             ]
         },
