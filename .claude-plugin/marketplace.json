@@ -12,9 +12,15 @@
             "name": "use-crystallize",
             "source": "./use-crystallize",
             "description": "Everything you need to use Crystallize with your agent, skills, agents, commands, hooks and MCP servers.",
-            "version": "3.0.0",
+            "version": "3.1.0",
             "category": "commerce",
-            "tags": ["commerce", "headless", "skills", "mcp", "crystallize"]
+            "tags": [
+                "commerce",
+                "headless",
+                "skills",
+                "mcp",
+                "crystallize"
+            ]
         }
     ]
 }

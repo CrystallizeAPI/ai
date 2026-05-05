@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { type AwilixContainer, asFunction, createContainer, InjectionMode } from "awilix";
+import { asFunction, createContainer, InferCradleFromContainer, InjectionMode } from "awilix";
 import packageJson from "../../package.json";
 import { createFetchCatalogGraphqlSchemaToolWrapper } from "./mcp/tools/fetch-catalog-graphql-schema";
 import { createFetchContentModelToolWrapper } from "./mcp/tools/fetch-content-model";
@@ -18,38 +18,49 @@ import { createTenantMatcher } from "./services/tenant-matcher";
 import { TenantMatcher } from "../contracts/tenant-matcher";
 import { createGraphlSchemaCompacter } from "./services/compact-schema-builder";
 import { createGraphqlQueryCorrector } from "./services/graphql-query-corrector";
-import { GraphqlQueryCorrector } from "../contracts/graphql-query-corrector";
 import { createQueryExecutor } from "./services/query-with-correction";
-import { QueryExecutor } from "../contracts/query-executor";
 import { createAuthContextResolver } from "./services/auth-context-helpers";
-import { AuthContextResolver } from "../contracts/auth-context-resolver";
 import { createCoreSchemaDomainSplitter } from "./services/core-schema-domain-splitter";
-import { CoreSchemaDomainSplitter } from "../contracts/core-schema-domain-splitter";
-
-type Container = Services & {
-    authContextResolver: AuthContextResolver;
-    coreSchemaDomainSplitter: CoreSchemaDomainSplitter;
-    graphqlQueryCorrector: GraphqlQueryCorrector;
-    queryExecutor: QueryExecutor;
-    skillsToolWrapper: ReturnType<typeof createSkillsToolWrapper>;
-    queryDiscoveryToolWrapper: ReturnType<typeof createQueryDiscoveryToolWrapper>;
-    queryCatalogueToolWrapper: ReturnType<typeof createQueryCatalogueToolWrapper>;
-    fetchContentModelToolWrapper: ReturnType<typeof createFetchContentModelToolWrapper>;
-    fetchCatalogGraphqlSchemaToolWrapper: ReturnType<typeof createFetchCatalogGraphqlSchemaToolWrapper>;
-    fetchDiscoveryGraphqlSchemaToolWrapper: ReturnType<typeof createFetchDiscoveryGraphqlSchemaToolWrapper>;
-    fetchCoreGraphqlSchemaToolWrapper: ReturnType<typeof createFetchCoreGraphqlSchemaToolWrapper>;
-    queryCoreToolWrapper: ReturnType<typeof createQueryCoreToolWrapper>;
-    buildMassOperationToolWrapper: ReturnType<typeof createBuildMassOperationToolWrapper>;
-    queryShopCartToolWrapper: ReturnType<typeof createQueryShopCartToolWrapper>;
-    fetchShopCartGraphqlSchemaToolWrapper: ReturnType<typeof createFetchShopCartGraphqlSchemaToolWrapper>;
-    tenantOverviewToolWrapper: ReturnType<typeof createTenantOverviewToolWrapper>;
-    productOverviewToolWrapper: ReturnType<typeof createProductOverviewToolWrapper>;
-};
 
 export type Services = {
     mcpServer: McpServer;
     tenantMatcher: TenantMatcher;
 };
+
+const build = () => createContainer({
+    injectionMode: InjectionMode.PROXY,
+    strict: true,
+}).register({
+    // services
+    authContextResolver: asFunction(createAuthContextResolver).singleton(),
+    tenantMatcher: asFunction(createTenantMatcher).singleton(),
+    graphqlSchemaCompacter: asFunction(createGraphlSchemaCompacter).singleton(),
+    coreSchemaDomainSplitter: asFunction(createCoreSchemaDomainSplitter).singleton(),
+    graphqlQueryCorrector: asFunction(createGraphqlQueryCorrector).singleton(),
+    queryExecutor: asFunction(createQueryExecutor).singleton(),
+    mcpServer: asFunction(() => {
+        return new McpServer({ name: "Crystallize MCP Server", version: packageJson.version });
+    }).scoped(),
+
+    // tools
+    skillsToolWrapper: asFunction(createSkillsToolWrapper).singleton(),
+    queryDiscoveryToolWrapper: asFunction(createQueryDiscoveryToolWrapper).singleton(),
+    queryCatalogueToolWrapper: asFunction(createQueryCatalogueToolWrapper).singleton(),
+    fetchContentModelToolWrapper: asFunction(createFetchContentModelToolWrapper).singleton(),
+    fetchCatalogGraphqlSchemaToolWrapper: asFunction(createFetchCatalogGraphqlSchemaToolWrapper).singleton(),
+    fetchDiscoveryGraphqlSchemaToolWrapper: asFunction(createFetchDiscoveryGraphqlSchemaToolWrapper).singleton(),
+    fetchCoreGraphqlSchemaToolWrapper: asFunction(createFetchCoreGraphqlSchemaToolWrapper).singleton(),
+    queryCoreToolWrapper: asFunction(createQueryCoreToolWrapper).singleton(),
+    buildMassOperationToolWrapper: asFunction(createBuildMassOperationToolWrapper).singleton(),
+    queryShopCartToolWrapper: asFunction(createQueryShopCartToolWrapper).singleton(),
+    fetchShopCartGraphqlSchemaToolWrapper: asFunction(createFetchShopCartGraphqlSchemaToolWrapper).singleton(),
+    tenantOverviewToolWrapper: asFunction(createTenantOverviewToolWrapper).singleton(),
+    productOverviewToolWrapper: asFunction(createProductOverviewToolWrapper).singleton(),
+});
+
+let container: ReturnType<typeof build> | null = null
+export const buildContainer = (_env: CloudflareBindings) => (container ??= build())
+type Container = InferCradleFromContainer<ReturnType<typeof build>>
 
 export const toolRegistry = {
     skills: "skillsToolWrapper",
@@ -67,42 +78,3 @@ export const toolRegistry = {
     "product-overview": "productOverviewToolWrapper",
 } as const satisfies Record<string, keyof Container>;
 
-let container: AwilixContainer<Container> | null = null;
-export const buildContainer = (_env: CloudflareBindings): AwilixContainer<Container> => {
-    if (container) {
-        return container;
-    }
-    container = createContainer<Container>({
-        injectionMode: InjectionMode.PROXY,
-        strict: true,
-    });
-
-    container.register({
-        // services
-        authContextResolver: asFunction(createAuthContextResolver).singleton(),
-        tenantMatcher: asFunction(createTenantMatcher).singleton(),
-        graphqlSchemaCompacter: asFunction(createGraphlSchemaCompacter).singleton(),
-        coreSchemaDomainSplitter: asFunction(createCoreSchemaDomainSplitter).singleton(),
-        graphqlQueryCorrector: asFunction(createGraphqlQueryCorrector).singleton(),
-        queryExecutor: asFunction(createQueryExecutor).singleton(),
-        mcpServer: asFunction(() => {
-            return new McpServer({ name: "Crystallize MCP Server", version: packageJson.version });
-        }).scoped(),
-
-        // tools
-        skillsToolWrapper: asFunction(createSkillsToolWrapper).singleton(),
-        queryDiscoveryToolWrapper: asFunction(createQueryDiscoveryToolWrapper).singleton(),
-        queryCatalogueToolWrapper: asFunction(createQueryCatalogueToolWrapper).singleton(),
-        fetchContentModelToolWrapper: asFunction(createFetchContentModelToolWrapper).singleton(),
-        fetchCatalogGraphqlSchemaToolWrapper: asFunction(createFetchCatalogGraphqlSchemaToolWrapper).singleton(),
-        fetchDiscoveryGraphqlSchemaToolWrapper: asFunction(createFetchDiscoveryGraphqlSchemaToolWrapper).singleton(),
-        fetchCoreGraphqlSchemaToolWrapper: asFunction(createFetchCoreGraphqlSchemaToolWrapper).singleton(),
-        queryCoreToolWrapper: asFunction(createQueryCoreToolWrapper).singleton(),
-        buildMassOperationToolWrapper: asFunction(createBuildMassOperationToolWrapper).singleton(),
-        queryShopCartToolWrapper: asFunction(createQueryShopCartToolWrapper).singleton(),
-        fetchShopCartGraphqlSchemaToolWrapper: asFunction(createFetchShopCartGraphqlSchemaToolWrapper).singleton(),
-        tenantOverviewToolWrapper: asFunction(createTenantOverviewToolWrapper).singleton(),
-        productOverviewToolWrapper: asFunction(createProductOverviewToolWrapper).singleton(),
-    });
-    return container;
-};

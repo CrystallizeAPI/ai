@@ -1,6 +1,6 @@
 {
     "name": "use-crystallize",
-    "version": "3.0.0",
+    "version": "3.1.0",
     "description": "Everything you need to use Crystallize with your agent, skills, agents, commands, hooks and MCP servers.",
     "author": {
         "name": "Crystallize",
@@ -9,7 +9,13 @@
     "homepage": "https://crystallize.com",
     "repository": "https://github.com/crystallizeapi/ai",
     "license": "MIT",
-    "keywords": ["commerce", "headless", "skills", "mcp", "crystallize"],
+    "keywords": [
+        "commerce",
+        "headless",
+        "skills",
+        "mcp",
+        "crystallize"
+    ],
     "skills": "./skills/",
     "mcpServers": {
         "crystallize": {
