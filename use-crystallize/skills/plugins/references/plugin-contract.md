@@ -93,13 +93,13 @@ $upstream/$tenantIdentifier/$path
 
 ### Post-Installation Endpoint
 
-When a user installs, re-installs, or uninstalls a plugin on their tenant, Crystallize POSTs a JWE-encrypted body to:
+When a user installs, re-installs, or uninstalls a plugin on their tenant, Crystallize POSTs a form-encoded body to:
 
 ```
 $upstream/$tenantIdentifier/$postInstallationUri
 ```
 
-The plaintext body (after decryption) is:
+The body is `application/x-www-form-urlencoded` with a single field `payload=<JWE>` — the same wire format used for entrypoints. The plaintext body (after decrypting the JWE) is:
 
 ```ts
 type PostInstallBody = {
@@ -425,7 +425,7 @@ sequenceDiagram
     Note over Core: Wrap post-install body in outer JWE<br/>using revision.publicKey.<br/>encryptedSecrets passed through<br/>(already per-field encrypted).
 
     par Webhook (fire-and-forget)
-        Core-)Vendor: POST $upstream/$tenantIdentifier/$postInstallationUri<br/>body = outer JWE of:<br/>{ event:"install", tenantIdentifier,<br/>  installationId, userId, config,<br/>  encryptedSecrets, pluginIdentifier,<br/>  revisionId, issuedAt }
+        Core-)Vendor: POST $upstream/$tenantIdentifier/$postInstallationUri<br/>Content-Type: application/x-www-form-urlencoded<br/>body: payload=&lt;outer JWE of&gt;<br/>{ event:"install", tenantIdentifier,<br/>  installationId, userId, config,<br/>  encryptedSecrets, pluginIdentifier,<br/>  revisionId, issuedAt }
     and Mutation returns
         Core-->>AppUI: { installationId, ... }
         AppUI-->>Installer: Installation complete

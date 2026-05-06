@@ -215,9 +215,9 @@ On install, Crystallize POSTs the post-install body to `$upstream/$tenantIdentif
 
 ## Develop the Upstream
 
-The upstream is your server. Two endpoint shapes to handle:
+The upstream is your server. Two endpoint shapes to handle — both POST with the same wire format:
 
-- **Post-install webhook** (`$postInstallationUri`) — body is the raw outer JWE.
+- **Post-install webhook** (`$postInstallationUri`) — POST with form-encoded body `payload=<JWE>`.
 - **Entrypoints** (`$target`) — POST with form-encoded body `payload=<JWE>`.
 
 Both decrypt to the same plaintext shape (with different fields populated). Use `createPluginPayloadDecrypter` from `@crystallize/js-api-client`.
@@ -244,8 +244,11 @@ Always read the private JWK from a secret env var — never commit it.
 app.post("/:tenantIdentifier/post-install", async (c) => {
     const tenantIdentifier = c.req.param("tenantIdentifier");
     try {
-        const payload = await c.req.text(); // raw JWE compact body
-        const decoded = await decrypter(payload);
+        const body = await c.req.parseBody(); // form-encoded
+        if (typeof body?.payload !== "string")
+            return c.text("invalid body", 400);
+
+        const decoded = await decrypter(body.payload);
         if (decoded.envelope?.tenantIdentifier !== tenantIdentifier) {
             return c.text("tenant mismatch", 403); // path tenant must match payload tenant
         }
@@ -343,7 +346,7 @@ curl -X POST "$URL" \
   --data-urlencode "payload=$ENCRYPTED_PAYLOAD"
 ```
 
-For the post-install webhook, send the raw JWE as the request body (no form encoding). To re-trigger an install event for testing, re-install the plugin (it's atomic and keeps the same `installationId`).
+For the post-install webhook, the wire format is identical — `curl --data-urlencode "payload=$ENCRYPTED_PAYLOAD" "$URL"`. To re-trigger an install event for testing, re-install the plugin (it's atomic and keeps the same `installationId`).
 
 For local development of the upstream, expose your dev server with a tunnel (e.g. ngrok) and set that URL as the revision's `upstream` — code under `upstream` can change without a new revision.
 
