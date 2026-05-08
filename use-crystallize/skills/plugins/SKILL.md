@@ -244,16 +244,19 @@ Always read the private JWK from a secret env var — never commit it.
 app.post("/:tenantIdentifier/post-install", async (c) => {
     const tenantIdentifier = c.req.param("tenantIdentifier");
     try {
-        const body = await c.req.parseBody(); // form-encoded
-        if (typeof body?.payload !== "string")
-            return c.text("invalid body", 400);
+        // Form-encoded. Crystallize may send the JWE under either field name —
+        // accept both for forward compatibility.
+        const body = await c.req.parseBody<{ payload?: string; encryptedPayload?: string }>();
+        const jwe = typeof body?.payload === "string" ? body.payload : body?.encryptedPayload;
+        if (typeof jwe !== "string") return c.text("invalid body", 400);
 
-        const decoded = await decrypter(body.payload);
+        const decoded = await decrypter(jwe);
         if (decoded.envelope?.tenantIdentifier !== tenantIdentifier) {
             return c.text("tenant mismatch", 403); // path tenant must match payload tenant
         }
         // decoded.envelope.event is "install" | "reinstall" | "uninstall"
-        // decoded.envelope.config + encryptedSecrets carry installation state
+        // decoded.envelope.configuration carries non-secret config; decoded.secrets
+        // carries plaintext secrets (already decrypted by the decrypter).
         // Persist tenant-scoped state. Handler MUST be idempotent — no retries.
         return c.text("ok");
     } catch {
@@ -279,7 +282,8 @@ app.post("/:tenantIdentifier/order/preview", async (c) => {
             return c.text("tenant mismatch", 403);
         }
 
-        // Call Crystallize APIs on behalf of the viewer
+        // Plaintext secrets are at decoded.secrets[name] — no manual decrypt step.
+        // Call Crystallize APIs on behalf of the viewer using the Backend Token.
         const api = createClient({
             tenantIdentifier,
             bearerToken: decoded.envelope.backendToken,
@@ -298,21 +302,26 @@ app.post("/:tenantIdentifier/order/preview", async (c) => {
 
 ### Decoded payload shape
 
-The `decrypter` returns a structured object:
+The `decrypter` returns a structured `DecryptedPluginPayload` (see [`@crystallize/js-api-client`](https://www.npmjs.com/package/@crystallize/js-api-client)):
 
-| Field                       | Description                                                                      |
-| --------------------------- | -------------------------------------------------------------------------------- |
-| `envelope.tenantIdentifier` | Always check against the path param.                                             |
-| `envelope.installationId`   | Stable across reinstalls of the same `(tenant, plugin)`.                         |
-| `envelope.pluginIdentifier` | Sanity-check it's yours.                                                         |
-| `envelope.revisionId`       | Which revision this installation is pinned to.                                   |
-| `envelope.configuration`    | Non-secret configuration values (plaintext).                                     |
-| `envelope.encryptedSecrets` | Per-field JWE compact strings — decrypt on demand with the same private key.     |
-| `envelope.entityContext`    | e.g. `{ orderId: "..." }` for entity-scoped placements; omitted for `dashboard`. |
-| `envelope.backendToken`     | RS256 JWT — pass as `Authorization: Bearer …` to Crystallize APIs.               |
-| `backendToken.verified`     | `true` if the JWKS verification passed (when `verifyBackendToken: true`).        |
-| `backendToken.claims`       | Decoded claims (`sub` = userId, `aud` = your plugin identifier, `act = { … }`).  |
-| `signature.verified`        | `true` if the outer payload signature checks out.                                |
+| Field                          | Description                                                                                                                  |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `envelope.tenantIdentifier`    | Always check against the path param.                                                                                         |
+| `envelope.tenantId`            | Numeric tenant ID — needed by some Crystallize APIs.                                                                         |
+| `envelope.installationId`      | Stable across reinstalls of the same `(tenant, plugin)`.                                                                     |
+| `envelope.pluginIdentifier`    | Sanity-check it's yours.                                                                                                     |
+| `envelope.revisionId`          | Which revision this installation is pinned to.                                                                               |
+| `envelope.configuration`       | Non-secret configuration values (plaintext).                                                                                 |
+| `envelope.encryptedSecrets`    | Per-field JWE ciphertext (raw). The decrypter already plaintexts these into `secrets` — only touch this for re-encryption.   |
+| `envelope.entityContext`       | e.g. `{ orderId: "..." }` for entity-scoped placements; omitted for `dashboard`.                                             |
+| `envelope.event`               | **Webhook variant only**: `"install"` \| `"reinstall"` \| `"uninstall"`. Absent on iframe payloads.                          |
+| `envelope.backendToken`        | RS256 JWT (string) — pass as `Authorization: Bearer …` to Crystallize APIs.                                                  |
+| `envelope.signatureSecret`     | _(optional)_ Shared secret for verifying inbound Crystallize webhooks via `createSignatureVerifier`. Present when applicable. |
+| `envelope.staticAuthToken`     | _(optional)_ Long-lived bearer for Discovery / non-iframe contexts. Present when applicable.                                 |
+| `secrets`                      | **Plaintext** map of secret values, already decrypted by the decrypter. Use this — don't re-decrypt `encryptedSecrets`.       |
+| `signatureStatus.verified`     | `true` if the outer payload signature checks out.                                                                            |
+| `backendTokenStatus.verified`  | `true` if the JWKS verification of the Backend Token passed (when `verifyBackendToken: true`).                               |
+| `backendTokenStatus.claims`    | Decoded claims (`sub` = userId, `aud` = your plugin identifier, `act = { pluginId, installationId, revisionId }`).           |
 
 ### Backend Token rules
 
@@ -350,6 +359,12 @@ For the post-install webhook, the wire format is identical — `curl --data-urle
 
 For local development of the upstream, expose your dev server with a tunnel (e.g. ngrok) and set that URL as the revision's `upstream` — code under `upstream` can change without a new revision.
 
+### Dev-payload Vite plugin (no Crystallize round-trip)
+
+If you're on Vite, the **`crystallize-buddy`** example ships a `vite/dev-payload.ts` plugin that intercepts GETs in dev and mints a fake JWE envelope (encrypted with your local `public.jwk.json`, then re-POSTs it to your handler). You declare the routes you want to mock in `dev-payload.config.jsonc` (entrypoints, post-install events, entity context, plaintext secrets that get JWE-wrapped). This decouples local development from the App UI entirely — open the route in a browser, your handler sees a payload identical to production.
+
+The plugin uses a `dev-payload://` prefix on the locally-minted `backendToken` as a sentinel; your decrypter middleware should let unsigned dev payloads through when it sees that prefix (production payloads always carry a real RS256 token and a verified signature). Lift this pattern wholesale if your stack permits.
+
 ## Common Mistakes
 
 | Mistake                                                                     | What to do                                                                                                  |
@@ -363,9 +378,12 @@ For local development of the upstream, expose your dev server with a tunnel (e.g
 | Putting secrets in plaintext `configurationSchema` properties               | List the property name in the top-level `secrets[]` array. The App UI then encrypts it client-side.         |
 | Auto-migrating users to a new revision                                      | Installations pin a `revisionId`. Users must re-install to consent to the new contract.                     |
 
-## Working Example
+## Working Examples
 
-A minimal Hono-based plugin (post-install + entrypoint, with API call) lives at [`plugins/hello-world` in the Crystallize plugins monorepo](https://github.com/CrystallizeAPI/plugins/tree/main/plugins/hello-world). Mirror that layout (`src/index.ts` for routes, `.env` for `PLUGIN_PRIVATE_JWK` + `PLUGIN_IDENTIFIER`) for any new plugin.
+The [Crystallize plugins monorepo](https://github.com/CrystallizeAPI/plugins) ships two reference plugins:
+
+- **[`plugins/hello-world`](https://github.com/CrystallizeAPI/plugins/tree/main/plugins/hello-world)** — minimal Bun + Hono server. Two routes (`post-install` + entrypoint) showing payload decryption, envelope/tenant validation, and a Backend-Token-authenticated Crystallize API call. Mirror this layout (`src/index.ts` for routes, `.env` for `PLUGIN_PRIVATE_JWK` + `PLUGIN_IDENTIFIER`) for any new plugin.
+- **[`plugins/crystallize-buddy`](https://github.com/CrystallizeAPI/plugins/tree/main/plugins/crystallize-buddy)** — full-featured Cloudflare Workers plugin (Hono + Vite + JSX SSR with React islands, Awilix DI, webhook receiver, SSE channel). Useful when you outgrow a single-file server: shows a reusable `payloadDecrypter` middleware, a per-tenant routing pattern (`/:tenantIdentifier/...`), and a local **dev-payload Vite plugin** that mints fake JWE payloads on GET so you can develop without round-tripping through Crystallize.
 
 ## References
 
