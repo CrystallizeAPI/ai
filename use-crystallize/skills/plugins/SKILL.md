@@ -274,8 +274,7 @@ app.post("/:tenantIdentifier/order/preview", async (c) => {
     const tenantIdentifier = c.req.param("tenantIdentifier");
     try {
         const body = await c.req.parseBody(); // form-encoded
-        if (typeof body?.payload !== "string")
-            return c.text("invalid body", 400);
+        if (typeof body?.payload !== "string") return c.text("invalid body", 400);
 
         const decoded = await decrypter(body.payload);
         if (decoded.envelope?.tenantIdentifier !== tenantIdentifier) {
@@ -304,24 +303,24 @@ app.post("/:tenantIdentifier/order/preview", async (c) => {
 
 The `decrypter` returns a structured `DecryptedPluginPayload` (see [`@crystallize/js-api-client`](https://www.npmjs.com/package/@crystallize/js-api-client)):
 
-| Field                          | Description                                                                                                                  |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `envelope.tenantIdentifier`    | Always check against the path param.                                                                                         |
-| `envelope.tenantId`            | Numeric tenant ID — needed by some Crystallize APIs.                                                                         |
-| `envelope.installationId`      | Stable across reinstalls of the same `(tenant, plugin)`.                                                                     |
-| `envelope.pluginIdentifier`    | Sanity-check it's yours.                                                                                                     |
-| `envelope.revisionId`          | Which revision this installation is pinned to.                                                                               |
-| `envelope.configuration`       | Non-secret configuration values (plaintext).                                                                                 |
-| `envelope.encryptedSecrets`    | Per-field JWE ciphertext (raw). The decrypter already plaintexts these into `secrets` — only touch this for re-encryption.   |
-| `envelope.entityContext`       | e.g. `{ orderId: "..." }` for entity-scoped placements; omitted for `dashboard`.                                             |
-| `envelope.event`               | **Webhook variant only**: `"install"` \| `"reinstall"` \| `"uninstall"`. Absent on iframe payloads.                          |
-| `envelope.backendToken`        | RS256 JWT (string) — pass as `Authorization: Bearer …` to Crystallize APIs.                                                  |
-| `envelope.signatureSecret`     | _(optional)_ Shared secret for verifying inbound Crystallize webhooks via `createSignatureVerifier`. Present when applicable. |
-| `envelope.staticAuthToken`     | _(optional)_ Long-lived bearer for Discovery / non-iframe contexts. Present when applicable.                                 |
-| `secrets`                      | **Plaintext** map of secret values, already decrypted by the decrypter. Use this — don't re-decrypt `encryptedSecrets`.       |
-| `signatureStatus.verified`     | `true` if the outer payload signature checks out.                                                                            |
-| `backendTokenStatus.verified`  | `true` if the JWKS verification of the Backend Token passed (when `verifyBackendToken: true`).                               |
-| `backendTokenStatus.claims`    | Decoded claims (`sub` = userId, `aud` = your plugin identifier, `act = { pluginId, installationId, revisionId }`).           |
+| Field                         | Description                                                                                                                   |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `envelope.tenantIdentifier`   | Always check against the path param.                                                                                          |
+| `envelope.tenantId`           | Numeric tenant ID — needed by some Crystallize APIs.                                                                          |
+| `envelope.installationId`     | Stable across reinstalls of the same `(tenant, plugin)`.                                                                      |
+| `envelope.pluginIdentifier`   | Sanity-check it's yours.                                                                                                      |
+| `envelope.revisionId`         | Which revision this installation is pinned to.                                                                                |
+| `envelope.configuration`      | Non-secret configuration values (plaintext).                                                                                  |
+| `envelope.encryptedSecrets`   | Per-field JWE ciphertext (raw). The decrypter already plaintexts these into `secrets` — only touch this for re-encryption.    |
+| `envelope.entityContext`      | e.g. `{ orderId: "..." }` for entity-scoped placements; omitted for `dashboard`.                                              |
+| `envelope.event`              | **Webhook variant only**: `"install"` \| `"reinstall"` \| `"uninstall"`. Absent on iframe payloads.                           |
+| `envelope.backendToken`       | RS256 JWT (string) — pass as `Authorization: Bearer …` to Crystallize APIs.                                                   |
+| `envelope.signatureSecret`    | _(optional)_ Shared secret for verifying inbound Crystallize webhooks via `createSignatureVerifier`. Present when applicable. |
+| `envelope.staticAuthToken`    | _(optional)_ Long-lived bearer for Discovery / non-iframe contexts. Present when applicable.                                  |
+| `secrets`                     | **Plaintext** map of secret values, already decrypted by the decrypter. Use this — don't re-decrypt `encryptedSecrets`.       |
+| `signatureStatus.verified`    | `true` if the outer payload signature checks out.                                                                             |
+| `backendTokenStatus.verified` | `true` if the JWKS verification of the Backend Token passed (when `verifyBackendToken: true`).                                |
+| `backendTokenStatus.claims`   | Decoded claims (`sub` = userId, `aud` = your plugin identifier, `act = { pluginId, installationId, revisionId }`).            |
 
 ### Backend Token rules
 

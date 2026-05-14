@@ -55,7 +55,7 @@ Content in Crystallize is organized in a tree structure:
 2. **Sequential (Order)** - Position within a folder for sorting
 3. **Taxonomic (Topics)** - Cross-cutting tags for filtering and discovery
 
-This skill focuses on hierarchical organization. For topics and taxonomic classification, see the **content-model** skill which covers topic maps, filtering taxonomies, and cross-cutting tags.
+This skill focuses on hierarchical organization. For topic maps and taxonomic classification (cross-cutting tags, filtering facets), see the **[[taxonomy]]** skill. For the shapes that consume those topics, see the **[[content-model]]** skill.
 
 ## Best Practices
 
@@ -332,6 +332,8 @@ While folders handle main navigation, topics handle:
 - Filters (color, size, material)
 - Tags (sale, new, featured)
 - Cross-category discovery
+
+For designing topic maps, see [[taxonomy]].
 
 ## Reorganizing an Existing Structure
 

@@ -1,6 +1,6 @@
 ---
 name: js-api-client
-description: Use the @crystallize/js-api-client package to interact with Crystallize APIs in JavaScript/TypeScript. Use when setting up the Crystallize API client, configuring credentials, calling catalogueApi/discoveryApi/pimApi/shopCartApi, working with high-level helpers for catalogue fetching, cart management, orders, customers, subscriptions, navigation, or using any helper from the @crystallize/js-api-client npm package.
+description: Use the @crystallize/js-api-client package to interact with Crystallize APIs in JavaScript/TypeScript. Use when setting up the Crystallize API client, configuring credentials (including bearer tokens for plugins and delegated calls), calling catalogueApi/discoveryApi/pimApi/nextPimApi/meApi/shopCartApi, working with high-level helpers for catalogue fetching, cart management, orders, customers, subscriptions, navigation, or using any helper from the @crystallize/js-api-client npm package.
 metadata:
     author: Crystallize
     version: "2.0"
@@ -17,7 +17,7 @@ Before writing code, understand the context. Ask clarifying questions:
 1. **What are you trying to do?** Read data, write data, manage carts, handle webhooks?
 2. **Do you need raw GraphQL or a high-level helper?** Helpers reduce boilerplate for common workflows (orders, carts, navigation). Use raw GraphQL via API callers for custom queries or when helpers don't cover the use case.
 3. **Which API?** Catalogue/Discovery for storefront reads, PIM for admin writes, Shop Cart for checkout flows.
-4. **What auth do you have?** `staticAuthToken` is enough for read-only. PIM/Shop operations need `accessTokenId` + `accessTokenSecret`.
+4. **What auth do you have?** `staticAuthToken` is enough for read-only. PIM/Shop operations need `accessTokenId` + `accessTokenSecret`. For plugins or delegated calls where the caller already holds a JWT, pass it as `bearerToken` — it becomes `Authorization: Bearer <jwt>`.
 5. **Is this server-side or client-side?** The client works in both, but credentials should only live server-side.
 
 ## Installation
@@ -39,6 +39,7 @@ const api = createClient({
     // accessTokenId: '…',
     // accessTokenSecret: '…',
     // staticAuthToken: '…', // for read-only catalogue/discovery
+    // bearerToken: '…',     // JWT sent as `Authorization: Bearer <jwt>` (e.g. plugin backendToken)
 });
 
 // Call any GraphQL API with string queries
@@ -64,16 +65,17 @@ createClient(configuration, options?)
 
 ### Configuration Options
 
-| Option                                | Description                                      |
-| ------------------------------------- | ------------------------------------------------ |
-| `tenantIdentifier`                    | **Required**. Your tenant name                   |
-| `tenantId`                            | Optional tenant ID                               |
-| `accessTokenId` / `accessTokenSecret` | For PIM/Shop operations                          |
-| `sessionId`                           | Alternative to token-based auth                  |
-| `staticAuthToken`                     | For read-only catalogue/discovery                |
-| `shopApiToken`                        | Auto-fetched if not provided                     |
-| `shopApiStaging`                      | Use staging Shop API                             |
-| `origin`                              | Custom host suffix (default: `.crystallize.com`) |
+| Option                                | Description                                                                   |
+| ------------------------------------- | ----------------------------------------------------------------------------- |
+| `tenantIdentifier`                    | **Required**. Your tenant name                                                |
+| `tenantId`                            | Optional tenant ID                                                            |
+| `accessTokenId` / `accessTokenSecret` | For PIM/Shop operations                                                       |
+| `sessionId`                           | Alternative to token-based auth                                               |
+| `staticAuthToken`                     | For read-only catalogue/discovery                                             |
+| `bearerToken`                         | JWT forwarded as `Authorization: Bearer <jwt>` (e.g. a plugin `backendToken`) |
+| `shopApiToken`                        | Auto-fetched if not provided                                                  |
+| `shopApiStaging`                      | Use staging Shop API                                                          |
+| `origin`                              | Custom host suffix (default: `.crystallize.com`)                              |
 
 ### Client Options
 
@@ -92,13 +94,14 @@ All callers share the same signature:
 <T>(query: string, variables?: Record<string, unknown>) => Promise<T>;
 ```
 
-| Caller         | Purpose                                          |
-| -------------- | ------------------------------------------------ |
-| `catalogueApi` | Catalogue GraphQL                                |
-| `discoveryApi` | Discovery GraphQL (search/browse)                |
-| `pimApi`       | PIM GraphQL (legacy — prefer `nextPimApi`)       |
-| `nextPimApi`   | PIM Next GraphQL (scoped to tenant, recommended) |
-| `shopCartApi`  | Shop Cart GraphQL (token auto-handled)           |
+| Caller         | Purpose                                                               |
+| -------------- | --------------------------------------------------------------------- |
+| `catalogueApi` | Catalogue GraphQL                                                     |
+| `discoveryApi` | Discovery GraphQL (search/browse)                                     |
+| `pimApi`       | PIM GraphQL (legacy — prefer `nextPimApi`)                            |
+| `nextPimApi`   | PIM Next GraphQL (scoped to tenant, recommended)                      |
+| `meApi`        | Per-user GraphQL (`@me`) — call on behalf of the authenticated viewer |
+| `shopCartApi`  | Shop Cart GraphQL (token auto-handled)                                |
 
 ## High-Level Helpers
 
@@ -118,14 +121,36 @@ Available helpers (see [High-Level Helpers Reference](references/high-level-help
 
 ## Authentication
 
-| Auth Type                             | Use Case                          |
-| ------------------------------------- | --------------------------------- |
-| `staticAuthToken`                     | Read-only catalogue/discovery     |
-| `accessTokenId` + `accessTokenSecret` | PIM/Shop operations               |
-| `sessionId`                           | Alternative to token pair         |
-| `shopApiToken`                        | Optional; auto-fetched if omitted |
+| Auth Type                             | Header sent                                                           | Use Case                                                                           |
+| ------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `staticAuthToken`                     | `X-Crystallize-Static-Auth-Token: <token>`                            | Read-only catalogue/discovery                                                      |
+| `accessTokenId` + `accessTokenSecret` | `X-Crystallize-Access-Token-Id` + `X-Crystallize-Access-Token-Secret` | PIM/Shop operations                                                                |
+| `sessionId`                           | `Cookie: connect.sid=<sessionId>`                                     | Alternative to token pair                                                          |
+| `bearerToken`                         | `Authorization: Bearer <jwt>`                                         | JWT-based auth — plugins forward `envelope.backendToken`; delegated/per-user calls |
+| `shopApiToken`                        | `Authorization: Bearer <token>` (Shop API only)                       | Optional; auto-fetched if omitted                                                  |
 
-Generate access tokens in the Crystallize App: **Settings → Access Tokens**
+**Priority** when multiple are set on the same client: `sessionId` > `bearerToken` > `staticAuthToken` > `accessTokenId`/`accessTokenSecret`. Only one is sent per request. Per-caller restrictions:
+
+- `discoveryApi` only honors `bearerToken` and `staticAuthToken`.
+- `catalogueApi` honors `bearerToken`, `staticAuthToken`, and `accessTokenId`/`accessTokenSecret`.
+- `pimApi`, `nextPimApi`, and `meApi` honor `sessionId`, `bearerToken`, and `accessTokenId`/`accessTokenSecret`.
+
+Generate access tokens in the Crystallize App: **Settings → Access Tokens**. For plugin-issued JWTs, use the `backendToken` from the decrypted iframe/webhook payload — see the [plugins skill](../plugins/SKILL.md).
+
+### Example: bearer-token client (plugin context)
+
+```typescript
+import { createClient } from "@crystallize/js-api-client";
+
+const api = createClient({
+    tenantIdentifier,
+    bearerToken: decoded.envelope.backendToken, // RS256 JWT from the plugin payload
+});
+
+const { tenant } = await api.nextPimApi<{ tenant: { id: string; name: string } }>(
+    "{ tenant { ... on Tenant { id name } } }",
+);
+```
 
 ## References
 
