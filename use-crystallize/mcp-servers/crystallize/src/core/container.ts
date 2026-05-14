@@ -27,40 +27,41 @@ export type Services = {
     tenantMatcher: TenantMatcher;
 };
 
-const build = () => createContainer({
-    injectionMode: InjectionMode.PROXY,
-    strict: true,
-}).register({
-    // services
-    authContextResolver: asFunction(createAuthContextResolver).singleton(),
-    tenantMatcher: asFunction(createTenantMatcher).singleton(),
-    graphqlSchemaCompacter: asFunction(createGraphlSchemaCompacter).singleton(),
-    coreSchemaDomainSplitter: asFunction(createCoreSchemaDomainSplitter).singleton(),
-    graphqlQueryCorrector: asFunction(createGraphqlQueryCorrector).singleton(),
-    queryExecutor: asFunction(createQueryExecutor).singleton(),
-    mcpServer: asFunction(() => {
-        return new McpServer({ name: "Crystallize MCP Server", version: packageJson.version });
-    }).scoped(),
+const build = () =>
+    createContainer({
+        injectionMode: InjectionMode.PROXY,
+        strict: true,
+    }).register({
+        // services
+        authContextResolver: asFunction(createAuthContextResolver).singleton(),
+        tenantMatcher: asFunction(createTenantMatcher).singleton(),
+        graphqlSchemaCompacter: asFunction(createGraphlSchemaCompacter).singleton(),
+        coreSchemaDomainSplitter: asFunction(createCoreSchemaDomainSplitter).singleton(),
+        graphqlQueryCorrector: asFunction(createGraphqlQueryCorrector).singleton(),
+        queryExecutor: asFunction(createQueryExecutor).singleton(),
+        mcpServer: asFunction(() => {
+            return new McpServer({ name: "Crystallize MCP Server", version: packageJson.version });
+        }).scoped(),
 
-    // tools
-    skillsToolWrapper: asFunction(createSkillsToolWrapper).singleton(),
-    queryDiscoveryToolWrapper: asFunction(createQueryDiscoveryToolWrapper).singleton(),
-    queryCatalogueToolWrapper: asFunction(createQueryCatalogueToolWrapper).singleton(),
-    fetchContentModelToolWrapper: asFunction(createFetchContentModelToolWrapper).singleton(),
-    fetchCatalogGraphqlSchemaToolWrapper: asFunction(createFetchCatalogGraphqlSchemaToolWrapper).singleton(),
-    fetchDiscoveryGraphqlSchemaToolWrapper: asFunction(createFetchDiscoveryGraphqlSchemaToolWrapper).singleton(),
-    fetchCoreGraphqlSchemaToolWrapper: asFunction(createFetchCoreGraphqlSchemaToolWrapper).singleton(),
-    queryCoreToolWrapper: asFunction(createQueryCoreToolWrapper).singleton(),
-    buildMassOperationToolWrapper: asFunction(createBuildMassOperationToolWrapper).singleton(),
-    queryShopCartToolWrapper: asFunction(createQueryShopCartToolWrapper).singleton(),
-    fetchShopCartGraphqlSchemaToolWrapper: asFunction(createFetchShopCartGraphqlSchemaToolWrapper).singleton(),
-    tenantOverviewToolWrapper: asFunction(createTenantOverviewToolWrapper).singleton(),
-    productOverviewToolWrapper: asFunction(createProductOverviewToolWrapper).singleton(),
-});
+        // tools
+        skillsToolWrapper: asFunction(createSkillsToolWrapper).singleton(),
+        queryDiscoveryToolWrapper: asFunction(createQueryDiscoveryToolWrapper).singleton(),
+        queryCatalogueToolWrapper: asFunction(createQueryCatalogueToolWrapper).singleton(),
+        fetchContentModelToolWrapper: asFunction(createFetchContentModelToolWrapper).singleton(),
+        fetchCatalogGraphqlSchemaToolWrapper: asFunction(createFetchCatalogGraphqlSchemaToolWrapper).singleton(),
+        fetchDiscoveryGraphqlSchemaToolWrapper: asFunction(createFetchDiscoveryGraphqlSchemaToolWrapper).singleton(),
+        fetchCoreGraphqlSchemaToolWrapper: asFunction(createFetchCoreGraphqlSchemaToolWrapper).singleton(),
+        queryCoreToolWrapper: asFunction(createQueryCoreToolWrapper).singleton(),
+        buildMassOperationToolWrapper: asFunction(createBuildMassOperationToolWrapper).singleton(),
+        queryShopCartToolWrapper: asFunction(createQueryShopCartToolWrapper).singleton(),
+        fetchShopCartGraphqlSchemaToolWrapper: asFunction(createFetchShopCartGraphqlSchemaToolWrapper).singleton(),
+        tenantOverviewToolWrapper: asFunction(createTenantOverviewToolWrapper).singleton(),
+        productOverviewToolWrapper: asFunction(createProductOverviewToolWrapper).singleton(),
+    });
 
-let container: ReturnType<typeof build> | null = null
-export const buildContainer = (_env: CloudflareBindings) => (container ??= build())
-type Container = InferCradleFromContainer<ReturnType<typeof build>>
+let container: ReturnType<typeof build> | null = null;
+export const buildContainer = (_env: CloudflareBindings) => (container ??= build());
+type Container = InferCradleFromContainer<ReturnType<typeof build>>;
 
 export const toolRegistry = {
     skills: "skillsToolWrapper",
@@ -77,4 +78,3 @@ export const toolRegistry = {
     "tenant-overview": "tenantOverviewToolWrapper",
     "product-overview": "productOverviewToolWrapper",
 } as const satisfies Record<string, keyof Container>;
-

@@ -20,7 +20,13 @@ type SessionAuthContext = {
     tenants: Tenant[];
 };
 
-export type AuthContext = TokenAuthContext | SessionAuthContext;
+type BearerAuthContext = {
+    type: "bearer";
+    bearerToken: string;
+    tenants: Tenant[];
+};
+
+export type AuthContext = TokenAuthContext | SessionAuthContext | BearerAuthContext;
 
 export type AppContext = {
     Bindings: CloudflareBindings;
