@@ -31,10 +31,12 @@ export const servicesProvider = createMiddleware<AppContext>(async (c, next) => 
     const mcpServer = scoped.cradle.mcpServer;
 
     const exposeSkills = c.req.query("exposeSkills") !== "false";
+    const exposeUi = c.req.query("exposeUi") !== "false";
     for (const toolName of Object.keys(toolRegistry) as Array<keyof typeof toolRegistry>) {
         if (!exposeSkills && toolName === "skills") continue;
         const containerKey = toolRegistry[toolName];
         const wrapper = container.cradle[containerKey] as ToolWrapper<z.ZodObject<z.ZodRawShape>>;
+        if (!exposeUi && wrapper.ui) continue;
 
         const handler = async (input: Record<string, unknown>) => {
             const authContext = getMcpAuthContext();
