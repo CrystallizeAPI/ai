@@ -11,8 +11,7 @@ export const createAuthContextResolver = (): AuthContextResolver => ({
         if (authContext.type === "session") {
             return { sessionId: authContext.sessionId };
         }
-        // bearer: used only for the auth gate not forwarded downstream.
-        return {};
+        return { bearerToken: authContext.bearerToken };
     },
     getAuthHeaders(authContext): Record<string, string> {
         if (authContext.type === "token") {
@@ -24,6 +23,6 @@ export const createAuthContextResolver = (): AuthContextResolver => ({
         if (authContext.type === "session") {
             return { Cookie: `connect.sid=${authContext.sessionId}` };
         }
-        return {};
+        return { Authorization: `Bearer ${authContext.bearerToken}` };
     },
 });
