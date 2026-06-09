@@ -12,6 +12,10 @@ import { createBuildMassOperationToolWrapper } from "./mcp/tools/build-mass-oper
 import { createQueryShopCartToolWrapper } from "./mcp/tools/query-shop-cart";
 import { createFetchShopCartGraphqlSchemaToolWrapper } from "./mcp/tools/fetch-shop-cart-graphql-schema";
 import { createProductOverviewToolWrapper } from "./mcp/tools/product-overview";
+import { createMutateCoreToolWrapper } from "./mcp/tools/mutate-core";
+import { createMutateShopCartToolWrapper } from "./mcp/tools/mutate-shop-cart";
+import { createRunMassOperationToolWrapper } from "./mcp/tools/run-mass-operation";
+import { createGetMassOperationStatusToolWrapper } from "./mcp/tools/get-mass-operation-status";
 import { createSkillsToolWrapper } from "./mcp/tools/skills";
 import { createTenantOverviewToolWrapper } from "./mcp/tools/tenant-overview";
 import { createTenantMatcher } from "./services/tenant-matcher";
@@ -19,6 +23,8 @@ import { TenantMatcher } from "../contracts/tenant-matcher";
 import { createGraphlSchemaCompacter } from "./services/compact-schema-builder";
 import { createGraphqlQueryCorrector } from "./services/graphql-query-corrector";
 import { createQueryExecutor } from "./services/query-with-correction";
+import { createMutationExecutor } from "./services/execute-mutation";
+import { createMassOperationRunner } from "./services/mass-operation-runner";
 import { createAuthContextResolver } from "./services/auth-context-helpers";
 import { createCoreSchemaDomainSplitter } from "./services/core-schema-domain-splitter";
 
@@ -39,6 +45,8 @@ const build = () =>
         coreSchemaDomainSplitter: asFunction(createCoreSchemaDomainSplitter).singleton(),
         graphqlQueryCorrector: asFunction(createGraphqlQueryCorrector).singleton(),
         queryExecutor: asFunction(createQueryExecutor).singleton(),
+        mutationExecutor: asFunction(createMutationExecutor).singleton(),
+        massOperationRunner: asFunction(createMassOperationRunner).singleton(),
         mcpServer: asFunction(() => {
             return new McpServer({ name: "Crystallize MCP Server", version: packageJson.version });
         }).scoped(),
@@ -57,6 +65,10 @@ const build = () =>
         fetchShopCartGraphqlSchemaToolWrapper: asFunction(createFetchShopCartGraphqlSchemaToolWrapper).singleton(),
         tenantOverviewToolWrapper: asFunction(createTenantOverviewToolWrapper).singleton(),
         productOverviewToolWrapper: asFunction(createProductOverviewToolWrapper).singleton(),
+        mutateCoreToolWrapper: asFunction(createMutateCoreToolWrapper).singleton(),
+        mutateShopCartToolWrapper: asFunction(createMutateShopCartToolWrapper).singleton(),
+        runMassOperationToolWrapper: asFunction(createRunMassOperationToolWrapper).singleton(),
+        getMassOperationStatusToolWrapper: asFunction(createGetMassOperationStatusToolWrapper).singleton(),
     });
 
 let container: ReturnType<typeof build> | null = null;
@@ -77,4 +89,8 @@ export const toolRegistry = {
     "fetch-shop-cart-graphql-schema": "fetchShopCartGraphqlSchemaToolWrapper",
     "tenant-overview": "tenantOverviewToolWrapper",
     "product-overview": "productOverviewToolWrapper",
+    "mutate-core": "mutateCoreToolWrapper",
+    "mutate-shop-cart": "mutateShopCartToolWrapper",
+    "run-mass-operation": "runMassOperationToolWrapper",
+    "get-mass-operation-status": "getMassOperationStatusToolWrapper",
 } as const satisfies Record<string, keyof Container>;

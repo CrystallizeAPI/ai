@@ -59,7 +59,7 @@ export const createFetchCoreGraphqlSchemaToolWrapper = ({
                         "Omit to get the full list of available domains.",
                 ),
         }),
-        annotions: {
+        annotations: {
             readOnlyHint: true,
         },
         handler: async ({ tenant, domain, authContext }) => {

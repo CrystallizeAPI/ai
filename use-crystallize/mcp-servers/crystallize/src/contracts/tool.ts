@@ -21,7 +21,12 @@ export type ToolUi = {
 export type ToolWrapper<TSchema extends z.ZodType> = {
     description: string;
     inputSchema: TSchema;
-    annotions?: ToolAnnotations;
+    annotations?: ToolAnnotations;
+    // When true, the tool is only registered on the MCP server if the request
+    // opts into writes via ?exposeWrite=true (default off). Mirrors how `ui`
+    // gates registration behind ?exposeUi. Registration only — `annotations`
+    // describes behavior (readOnlyHint/destructiveHint).
+    write?: boolean;
     ui?: ToolUi;
     handler: (
         input: z.infer<TSchema> & {

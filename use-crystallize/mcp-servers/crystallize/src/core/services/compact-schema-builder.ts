@@ -392,8 +392,8 @@ export function compactSchemaFromIntrospection(result: IntrospectionResult, opti
                 if (t.fields?.length) {
                     const inherited = getInheritedFieldNames(t, interfaceFieldSets);
                     const ownFields = inherited.size > 0 ? t.fields.filter((f) => !inherited.has(f.name)) : t.fields;
-                    const implements_ = t.interfaces?.length ? t.interfaces.map((i) => i.name) : undefined;
-                    objectEntries.push({ name, fields: ownFields, implements: implements_ });
+                    const implementedInterfaces = t.interfaces?.length ? t.interfaces.map((i) => i.name) : undefined;
+                    objectEntries.push({ name, fields: ownFields, implements: implementedInterfaces });
                 }
                 break;
             case "INTERFACE":

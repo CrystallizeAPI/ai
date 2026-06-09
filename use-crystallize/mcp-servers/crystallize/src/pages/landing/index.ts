@@ -5,7 +5,66 @@ import { physicsScript } from "./physics";
 import { headMeta } from "./meta";
 import { featuresGrid } from "./features";
 
-const installCommand = `npx add-mcp https://mcp.crystallize.com/mcp --header "X-Crystallize-Access-Token-Id: YOUR_TOKEN_ID" --header "X-Crystallize-Access-Token-Secret: YOUR_TOKEN_SECRET"`;
+// The command is assembled from three parts so the toggle script can rebuild the
+// middle (the URL + query string) live while keeping the prefix/headers fixed.
+const INSTALL_PREFIX = "npx add-mcp ";
+const INSTALL_BASE_URL = "https://mcp.crystallize.com/mcp";
+const INSTALL_SUFFIX = ` --header "X-Crystallize-Access-Token-Id: YOUR_TOKEN_ID" --header "X-Crystallize-Access-Token-Secret: YOUR_TOKEN_SECRET"`;
+const installCommand = `${INSTALL_PREFIX}${INSTALL_BASE_URL}${INSTALL_SUFFIX}`;
+
+// Wires the feature-card switches: flipping a card appends/removes its query
+// parameter and rewrites the install command above. Only non-default states add
+// a parameter, so the default command is the clean read-only URL.
+const toggleScript = /* js */ `
+    (function () {
+        var PREFIX = ${JSON.stringify(INSTALL_PREFIX)};
+        var BASE = ${JSON.stringify(INSTALL_BASE_URL)};
+        var SUFFIX = ${JSON.stringify(INSTALL_SUFFIX)};
+        var cmd = document.getElementById("cmd");
+        var block = cmd.closest(".code-block");
+        var toggles = document.querySelectorAll(".feature-card.toggle");
+
+        function isActive(card) {
+            var on = card.classList.contains("on");
+            return card.getAttribute("data-append-when") === "on" ? on : !on;
+        }
+        function rebuild() {
+            var params = [];
+            toggles.forEach(function (card) {
+                var active = isActive(card);
+                card.classList.toggle("param-active", active);
+                var sub = card.querySelector(".feature-sub");
+                if (sub) {
+                    sub.textContent = active
+                        ? card.getAttribute("data-caption-active")
+                        : card.getAttribute("data-caption-default");
+                }
+                if (active) params.push(card.getAttribute("data-query"));
+            });
+            cmd.textContent = PREFIX + BASE + (params.length ? "?" + params.join("&") : "") + SUFFIX;
+            if (block) {
+                block.classList.remove("pulse");
+                void block.offsetWidth;
+                block.classList.add("pulse");
+            }
+        }
+        function flip(card) {
+            var on = !card.classList.contains("on");
+            card.classList.toggle("on", on);
+            card.setAttribute("aria-checked", String(on));
+            rebuild();
+        }
+        toggles.forEach(function (card) {
+            card.addEventListener("click", function () { flip(card); });
+            card.addEventListener("keydown", function (e) {
+                if (e.key === " " || e.key === "Enter" || e.key === "Spacebar") {
+                    e.preventDefault();
+                    flip(card);
+                }
+            });
+        });
+    })();
+`;
 
 const copyButtonScript = /* js */ `
     document.querySelector(".copy-btn").addEventListener("click", function () {
@@ -57,6 +116,17 @@ export function landingPage(): HtmlEscapedString {
                     </div>
 
                     <p class="hint">
+                        Read-only by default. Toggle the cards below to add write, skills, or UI tools — the command
+                        above updates as you go. Prefer everything bundled? Install the
+                        <a
+                            href="https://github.com/crystallizeapi/ai/tree/main/use-crystallize"
+                            target="_blank"
+                            rel="noopener"
+                            >Claude plugin</a
+                        >.
+                    </p>
+
+                    <p class="hint">
                         Get tokens at
                         <a href="https://app.crystallize.com" target="_blank" rel="noopener">app.crystallize.com</a>
                         → Settings → Access Tokens
@@ -77,6 +147,9 @@ export function landingPage(): HtmlEscapedString {
                 <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
                 <script>
                     ${raw(copyButtonScript)};
+                </script>
+                <script>
+                    ${raw(toggleScript)};
                 </script>
                 <script>
                     ${raw(physicsScript)};

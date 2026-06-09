@@ -23,7 +23,7 @@ export const createQueryDiscoveryToolWrapper = ({ tenantMatcher, queryExecutor }
             query: querySchema,
             variables: variablesSchema,
         }),
-        annotions: {
+        annotations: {
             readOnlyHint: true,
         },
         handler: async ({ tenant, query, variables, authContext }) => {

@@ -34,11 +34,10 @@ Add new `.mdx` files to `src/content/docs/guides/` — they auto-appear in the s
 
 ## MCP Server Tools Reference
 
-The Crystallize MCP Server (documented in `guides/mcp.mdx`) exposes these tools:
+The tool table in `guides/mcp.mdx` is **auto-generated** by the `mcpTools` content collection loader (`src/loaders/mcp-tools-loader.ts`), which parses the MCP Server's `toolRegistry` (`use-crystallize/mcp-servers/crystallize/src/core/container.ts`) and each tool file's `description`/`inputSchema` at build time. **Do not hand-maintain a tool list here** — it drifts. New tools appear on the docs page automatically once the server source adds them to `toolRegistry`.
 
-- **`fetch-content-model`** — Fetches all shapes (content model) from a tenant
-- **`fetch-catalog-graphql-schema`** — Fetches the compacted GraphQL schema of the Catalogue API
-- **`fetch-discovery-graphql-schema`** — Fetches the compacted GraphQL schema of the Discovery API
-- **`query-catalogue`** — Executes GraphQL queries against the Catalogue API (path-based reads, strong consistency)
-- **`query-discovery`** — Executes GraphQL queries against the Discovery API (search, filter, faceting)
-- **`skills`** — Retrieves Crystallize Skills documentation on-demand by slug
+The current tools fall into these groups (see the source for the authoritative list):
+
+- **Reads** — `query-catalogue`, `query-discovery`, `query-core`, `query-shop-cart`, `fetch-content-model`, `fetch-catalog-graphql-schema`, `fetch-discovery-graphql-schema`, `fetch-core-graphql-schema`, `fetch-shop-cart-graphql-schema`, `build-mass-operation`, `get-mass-operation-status`, `skills`
+- **UI panels** (gated by `?exposeUi`) — `tenant-overview`, `product-overview`
+- **Writes** (gated by `?exposeWrite`, off by default) — `mutate-core`, `mutate-shop-cart`, `run-mass-operation`

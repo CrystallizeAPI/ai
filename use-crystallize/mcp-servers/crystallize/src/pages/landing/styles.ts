@@ -99,6 +99,17 @@ export const styles = /* css */ `
     .copy-btn:hover {
         background: rgba(255, 191, 74, 0.65);
     }
+    @keyframes codePulse {
+        0% {
+            border-color: rgba(255, 191, 74, 0.7);
+        }
+        100% {
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+    }
+    .code-block.pulse {
+        animation: codePulse 0.5s ease;
+    }
     .hint {
         margin-top: 14px;
         font-size: 0.78rem;
@@ -110,6 +121,11 @@ export const styles = /* css */ `
     }
     .hint a:hover {
         text-decoration: underline;
+    }
+    .hint code {
+        font-family: "SF Mono", SFMono-Regular, Consolas, monospace;
+        font-size: 0.95em;
+        color: rgba(255, 191, 74, 0.85);
     }
 
     /* ── Top-left logo ── */
@@ -131,7 +147,7 @@ export const styles = /* css */ `
         display: flex;
         flex-direction: row;
         gap: 8px;
-        max-width: 860px;
+        max-width: 1000px;
         width: 100%;
         margin-top: 64px;
     }
@@ -158,6 +174,50 @@ export const styles = /* css */ `
             inset 0 0 12px rgba(0, 186, 255, 0.08);
         background: rgba(0, 186, 255, 0.04);
     }
+    .feature-card.toggle {
+        cursor: pointer;
+        user-select: none;
+    }
+    .feature-card.toggle:hover {
+        border-color: rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.05);
+    }
+    .feature-card.toggle:focus-visible {
+        outline: 2px solid rgba(255, 191, 74, 0.85);
+        outline-offset: 2px;
+    }
+    .feature-card.toggle.on {
+        border-color: rgba(0, 186, 255, 0.45);
+        background: rgba(0, 186, 255, 0.05);
+        box-shadow: inset 0 0 12px rgba(0, 186, 255, 0.07);
+    }
+    .toggle-dot {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 1.5px solid rgba(255, 255, 255, 0.25);
+        transition:
+            border-color 0.2s ease,
+            background 0.2s ease;
+    }
+    .feature-card.toggle.on .toggle-dot {
+        border-color: rgba(0, 186, 255, 0.9);
+        background: rgba(0, 186, 255, 0.9);
+    }
+    .feature-card.toggle.on .toggle-dot::after {
+        content: "";
+        position: absolute;
+        left: 5px;
+        top: 2px;
+        width: 4px;
+        height: 8px;
+        border: solid #1a1333;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+    }
     .feature-icon {
         width: 34px;
         height: 34px;
@@ -176,19 +236,15 @@ export const styles = /* css */ `
         color: rgba(255, 255, 255, 0.92);
         letter-spacing: -0.01em;
     }
-    .badge {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        font-size: 0.58rem;
-        font-weight: 600;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        padding: 3px 8px;
-        border-radius: 4px;
-        background: rgba(0, 0, 0, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        color: rgba(255, 255, 255, 0.7);
+    .feature-sub {
+        margin-top: 5px;
+        font-size: 0.6rem;
+        letter-spacing: 0.01em;
+        color: rgba(255, 255, 255, 0.3);
+        font-family: "SF Mono", SFMono-Regular, Consolas, monospace;
+    }
+    .feature-card.param-active .feature-sub {
+        color: rgba(255, 191, 74, 0.9);
     }
     .sling-hint {
         margin-top: 18px;
@@ -197,7 +253,7 @@ export const styles = /* css */ `
         font-style: italic;
         pointer-events: none;
     }
-    @media (max-width: 860px) {
+    @media (max-width: 1000px) {
         .features-grid {
             flex-direction: column;
         }

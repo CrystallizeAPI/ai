@@ -32,11 +32,15 @@ export const servicesProvider = createMiddleware<AppContext>(async (c, next) => 
 
     const exposeSkills = c.req.query("exposeSkills") !== "false";
     const exposeUi = c.req.query("exposeUi") !== "false";
+    // Writes are off by default — opt in per request, mirroring exposeSkills but
+    // with the opposite default so today's read-only behavior is preserved.
+    const exposeWrite = c.req.query("exposeWrite") === "true";
     for (const toolName of Object.keys(toolRegistry) as Array<keyof typeof toolRegistry>) {
         if (!exposeSkills && toolName === "skills") continue;
         const containerKey = toolRegistry[toolName];
         const wrapper = container.cradle[containerKey] as ToolWrapper<z.ZodObject<z.ZodRawShape>>;
         if (!exposeUi && wrapper.ui) continue;
+        if (!exposeWrite && wrapper.write) continue;
 
         const handler = async (input: Record<string, unknown>) => {
             const authContext = getMcpAuthContext();
@@ -54,7 +58,7 @@ export const servicesProvider = createMiddleware<AppContext>(async (c, next) => 
                 {
                     description: wrapper.description,
                     inputSchema: wrapper.inputSchema,
-                    annotations: { readOnlyHint: true },
+                    annotations: wrapper.annotations ?? { readOnlyHint: true },
                     _meta: { ui: { resourceUri } },
                 },
                 handler,
@@ -80,8 +84,13 @@ export const servicesProvider = createMiddleware<AppContext>(async (c, next) => 
                 toolName,
                 {
                     description: wrapper.description,
+                    // @ts-expect-error — wrapper.inputSchema is a zod-v4 ZodObject from the project's
+                    // zod (4.4.3), but the SDK's registerTool types inputSchema against `AnySchema`
+                    // from its own nested zod (4.3.6); the two $ZodType identities don't match
+                    // nominally. Runtime is correct — getZodSchemaObject() accepts the ZodObject as-is.
+                    // Removing the duplicate zod (single version tree-wide) makes this directive unused.
                     inputSchema: wrapper.inputSchema,
-                    annotations: { readOnlyHint: true },
+                    annotations: wrapper.annotations ?? { readOnlyHint: true },
                 },
                 handler,
             );

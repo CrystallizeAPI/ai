@@ -43,7 +43,7 @@ export const createProductOverviewToolWrapper = ({ tenantMatcher }: Deps) => {
             hits: z.array(hitSchema).describe("The `hits` array returned by a Discovery `search` or `browse` query"),
             summary: summarySchema.optional().describe("The optional `summary` object from the Discovery query"),
         }),
-        annotions: {
+        annotations: {
             readOnlyHint: true,
         },
         ui: {

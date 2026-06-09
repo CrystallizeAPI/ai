@@ -21,7 +21,7 @@ export const createFetchDiscoveryGraphqlSchemaToolWrapper = ({ graphqlSchemaComp
         inputSchema: z.object({
             tenant: tenantSchema,
         }),
-        annotions: {
+        annotations: {
             readOnlyHint: true,
         },
         handler: async ({ tenant, authContext }) => {

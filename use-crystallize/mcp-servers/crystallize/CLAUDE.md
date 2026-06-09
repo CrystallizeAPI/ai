@@ -8,7 +8,8 @@ MCP server built on **Hono**, **Cloudflare Workers**, and the **Model Context Pr
 bun dev          # Vite dev server with HMR
 bun build        # Production build
 bun deploy       # Build + deploy to Cloudflare
-bun codeclean    # oxlint --fix && oxfmt --write .
+bun lint         # oxlint --fix
+bun test         # Run the test suite (bun test)
 bun type-check   # TypeScript check (no emit)
 bun cf-typegen   # Regenerate CloudflareBindings types
 ```
@@ -17,45 +18,73 @@ bun cf-typegen   # Regenerate CloudflareBindings types
 
 ```
 bin/
-└── test-compacter.ts                     # Standalone script to test schema compaction
+└── test-compacter.ts                             # Standalone script to test schema compaction
 src/
-├── index.ts                              # Entry point (exports fetch handler)
-├── app.ts                                # Main Hono app — routes + MCP handler
+├── index.ts                                      # Entry point (exports fetch handler)
+├── app.ts                                        # Main Hono app — routes + MCP handler
 ├── contracts/
-│   ├── app-context.ts                    # AppContext type (Bindings + Variables)
-│   ├── graphql-query-corrector.ts        # Query correction types (CorrectionResult, CorrectionLog)
-│   ├── graphql-schema-compacter.ts       # Schema compaction types (GraphqlSchemaCompacter, options)
-│   ├── query-executor.ts                 # Query execution types (QueryExecutor, options, result)
-│   ├── tenant-matcher.ts                 # TenantMatcher type
-│   └── tool.ts                           # ToolWrapper type & defineToolWrapper helper
+│   ├── app-context.ts                            # AppContext type (Bindings + Variables)
+│   ├── auth-context-resolver.ts                  # AuthContextResolver type (resolve client credentials)
+│   ├── core-schema-domain-splitter.ts            # Core schema domain-splitting types
+│   ├── graphql-query-corrector.ts                # Query correction types (CorrectionResult, CorrectionLog)
+│   ├── graphql-schema-compacter.ts               # Schema compaction types (GraphqlSchemaCompacter, options)
+│   ├── mass-operation-runner.ts                  # MassOperationRunner types (task + status)
+│   ├── mutation-executor.ts                      # MutationExecutor type (execute-once, no retry)
+│   ├── query-executor.ts                         # Query execution types (QueryExecutor, options, result)
+│   ├── tenant-matcher.ts                         # TenantMatcher type
+│   └── tool.ts                                   # ToolWrapper type (incl. write marker) & defineToolWrapper helper
 ├── core/
-│   ├── container.ts                      # Awilix DI container + services + tool registration
+│   ├── container.ts                              # Awilix DI container + services + tool registration
+│   ├── mass-operation.ts                         # Shared mass-operation validation (validateMassOperations)
+│   ├── security.ts                               # Shared input schemas (tenant/query/variables) + error sanitization
 │   ├── mcp/
-│   │   └── tools/                        # MCP tool wrappers (one file per tool)
+│   │   └── tools/                                # MCP tool wrappers (one file per tool)
+│   │       ├── build-mass-operation.ts           # Validate a mass-operation file (read-only)
 │   │       ├── fetch-catalog-graphql-schema.ts   # Fetch compacted Catalogue API schema
 │   │       ├── fetch-content-model.ts            # Fetch tenant shapes/content model
+│   │       ├── fetch-core-graphql-schema.ts      # Fetch compacted Core API schema (by domain)
 │   │       ├── fetch-discovery-graphql-schema.ts # Fetch compacted Discovery API schema
+│   │       ├── fetch-shop-cart-graphql-schema.ts # Fetch compacted Shop Cart API schema
+│   │       ├── get-mass-operation-status.ts      # Poll a mass-operation bulk task (read-only)
+│   │       ├── mutate-core.ts                    # Execute Core/PIM mutations (write)
+│   │       ├── mutate-shop-cart.ts               # Execute Shop Cart mutations (write)
+│   │       ├── product-overview.ts               # Render Discovery product hits as a UI panel
 │   │       ├── query-catalogue.ts                # Execute Catalogue API queries (with auto-correction)
+│   │       ├── query-core.ts                     # Execute Core API read queries (with auto-correction)
 │   │       ├── query-discovery.ts                # Execute Discovery API queries (with auto-correction)
-│   │       └── skills.ts                         # Skills/documentation retrieval tool
+│   │       ├── query-shop-cart.ts                # Execute Shop Cart read queries (with auto-correction)
+│   │       ├── run-mass-operation.ts             # Validate, upload & start a mass operation (write)
+│   │       ├── skills.ts                         # Skills/documentation retrieval tool
+│   │       └── tenant-overview.ts                # Show connected tenants as a UI panel
 │   └── services/
-│       ├── compact-schema-builder.ts     # GraphQL schema compaction (introspection → compact text)
-│       ├── graphql-query-corrector.ts    # Auto-correct malformed GraphQL queries (Levenshtein)
-│       ├── query-with-correction.ts      # Execute queries with auto-correction on failure
-│       └── tenant-matcher.ts             # Match tenant by id/identifier from auth context
+│       ├── auth-context-helpers.ts               # Resolve client credentials from auth (token/session/bearer)
+│       ├── compact-schema-builder.ts             # GraphQL schema compaction (introspection → compact text)
+│       ├── core-schema-domain-splitter.ts        # Split the Core schema into queryable domains
+│       ├── execute-mutation.ts                   # Execute-once mutation executor (no correction, no retry)
+│       ├── graphql-query-corrector.ts            # Auto-correct malformed GraphQL queries (Levenshtein)
+│       ├── mass-operation-runner.ts              # Upload + create + start bulk tasks; read task status
+│       ├── query-with-correction.ts              # Execute queries with auto-correction on failure
+│       └── tenant-matcher.ts                     # Match tenant by id/identifier from auth context
 ├── middlewares/
-│   ├── auth.ts                           # Auth middleware (Crystallize access tokens)
-│   └── services-provider.ts              # Awilix DI container middleware (per-request scope)
+│   ├── auth.ts                                   # Auth middleware (Crystallize access tokens)
+│   └── services-provider.ts                      # Awilix DI container middleware (per-request scope)
+├── pages/
+│   └── landing/                                 # HTML landing page served at `/`
+│       ├── index.ts                             # landingPage() — assembles the page
+│       ├── features.ts                          # Feature grid cards (title + badge)
+│       ├── meta.ts                              # Page <head> meta tags
+│       ├── physics.ts                           # Matter.js pinball background script
+│       └── styles.ts                            # Inline CSS
 vite/
 └── plugins/
-    └── skills.ts                         # Vite plugin for loading skills from markdown files
+    └── skills.ts                                 # Vite plugin for loading skills from markdown files
 ```
 
 ## Architecture
 
 ### Routing (Hono)
 
-- `/` — Simple text response
+- `/` — HTML landing page (`landingPage()` from `src/pages/landing/`)
 - `/mcp/*` — MCP protocol endpoint (auth-gated)
 - Routes are defined directly in `src/app.ts`
 
@@ -71,15 +100,25 @@ The app uses **Awilix** for dependency injection. The container is built once (s
 
 **Services** (singletons):
 
+- `authContextResolver` — resolve client credentials from the auth context (token/session/bearer)
 - `tenantMatcher` — resolve tenant from auth context
 - `graphqlSchemaCompacter` — compact introspection schemas
+- `coreSchemaDomainSplitter` — split the Core schema into queryable domains
 - `graphqlQueryCorrector` — fix malformed GraphQL queries
 - `queryExecutor` — execute queries with auto-correction
+- `mutationExecutor` — execute mutations exactly once (no correction, no retry)
+- `massOperationRunner` — upload + create + start mass-operation bulk tasks; read task status
 
-**Tools** (singletons):
+**Tools** (singletons) — see the Tool Registry table below for the full list. Read tools:
 
-- `skillsToolWrapper`, `queryDiscoveryToolWrapper`, `queryCatalogueToolWrapper`
-- `fetchContentModelToolWrapper`, `fetchCatalogGraphqlSchemaToolWrapper`, `fetchDiscoveryGraphqlSchemaToolWrapper`
+- `skillsToolWrapper`, `queryDiscoveryToolWrapper`, `queryCatalogueToolWrapper`, `queryCoreToolWrapper`, `queryShopCartToolWrapper`
+- `fetchContentModelToolWrapper`, `fetchCatalogGraphqlSchemaToolWrapper`, `fetchDiscoveryGraphqlSchemaToolWrapper`, `fetchCoreGraphqlSchemaToolWrapper`, `fetchShopCartGraphqlSchemaToolWrapper`
+- `buildMassOperationToolWrapper`, `getMassOperationStatusToolWrapper`
+- `tenantOverviewToolWrapper`, `productOverviewToolWrapper` _(UI — gated by `exposeUi`)_
+
+Write tools _(gated by `exposeWrite`)_:
+
+- `mutateCoreToolWrapper`, `mutateShopCartToolWrapper`, `runMassOperationToolWrapper`
 
 ### MCP Tools
 
@@ -117,16 +156,49 @@ To register a new tool:
 
 #### Tool Registry
 
-| Tool Name                        | Container Key                            | Purpose                        |
-| -------------------------------- | ---------------------------------------- | ------------------------------ |
-| `skills`                         | `skillsToolWrapper`                      | Load Crystallize documentation |
-| `query-discovery`                | `queryDiscoveryToolWrapper`              | Execute Discovery API queries  |
-| `query-catalogue`                | `queryCatalogueToolWrapper`              | Execute Catalogue API queries  |
-| `fetch-content-model`            | `fetchContentModelToolWrapper`           | Fetch tenant shapes            |
-| `fetch-catalog-graphql-schema`   | `fetchCatalogGraphqlSchemaToolWrapper`   | Get compacted Catalogue schema |
-| `fetch-discovery-graphql-schema` | `fetchDiscoveryGraphqlSchemaToolWrapper` | Get compacted Discovery schema |
+| Tool Name                        | Container Key                            | Purpose                                  |
+| -------------------------------- | ---------------------------------------- | ---------------------------------------- |
+| `skills`                         | `skillsToolWrapper`                      | Load Crystallize documentation           |
+| `query-discovery`                | `queryDiscoveryToolWrapper`              | Execute Discovery API queries            |
+| `query-catalogue`                | `queryCatalogueToolWrapper`              | Execute Catalogue API queries            |
+| `query-core`                     | `queryCoreToolWrapper`                   | Execute Core/PIM read queries            |
+| `query-shop-cart`                | `queryShopCartToolWrapper`               | Execute Shop Cart read queries           |
+| `fetch-content-model`            | `fetchContentModelToolWrapper`           | Fetch tenant shapes / content model      |
+| `fetch-catalog-graphql-schema`   | `fetchCatalogGraphqlSchemaToolWrapper`   | Get compacted Catalogue schema           |
+| `fetch-discovery-graphql-schema` | `fetchDiscoveryGraphqlSchemaToolWrapper` | Get compacted Discovery schema           |
+| `fetch-core-graphql-schema`      | `fetchCoreGraphqlSchemaToolWrapper`      | Get compacted Core schema (by domain)    |
+| `fetch-shop-cart-graphql-schema` | `fetchShopCartGraphqlSchemaToolWrapper`  | Get compacted Shop Cart schema           |
+| `build-mass-operation`           | `buildMassOperationToolWrapper`          | Validate a mass-operation file           |
+| `get-mass-operation-status`      | `getMassOperationStatusToolWrapper`      | Poll a mass-operation bulk task          |
+| `tenant-overview` _(ui)_         | `tenantOverviewToolWrapper`              | Show connected tenants (UI panel)        |
+| `product-overview` _(ui)_        | `productOverviewToolWrapper`             | Render Discovery product hits (UI panel) |
+| `mutate-core` _(write)_          | `mutateCoreToolWrapper`                  | Execute Core/PIM mutations               |
+| `mutate-shop-cart` _(write)_     | `mutateShopCartToolWrapper`              | Execute Shop Cart mutations              |
+| `run-mass-operation` _(write)_   | `runMassOperationToolWrapper`            | Run a mass operation (one-shot)          |
 
 Auth context is injected automatically via `getMcpAuthContext()` from `agents/mcp`.
+
+#### Write tools & the `exposeWrite` gate
+
+The server is **read-only by default**. Tools that mutate the tenant carry a `write: true` marker on their
+`ToolWrapper` and are only registered when a request opts in via `?exposeWrite=true` (default off — the opposite
+default of `exposeSkills`/`exposeUi`). The middleware skips `wrapper.write` tools unless `exposeWrite` is set.
+
+Write tools (`mutate-core`, `mutate-shop-cart`, `run-mass-operation`):
+
+- Are **mutation-only** for the GraphQL tools — they reject plain queries and mixed query/mutation documents,
+  pointing the agent to the `query-*` read tool instead.
+- **Execute exactly once** via `mutationExecutor` — no Levenshtein auto-correction or retry (a failed mutation is
+  never silently re-sent), unlike reads which go through `queryExecutor`.
+- Advertise `annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false }`. The middleware
+  honors each wrapper's `annotations` (falling back to `{ readOnlyHint: true }`); it no longer hardcodes read-only.
+
+`get-mass-operation-status` is a read (`readOnlyHint: true`) and is **always registered**, even in read-only mode.
+
+`run-mass-operation` is one-shot: it validates against `OperationsSchema`, uploads the file (`createBinaryFileManager`),
+creates the bulk task with `autoStart: false`, then starts it — returning `{ taskId, status }`. There is no server-side
+polling; the agent polls `get-mass-operation-status` itself. All three auth types (token/session/bearer) may write;
+upstream Crystallize permissions are the real authorization.
 
 ### Services
 
@@ -135,7 +207,7 @@ Services live in `src/core/services/` and implement contracts defined in `src/co
 #### Query Execution Pipeline
 
 ```
-MCP Tool (query-catalogue / query-discovery)
+MCP Tool (query-catalogue / query-discovery / query-core / query-shop-cart)
   ↓
 queryExecutor → executes GraphQL query
   ├─ Success → return data
@@ -143,6 +215,30 @@ queryExecutor → executes GraphQL query
       ├─ Correctable (Levenshtein fuzzy match on fields/args) → retry with corrected query
       └─ Not correctable → return error details
 ```
+
+#### Mutation Execution Pipeline (write tools)
+
+```
+MCP Tool (mutate-core / mutate-shop-cart)
+  ↓
+parse query → reject plain queries & mixed query/mutation documents (point to the query-* read tool)
+  ↓
+mutationExecutor → executes the mutation EXACTLY ONCE
+  ├─ Success → return data
+  └─ Error → surface GraphQL errors as-is (NO corrector, NO retry — a failed mutation is never re-sent)
+```
+
+`mutationExecutor` is the deliberate counterpart of `queryExecutor`: it skips the query corrector and never retries.
+
+#### Mass Operations
+
+```
+build-mass-operation      → validate operations file (read-only pre-flight)
+run-mass-operation        → validate → upload file → create bulk task (autoStart:false) → start → { taskId, status }
+get-mass-operation-status → read bulk task by taskId → { id, status }
+```
+
+`validateMassOperations` (in `core/mass-operation.ts`) is shared by `build-mass-operation` and `run-mass-operation`, so an invalid file yields the same structured errors in both. `massOperationRunner` drives the upstream `nextPimApi` calls (create/start/status); `BulkTaskMassOperation` exposes no `progress` field, so status is the only signal — the agent polls `get-mass-operation-status` itself (no server-side polling).
 
 #### Schema Compaction
 
@@ -160,7 +256,7 @@ Used by `fetch-catalog-graphql-schema` and `fetch-discovery-graphql-schema` tool
 
 The `skills` tool serves Crystallize documentation loaded at build time via a Vite plugin (`vite/plugins/skills.ts`). Skills are markdown files with frontmatter (`name`, `description`) loaded from `../../skills/` relative to the project root. Each skill directory contains a `SKILL.md` and optional `references/*.md` files. The virtual module `virtual:skills` is typed in `virtual-skills.d.ts`.
 
-The `exposeSkills` query parameter (default: `true`) controls whether the skills tool is registered on the MCP server for a given request.
+The `exposeSkills` query parameter (default: `true`) controls whether the skills tool is registered on the MCP server for a given request. Companion flags: `exposeUi` (default `true`, gates UI tools) and `exposeWrite` (default `false`, gates write tools — see "Write tools & the `exposeWrite` gate" above).
 
 ### AppContext Type
 
@@ -179,13 +275,13 @@ Use `c.set()` / `c.get()` in middleware/handlers. Extend `Variables` when adding
 
 ## Code Conventions
 
-- **Formatting**: oxfmt — 120 char width, 4-space indent, no tabs
-- **Linting**: oxlint with typescript + react plugins. Unused vars prefixed with `_` are allowed
+- **Formatting**: 120 char width, 4-space indent, no tabs (project convention — no dedicated formatter)
+- **Linting**: oxlint (`bun lint`, config in `.oxlintrc.json`) with typescript + react plugins. Unused vars/args/caught-errors prefixed with `_` are allowed
 - **Zod v4** — use `z.email()` not `z.string().email()`, and other Zod v4 patterns
 - **Hono JSX** — uses `hono/jsx`, not React. Import `JSX` from `hono/jsx/jsx-runtime`
 - **ESM only** — `"type": "module"` in package.json
 - **TypeScript** — strict mode, path imports use `.js` extensions for MCP SDK imports
-- Run `bun codeclean` before committing
+- Run `bun lint` before committing
 
 ## Key Dependencies
 

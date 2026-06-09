@@ -50,7 +50,7 @@ export const createQueryShopCartToolWrapper = ({ tenantMatcher, queryExecutor, a
             query: readOnlyQuerySchema,
             variables: variablesSchema,
         }),
-        annotions: {
+        annotations: {
             readOnlyHint: true,
         },
         handler: async ({ tenant, query, variables, authContext }) => {

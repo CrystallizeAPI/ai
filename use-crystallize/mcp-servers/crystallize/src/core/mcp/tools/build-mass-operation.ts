@@ -1,6 +1,7 @@
 import z from "zod";
 import { defineToolWrapper } from "../../../contracts/tool";
-import { OperationSchema, OperationsSchema } from "@crystallize/schema/mass-operation";
+import { OperationSchema } from "@crystallize/schema/mass-operation";
+import { validateMassOperations } from "../../mass-operation";
 
 const validIntents: string[] = [];
 for (const option of OperationSchema.options) {
@@ -28,16 +29,13 @@ export const createBuildMassOperationToolWrapper = () => {
                 ),
             version: z.string().optional().describe("Mass operation file version. Defaults to '1.0.0'."),
         }),
-        annotions: {
+        annotations: {
             readOnlyHint: true,
         },
         handler: async ({ operations, version }) => {
-            const result = OperationsSchema.safeParse({
-                version: version ?? "1.0.0",
-                operations,
-            });
+            const result = validateMassOperations(operations, version);
 
-            if (result.success) {
+            if (result.ok) {
                 return {
                     content: [
                         {
@@ -48,12 +46,6 @@ export const createBuildMassOperationToolWrapper = () => {
                 };
             }
 
-            const errors = result.error.issues.map((issue) => ({
-                path: issue.path.join("."),
-                message: issue.message,
-                code: issue.code,
-            }));
-
             return {
                 content: [
                     {
@@ -61,8 +53,8 @@ export const createBuildMassOperationToolWrapper = () => {
                         text: JSON.stringify(
                             {
                                 valid: false,
-                                errorCount: errors.length,
-                                errors,
+                                errorCount: result.errorCount,
+                                errors: result.errors,
                             },
                             null,
                             2,

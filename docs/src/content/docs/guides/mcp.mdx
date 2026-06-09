@@ -23,8 +23,9 @@ The Crystallize MCP Server lets AI agents interact with your Crystallize tenant 
         fields before writing queries.
     </Card>
     <Card title="Mutate Data" icon="pencil">
-        Create and update items, manage orders, handle checkout flows, and modify your content structure.
-        <Badge variant="danger" text="Coming Soon" />
+        Create and update items, components, and folders, modify cart state, and run bulk mass operations through the
+        Core and Shop APIs. Write tools are off by default — opt in with <code>?exposeWrite=true</code>.
+        <Badge variant="note" text="Opt-in" />
     </Card>
     <Card title="Access Skills" icon="open-book">
         Get on-demand documentation about Crystallize concepts like content modeling, pricing, and information
@@ -65,7 +66,23 @@ The following tools are auto-generated from the [MCP Server source code](https:/
 
 <McpTools />
 
-> If you already have skills installed locally (e.g., via the Claude Plugin), you can disable them on the MCP Server by appending `?exposeSkills=false` to the URL.
+The server is **read-only by default**. The following query parameters can be appended to the server URL to change which tools are exposed:
+
+| Query parameter      | Default | Effect                                                                                              |
+| -------------------- | ------- | --------------------------------------------------------------------------------------------------- |
+| `exposeWrite=true`   | off     | Exposes the write tools (mutations and mass operations). Off by default for safety.                 |
+| `exposeSkills=false` | on      | Hides the `skills` tool — useful if you already have Skills installed (e.g. via the Claude Plugin). |
+| `exposeUi=false`     | on      | Hides UI-panel tools (`tenant-overview`, `product-overview`).                                       |
+
+For example, to enable writes:
+
+```bash
+npx add-mcp "https://mcp.crystallize.com/mcp?exposeWrite=true" \
+    --header "X-Crystallize-Access-Token-Id: ACCESS_TOKEN_ID" \
+    --header "X-Crystallize-Access-Token-Secret: ACCESS_TOKEN_SECRET"
+```
+
+> Enabling `exposeWrite` only makes the tools available — the access token's user must also have the required write permissions in Crystallize for mutations to succeed.
 
 ## Authentication
 

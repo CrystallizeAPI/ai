@@ -28,7 +28,7 @@ export const createQueryCoreToolWrapper = ({ tenantMatcher, queryExecutor, authC
             query: readOnlyQuerySchema,
             variables: variablesSchema,
         }),
-        annotions: {
+        annotations: {
             readOnlyHint: true,
         },
         handler: async ({ tenant, query, variables, authContext }) => {

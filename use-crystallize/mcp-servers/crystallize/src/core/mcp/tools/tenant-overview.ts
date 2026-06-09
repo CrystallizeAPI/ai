@@ -11,7 +11,7 @@ export const createTenantOverviewToolWrapper = (_deps: Deps) => {
             "Shows tenant name, identifier, ID, and auth type as a UI panel rendered in the host. " +
             "Use this when the user wants to inspect or confirm which tenants are connected.",
         inputSchema: z.object({}),
-        annotions: {
+        annotations: {
             readOnlyHint: true,
         },
         ui: {

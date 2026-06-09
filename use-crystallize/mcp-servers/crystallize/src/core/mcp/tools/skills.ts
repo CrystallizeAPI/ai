@@ -33,7 +33,7 @@ export const createSkillsToolWrapper = (_deps: Deps) => {
                 .optional()
                 .describe("If true, include all references for the requested skills."),
         }),
-        annotions: {
+        annotations: {
             readOnlyHint: true,
         },
         handler: async ({ skills: requestedSlugs, references, includeAllReferences }) => {

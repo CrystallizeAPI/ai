@@ -17,6 +17,12 @@
             }
         ],
         "no-await-in-loop": "off",
+        "no-underscore-dangle": [
+            "warn",
+            {
+                "allow": ["__schema", "_zod"]
+            }
+        ],
         "react/react-in-jsx-scope": "off",
         "@typescript-eslint/no-non-null-assertion": "off",
         "@typescript-eslint/no-explicit-any": "off"

@@ -26,3 +26,38 @@ import { Steps, Code, Badge } from "@astrojs/starlight/components";
         about Flare →](https://flare.crystallize.com)
     </Card>
 </CardGrid>
+
+## Get started
+
+There are three ways to bring Crystallize to your AI workflow — pick the one that fits your setup.
+
+<CardGrid>
+    <Card title="Claude Code plugin" icon="rocket">
+        <Badge variant="tip" text="Recommended" />
+
+        The all-in-one option for Claude Code. One command bundles every Skill **and** wires up the MCP Server.
+
+        ```bash
+        claude plugin add https://github.com/crystallizeapi/ai
+        ```
+
+        Then add your Crystallize access token. [Plugin & Skills guide →](/ai/guides/skills)
+    </Card>
+    <Card title="MCP Server only" icon="setting">
+        Works with any MCP client — Claude Desktop, Claude Code, Cursor, Windsurf, and more.
+
+        ```bash
+        npx add-mcp https://mcp.crystallize.com/mcp
+        ```
+
+        Pass your access token headers and, if you want writes, `?exposeWrite=true`. [MCP Server guide →](/ai/guides/mcp)
+    </Card>
+    <Card title="Flare — no install" icon="starlight">
+        No coding agent or chatbot? Flare is our hosted, no-code AI workflow builder for Crystallize. Nothing to set up.
+
+        [Open Flare →](https://flare.crystallize.com)
+    </Card>
+
+</CardGrid>
+
+> The plugin and the MCP Server are complementary: the plugin installs Skills locally and connects the MCP Server with `?exposeSkills=false` so skills aren't served twice.
