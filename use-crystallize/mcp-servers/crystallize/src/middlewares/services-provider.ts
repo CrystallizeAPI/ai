@@ -3,8 +3,12 @@ import { createMiddleware } from "hono/factory";
 import z from "zod";
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { AppContext, AuthContext } from "../contracts/app-context";
+import type { AnalyticsRequestContext } from "../contracts/analytics-tracker";
 import type { ToolWrapper } from "../contracts/tool";
 import { buildContainer, toolRegistry } from "../core/container";
+import { buildToolCallEvent } from "../core/analytics";
+import { readExposeFlags } from "../core/expose-flags";
+import { PLAUSIBLE_EVENTS_ENDPOINT } from "../core/services/plausible-analytics-tracker";
 import { asValue } from "awilix";
 
 export const servicesProvider = createMiddleware<AppContext>(async (c, next) => {
@@ -24,17 +28,27 @@ export const servicesProvider = createMiddleware<AppContext>(async (c, next) => 
 
     const container = buildContainer(c.env);
     const scoped = container.createScope();
+    // Registered on the scope, not the container: buildContainer caches a single
+    // container for the isolate's lifetime and ignores env, so anything derived
+    // from the request (or from c.env) would otherwise be frozen at the first request.
+    const analyticsRequestContext: AnalyticsRequestContext = {
+        domain: c.env.PLAUSIBLE_DOMAIN,
+        endpoint: c.env.PLAUSIBLE_API_ENDPOINT || PLAUSIBLE_EVENTS_ENDPOINT,
+        origin: new URL(c.req.url).origin,
+        clientIp: c.req.header("CF-Connecting-IP"),
+        userAgent: c.req.header("User-Agent"),
+    };
     scoped.register({
         defer: asValue(defer),
+        analyticsRequestContext: asValue(analyticsRequestContext),
     });
 
     const mcpServer = scoped.cradle.mcpServer;
+    const analyticsTracker = scoped.cradle.analyticsTracker;
 
-    const exposeSkills = c.req.query("exposeSkills") !== "false";
-    const exposeUi = c.req.query("exposeUi") !== "false";
     // Writes are off by default — opt in per request, mirroring exposeSkills but
     // with the opposite default so today's read-only behavior is preserved.
-    const exposeWrite = c.req.query("exposeWrite") === "true";
+    const { write: exposeWrite, ui: exposeUi, skills: exposeSkills } = readExposeFlags((key) => c.req.query(key));
     for (const toolName of Object.keys(toolRegistry) as Array<keyof typeof toolRegistry>) {
         if (!exposeSkills && toolName === "skills") continue;
         const containerKey = toolRegistry[toolName];
@@ -47,7 +61,11 @@ export const servicesProvider = createMiddleware<AppContext>(async (c, next) => 
             if (!authContext) {
                 throw new Error("No auth context provided");
             }
-            return await wrapper.handler({ ...input, authContext: authContext.props as AuthContext });
+            const props = authContext.props as AuthContext;
+            // Tracking is fire-and-forget: analyticsTracker returns void and hands
+            // delivery to waitUntil, so it cannot delay or fail the tool call.
+            analyticsTracker(buildToolCallEvent(toolName, input, props));
+            return await wrapper.handler({ ...input, authContext: props });
         };
 
         if (wrapper.ui) {
@@ -100,6 +118,7 @@ export const servicesProvider = createMiddleware<AppContext>(async (c, next) => 
     c.set("services", {
         mcpServer,
         tenantMatcher: scoped.cradle.tenantMatcher,
+        analyticsTracker,
     });
 
     await next();

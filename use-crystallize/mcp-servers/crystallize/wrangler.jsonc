@@ -13,4 +13,17 @@
     "placement": {
         "mode": "smart",
     },
+    "vars": {
+        // Plausible site ID for the SERVER-side MCP events. The Events API needs
+        // no key — the site is identified by this alone, so it is a plain var, not
+        // a secret. Unset it to disable MCP tracking.
+        "PLAUSIBLE_DOMAIN": "mcp.crystallize.com",
+        // The landing page's tracking script, from Site Settings → Site installation.
+        // The v2 script compiles the domain into this filename, so there is no
+        // data-domain attribute. Unset it to drop the script from the page.
+        // Public by nature — it ships in the page's HTML. Not a secret.
+        "PLAUSIBLE_SCRIPT_URL": "https://plausible.io/js/pa-VtwNguh3SIy5jYVmDZF5N.js",
+        // Override to point at a self-hosted Plausible or a first-party proxy.
+        "PLAUSIBLE_API_ENDPOINT": "https://plausible.io/api/event",
+    },
 }

@@ -12,7 +12,8 @@
         "cf-typegen": "wrangler types --env-interface CloudflareBindings",
         "test": "bun test",
         "test:watch": "bun test --watch",
-        "type-check": "tsc --noEmit"
+        "type-check": "tsc --noEmit",
+        "goals": "bun run bin/plausible-goals.ts"
     },
     "dependencies": {
         "@crystallize/js-api-client": "^7.3.0",

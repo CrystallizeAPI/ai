@@ -27,10 +27,13 @@ import { createMutationExecutor } from "./services/execute-mutation";
 import { createMassOperationRunner } from "./services/mass-operation-runner";
 import { createAuthContextResolver } from "./services/auth-context-helpers";
 import { createCoreSchemaDomainSplitter } from "./services/core-schema-domain-splitter";
+import { createPlausibleAnalyticsTracker } from "./services/plausible-analytics-tracker";
+import { AnalyticsTracker } from "../contracts/analytics-tracker";
 
 export type Services = {
     mcpServer: McpServer;
     tenantMatcher: TenantMatcher;
+    analyticsTracker: AnalyticsTracker;
 };
 
 const build = () =>
@@ -47,6 +50,9 @@ const build = () =>
         queryExecutor: asFunction(createQueryExecutor).singleton(),
         mutationExecutor: asFunction(createMutationExecutor).singleton(),
         massOperationRunner: asFunction(createMassOperationRunner).singleton(),
+        // Scoped, not singleton: it depends on `defer` and `analyticsRequestContext`,
+        // which the servicesProvider middleware registers per request.
+        analyticsTracker: asFunction(createPlausibleAnalyticsTracker).scoped(),
         mcpServer: asFunction(() => {
             return new McpServer({ name: "Crystallize MCP Server", version: packageJson.version });
         }).scoped(),

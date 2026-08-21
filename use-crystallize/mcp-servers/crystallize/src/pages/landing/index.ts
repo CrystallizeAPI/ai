@@ -4,6 +4,7 @@ import { styles } from "./styles";
 import { physicsScript } from "./physics";
 import { headMeta } from "./meta";
 import { featuresGrid } from "./features";
+import { analyticsHead } from "./analytics";
 
 // The command is assembled from three parts so the toggle script can rebuild the
 // middle (the URL + query string) live while keeping the prefix/headers fixed.
@@ -75,6 +76,9 @@ const copyButtonScript = /* js */ `
             .then(function () {
                 btn.textContent = "Copied!";
                 btn.disabled = true;
+                if (window.plausible) {
+                    window.plausible("Copy Install Command");
+                }
                 setTimeout(function () {
                     btn.textContent = "Copy";
                     btn.disabled = false;
@@ -86,12 +90,19 @@ const copyButtonScript = /* js */ `
     });
 `;
 
-export function landingPage(): HtmlEscapedString {
+type LandingPageOptions = {
+    /** Plausible's site-specific `pa-XXXX.js` URL. Omitted (local dev, previews) means no script is emitted. */
+    plausibleScriptUrl?: string;
+    /** Plausible Events API endpoint, passed to the script through `plausible.init()`. */
+    plausibleEndpoint: string;
+};
+
+export function landingPage({ plausibleScriptUrl, plausibleEndpoint }: LandingPageOptions): HtmlEscapedString {
     return html`
         <!doctype html>
         <html lang="en">
             <head>
-                ${headMeta}
+                ${headMeta} ${analyticsHead({ scriptUrl: plausibleScriptUrl, endpoint: plausibleEndpoint })}
                 <style>
                     ${raw(styles)}
                 </style>
