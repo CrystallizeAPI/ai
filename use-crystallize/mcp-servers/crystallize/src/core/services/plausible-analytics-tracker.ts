@@ -4,10 +4,19 @@ import type { AnalyticsEvent, AnalyticsRequestContext, AnalyticsTracker } from "
 export const PLAUSIBLE_EVENTS_ENDPOINT = "https://plausible.io/api/event";
 
 /**
- * Used only when the inbound request carries no User-Agent. Plausible needs one
- * to compute its daily visitor hash and will otherwise attribute inconsistently.
+ * The User-Agent every event is sent under — ours, never the client's.
+ *
+ * Plausible runs the User-Agent through UAInspector and drops the event outright
+ * when it reads as a crawler (`put_user_agent` -> `drop_bot`). MCP clients send
+ * exactly the strings that classifier is built to catch: `node` is Node's default
+ * fetch User-Agent and `Claude-User/1.0` is a registered Anthropic agent, and both
+ * are binned. Forwarding the caller's User-Agent therefore lost whole clients, and
+ * bought nothing: the browser/OS reports it fed are meaningless for MCP traffic.
+ *
+ * Keep this string boring. Anything resembling a bot, crawler or headless browser
+ * puts every server-side event back in the bin, silently and retroactively.
  */
-const FALLBACK_USER_AGENT = "Crystallize-MCP-Server";
+const TRACKER_USER_AGENT = "Crystallize-MCP-Server";
 
 /** Mirrors Plausible's own `captureOnLocalhost: false` default, so `bun dev` never pollutes production stats. */
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"]);
@@ -57,9 +66,9 @@ export const createPlausibleAnalyticsTracker = ({ analyticsRequestContext, defer
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        // Forwarded so Plausible's visitor hashing and device reports reflect the
-                        // real caller rather than every event looking like the same Worker.
-                        "User-Agent": userAgent || FALLBACK_USER_AGENT,
+                        // Deliberately constant — see TRACKER_USER_AGENT. The client's own
+                        // User-Agent is kept out of the request and only ever logged on a drop.
+                        "User-Agent": TRACKER_USER_AGENT,
                         // Without this Plausible sees our Worker's egress IP — a data-center
                         // address — and silently drops the event. CF-Connecting-IP is the only
                         // reliable client IP inside a Worker; the inbound X-Forwarded-For is absent.
@@ -76,11 +85,20 @@ export const createPlausibleAnalyticsTracker = ({ analyticsRequestContext, defer
                     }),
                 });
 
-                // The API answers 202 whether it stored the event or binned it. This
-                // header is the only way to know — worth watching, because calls from
-                // cloud-hosted MCP clients arrive on data-center IPs and get filtered.
+                // The API answers 202 whether it stored the event or binned it, and never
+                // says why. `bot` is now designed out by TRACKER_USER_AGENT, so a surviving
+                // drop is almost always `dc_ip`: the resolved client IP is a data-center
+                // address, which every cloud-hosted MCP client has. That one is not fixable
+                // from here — with no X-Forwarded-For, Plausible falls back to the peer IP,
+                // and our Worker's Cloudflare egress is a data-center address too. Log the
+                // client's User-Agent and IP anyway: the 202 leaves no other evidence.
                 if (response.headers.get("x-plausible-dropped") === "1") {
-                    console.warn("[analytics] plausible dropped event", { name: event.name, path: event.path });
+                    console.warn("[analytics] plausible dropped event", {
+                        name: event.name,
+                        path: event.path,
+                        clientUserAgent: userAgent,
+                        clientIp,
+                    });
                 }
                 await response.body?.cancel();
             } catch (error) {

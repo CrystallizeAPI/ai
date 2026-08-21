@@ -81,7 +81,7 @@ describe("plausibleAnalyticsTracker", () => {
         const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
         const headers = init.headers as Record<string, string>;
         expect(headers["X-Forwarded-For"]).toBe("203.0.113.7");
-        expect(headers["User-Agent"]).toBe("claude-code/1.2.3");
+        expect(headers["User-Agent"]).toBe("Crystallize-MCP-Server");
         expect(headers["Content-Type"]).toBe("application/json");
     });
 
@@ -91,7 +91,15 @@ describe("plausibleAnalyticsTracker", () => {
         expect(init.headers as Record<string, string>).not.toHaveProperty("X-Forwarded-For");
     });
 
-    it("substitutes a User-Agent when the caller sent none", async () => {
+    it("never forwards the client's User-Agent, which Plausible's bot filter would reject", async () => {
+        // `node` is Node's default fetch User-Agent and UAInspector reads it as a crawler,
+        // so forwarding it means Plausible bins every event from a Node-based MCP client.
+        await track({ userAgent: "node" });
+        const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect((init.headers as Record<string, string>)["User-Agent"]).toBe("Crystallize-MCP-Server");
+    });
+
+    it("sends its own User-Agent when the caller sent none", async () => {
         await track({ userAgent: undefined });
         const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
         expect((init.headers as Record<string, string>)["User-Agent"]).toBe("Crystallize-MCP-Server");
@@ -129,6 +137,16 @@ describe("plausibleAnalyticsTracker", () => {
         await track({});
         expect(warnMock).toHaveBeenCalledTimes(1);
         expect((warnMock.mock.calls[0] as unknown[])[0]).toContain("dropped");
+    });
+
+    it("names the client's User-Agent and IP in the drop warning, the only way to tell dc_ip from bot", async () => {
+        // We no longer send the client's User-Agent, so a surviving drop means the IP —
+        // and these two fields are the only evidence the 202 leaves behind.
+        fetchMock.mockImplementation(async () => droppedResponse());
+        await track({});
+        const payload = (warnMock.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
+        expect(payload.clientUserAgent).toBe("claude-code/1.2.3");
+        expect(payload.clientIp).toBe("203.0.113.7");
     });
 
     it("does not warn on a normal accepted event", async () => {

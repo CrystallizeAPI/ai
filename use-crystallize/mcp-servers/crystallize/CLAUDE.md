@@ -384,11 +384,25 @@ retroactive, so create that goal before shipping.
   plain `var`, never a secret.
 - `X-Forwarded-For` must carry `CF-Connecting-IP`. Omit it and Plausible sees the Worker's data-center egress IP and
   drops the event. (The inbound `X-Forwarded-For` is absent inside a Worker.)
-- Plausible answers **HTTP 202 even when it discards the event**. The only signal is the `x-plausible-dropped: 1`
-  response header, which the tracker logs via `console.warn`. Calls from cloud-hosted MCP clients arrive on
-  data-center IPs and get filtered — watch that warning before trusting absolute numbers.
+- Plausible answers **HTTP 202 even when it discards the event**, and never says why. The only signal is the
+  `x-plausible-dropped: 1` response header, which the tracker logs via `console.warn` along with the client's
+  User-Agent and IP — the two inputs that decide it. Two filters bin server-side events:
+  - **`bot`** — UAInspector reads the `User-Agent` as a crawler. This one caught us: the tracker used to forward
+    the caller's User-Agent, and MCP clients send exactly what that classifier hunts. Verified against the live
+    API: `node` (Node's default fetch User-Agent) and `Claude-User/1.0` are dropped; `node-fetch`, `axios`,
+    `python-httpx`, `undici`, `claude-code/2.0.1` and no User-Agent at all are accepted. The tracker now sends a
+    constant `Crystallize-MCP-Server` and never the client's, so this filter is designed out — **keep that string
+    boring**, since anything bot-shaped silently bins everything again.
+  - **`dc_ip`** — the resolved client IP is a data-center address, which every cloud-hosted MCP client has.
+    Verified: Cloudflare, AWS, Hetzner and Google IPs in `X-Forwarded-For` are dropped, a residential one is
+    accepted. **This is not fixable from here.** Sending no `X-Forwarded-For` is worse, not better: Plausible then
+    falls back to the peer IP, and the Worker's Cloudflare egress is itself a data-center address. Only MCP clients
+    running on residential connections are countable — self-hosting via `PLAUSIBLE_API_ENDPOINT` is the way out.
+
+  `dc_ip` is checked *before* the User-Agent in Plausible's pipeline, so a surviving drop warning means the IP.
 - The Goals panel is ranked by **unique visitors**, not conversions, and that ordering is hardcoded. For server-side
-  events a "visitor" is a hash of IP + User-Agent + domain, i.e. roughly one client IP per day. Read the **Total
+  events a "visitor" is a hash of IP + User-Agent + domain — and since the User-Agent is now constant, exactly one
+  client IP per day. Read the **Total
   conversions** column for call counts; the row *order* is a breadth signal, not a volume one.
 - In Top Pages read the **pageviews** column, not the default visitors column — a visitor counts once per day
   regardless of how many calls it made.

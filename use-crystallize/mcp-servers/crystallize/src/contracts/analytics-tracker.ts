@@ -40,6 +40,10 @@ export type AnalyticsRequestContext = {
     origin: string;
     /** Real client IP, from `CF-Connecting-IP`. Without it Plausible sees our egress IP and drops the event. */
     clientIp?: string;
-    /** Inbound `User-Agent`, forwarded so Plausible's visitor hashing and device reports work. */
+    /**
+     * Inbound `User-Agent`. Deliberately *not* forwarded — Plausible bot-drops the
+     * strings MCP clients send (`node`, `Claude-User/1.0`) — so this exists purely
+     * to name the caller in the warning logged when an event is binned.
+     */
     userAgent?: string;
 };
