@@ -9,15 +9,29 @@ function parseFrontmatter(content: string) {
     if (!match) return { name: "", description: "", body: content };
 
     const meta: Record<string, string> = {};
-    for (const line of match[1].split("\n")) {
+    const lines = match[1].split("\n");
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         const colonIdx = line.indexOf(":");
-        if (colonIdx > 0 && !line.startsWith(" ")) {
-            const key = line.slice(0, colonIdx).trim();
-            meta[key] = line
-                .slice(colonIdx + 1)
-                .trim()
-                .replace(/^["']|["']$/g, "");
+        if (colonIdx <= 0 || line.startsWith(" ")) continue;
+
+        const key = line.slice(0, colonIdx).trim();
+        const inline = line.slice(colonIdx + 1).trim();
+
+        // YAML block scalars — `description: >` (folded) or `| ` (literal) put the
+        // value on the following indented lines. Read as an inline value they yield
+        // the marker itself, which is how skills using the folded form ended up
+        // rendering a bare ">" as their description.
+        if (/^[>|][-+]?$/.test(inline)) {
+            const parts: string[] = [];
+            while (i + 1 < lines.length && (lines[i + 1].startsWith(" ") || lines[i + 1].trim() === "")) {
+                parts.push(lines[++i].trim());
+            }
+            meta[key] = parts.join(inline.startsWith(">") ? " " : "\n").trim();
+            continue;
         }
+
+        meta[key] = inline.replace(/^["']|["']$/g, "");
     }
     return {
         name: meta.name || "",

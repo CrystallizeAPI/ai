@@ -3,7 +3,8 @@ title: Crystallize Skills
 description: Pre-built AI knowledge modules that give coding agents deep expertise on Crystallize concepts like content modeling, querying, mutations, and more.
 ---
 
-import { Steps, Card, CardGrid, Badge, LinkCard } from "@astrojs/starlight/components";
+import { Steps } from "@astrojs/starlight/components";
+import SkillsGrid from "../../../ui/components/astro/SkillsGrid.astro";
 
 Crystallize Skills are **knowledge modules** that give AI coding agents deep expertise on Crystallize platform concepts. Each skill is a self-contained documentation package that agents can load on-demand to understand how to work with specific parts of Crystallize.
 
@@ -11,29 +12,7 @@ Skills are available through both the **Crystallize MCP Server** (as a tool) and
 
 ## Available Skills
 
-<CardGrid>
-    <Card title="Content Model" icon="document">
-        Design content structures using Shapes, Pieces, Components, Topic Maps, and Grids.
-    </Card>
-    <Card title="Information Architecture" icon="seti:folder">
-        Design folder hierarchies, catalogue trees, and navigation structures.
-    </Card>
-    <Card title="JS API Client" icon="seti:javascript">
-        Use `@crystallize/js-api-client` to interact with Crystallize APIs in JavaScript/TypeScript.
-    </Card>
-    <Card title="Query" icon="magnifier">
-        Query data using the Core API, Discovery API, Catalogue API, and Shop API.
-    </Card>
-    <Card title="Mutation" icon="pencil">
-        Create and modify data — items, orders, customers, carts, and checkout flows.
-    </Card>
-    <Card title="Pricing" icon="setting">
-        Design pricing strategies with Price Variants, Price Lists, Markets, and Promotions.
-    </Card>
-    <Card title="Permissions" icon="approve-check-circle">
-        Manage user roles, field-level permissions, and access control.
-    </Card>
-</CardGrid>
+<SkillsGrid />
 
 > Each skill includes a main guide and optional **reference documents** with detailed API examples, design patterns, and best practices.
 

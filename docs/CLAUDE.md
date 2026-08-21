@@ -32,6 +32,19 @@ Runtime / Package manager: **Bun**
 
 Add new `.mdx` files to `src/content/docs/guides/` — they auto-appear in the sidebar. Use Starlight's built-in components (`Card`, `Steps`, `Code`, `Badge`, etc.) for rich content.
 
+## Skills Reference
+
+Everything that lists skills is generated from `use-crystallize/skills/`: the `skills` collection
+(`src/loaders/skills-loader.ts`), the per-skill pages (`src/pages/skills/`), the sidebar entries
+(`astro.config.mjs`) and the **Available Skills** grid in `guides/skills.mdx`
+(`src/ui/components/astro/SkillsGrid.astro`). **Do not hand-maintain a skill list here** — that grid was
+hand-written until it had drifted four skills behind. Dropping a directory with a `SKILL.md` into the skills
+folder is enough for it to appear everywhere.
+
+Frontmatter is read by a small hand-rolled parser rather than a YAML library. It handles inline values and
+block scalars (`description: >`), which is all the skills use — anything fancier will parse as the marker
+character instead of the value.
+
 ## MCP Server Tools Reference
 
 The tool table in `guides/mcp.mdx` is **auto-generated** by the `mcpTools` content collection loader (`src/loaders/mcp-tools-loader.ts`), which parses the MCP Server's `toolRegistry` (`use-crystallize/mcp-servers/crystallize/src/core/container.ts`) and each tool file's `description`/`inputSchema` at build time. **Do not hand-maintain a tool list here** — it drifts. New tools appear on the docs page automatically once the server source adds them to `toolRegistry`.

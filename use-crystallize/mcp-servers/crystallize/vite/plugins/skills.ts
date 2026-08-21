@@ -15,20 +15,35 @@ type SkillEntry = {
     references: SkillReference[];
 };
 
+// A frontmatter value is either inline (`name: query`) or a YAML block scalar
+// (`description: >` folded, `|` literal) whose value sits on the following
+// indented lines. Matching only the inline form reads a folded value back as a
+// bare ">", which is what several skills would otherwise report.
+function readFrontmatterField(lines: string[], key: string): string {
+    const start = lines.findIndex((line) => line.startsWith(`${key}:`));
+    if (start === -1) return "";
+
+    const inline = lines[start].slice(key.length + 1).trim();
+    if (!/^[>|][-+]?$/.test(inline)) return inline;
+
+    const parts: string[] = [];
+    for (let i = start + 1; i < lines.length && (lines[i].startsWith(" ") || lines[i].trim() === ""); i++) {
+        parts.push(lines[i].trim());
+    }
+    return parts.join(inline.startsWith(">") ? " " : "\n").trim();
+}
+
 function parseFrontmatter(raw: string): { name: string; description: string; body: string } {
     const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
     if (!match) {
         return { name: "", description: "", body: raw };
     }
-    const frontmatter = match[1];
+    const lines = match[1].split("\n");
     const body = match[2];
 
-    const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
-    const descMatch = frontmatter.match(/^description:\s*(.+)$/m);
-
     return {
-        name: nameMatch?.[1]?.trim() ?? "",
-        description: descMatch?.[1]?.trim() ?? "",
+        name: readFrontmatterField(lines, "name"),
+        description: readFrontmatterField(lines, "description"),
         body: body.trim(),
     };
 }

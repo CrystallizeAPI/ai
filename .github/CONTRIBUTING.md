@@ -79,6 +79,8 @@ Skills are Markdown files in `use-crystallize/skills/`. Each skill directory con
 
 When adding or modifying skills, keep the tone precise and technical. Skills are consumed by AI agents, so clarity matters.
 
+The docs listings are generated from the skills directory — sidebar, skill pages and the Available Skills grid all pick a new `SKILL.md` up on their own. Two things are manual: the skill roll-call in the root `README.md`, and the version. Bump `version` in `use-crystallize/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` and `use-crystallize/mcp-servers/crystallize/package.json` together — they move in lockstep, one minor bump per shipped feature.
+
 ## Reporting Issues
 
 - **Bugs**: Use the [Bug Report](https://github.com/CrystallizeAPI/ai/issues/new?template=1_Bug_report.md) template

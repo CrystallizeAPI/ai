@@ -1,0 +1,33 @@
+---
+import { getCollection } from "astro:content";
+import { CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+// Generated from the `skills` collection — the same loader that feeds the sidebar
+// and the Skills Overview page. A new skill directory therefore appears here on its
+// own; this grid used to be hand-written and had drifted four skills behind.
+const skills = (await getCollection("skills")).sort((a, b) => a.data.slug.localeCompare(b.data.slug));
+
+// Slugs are the skill's identity everywhere else, but this grid reads as prose, so
+// it gets a title-cased label. Acronyms are spelled out rather than capitalised.
+const ACRONYMS: Record<string, string> = { js: "JS", api: "API", ui: "UI" };
+const label = (slug: string) =>
+    slug
+        .split("-")
+        .map((word) => ACRONYMS[word] ?? word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+
+// The description's first sentence is the summary; the rest is agent-triggering prose.
+const summarise = (description: string) => `${description.split(".")[0].trim()}.`;
+---
+
+<CardGrid>
+    {
+        skills.map((skill) => (
+            <LinkCard
+                href={`/ai/skills/${skill.data.slug}/`}
+                title={label(skill.data.slug)}
+                description={summarise(skill.data.description)}
+            />
+        ))
+    }
+</CardGrid>
