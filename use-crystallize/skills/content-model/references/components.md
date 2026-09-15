@@ -42,7 +42,7 @@ Choosing the right component for each piece of **additional** data determines ho
 | Product demos, tutorials, promo videos | **Videos** |
 | Downloadable files (PDFs, ZIPs, etc.)  | **Files**  |
 
-- **Images** → auto-transcoded to responsive sizes (Avif, WebP), served via Crystallize CDN. Supports multiple images per component (galleries, carousels). Each image gets `url`, `variants` (with width/height/size), `altText`, `caption`. Note: product variant images are built-in — use an Images component for product-level lifestyle photos, document hero images, or other non-variant media.
+- **Images** → auto-transcoded to responsive sizes (Avif, WebP), served via Crystallize CDN. See [[responsive-images]] for rendering them efficiently — `srcset`, `sizes`, format choice and why not to use a framework image optimizer. Supports multiple images per component (galleries, carousels). Each image gets `url`, `variants` (with width/height/size), `altText`, `caption`. Note: product variant images are built-in — use an Images component for product-level lifestyle photos, document hero images, or other non-variant media.
 - **Videos** → auto-transcoded for web/mobile streaming, CDN-delivered. Upload or embed.
 - **Files** → upload files for download. Use for manuals, datasheets, certificates, whitepapers.
 
