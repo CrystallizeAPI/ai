@@ -701,4 +701,4 @@ Types are generated from the Core API schema via GraphQL Code Generator.
 ## Related Links
 
 - [Crystallize Core API Documentation](https://crystallize.com/docs/developer/apis/core-api)
-- [Core API Mutations](../mutation/references/core-api.md)
+- [Core API Mutations](../../mutation/references/core-api.md)

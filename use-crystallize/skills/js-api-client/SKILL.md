@@ -105,7 +105,7 @@ All callers share the same signature:
 
 ## High-Level Helpers
 
-Available helpers (see [High-Level Helpers Reference](references/high-level-helpers.md) for full examples):
+Available helpers:
 
 | Helper                              | Import                       | Purpose                                                     |
 | ----------------------------------- | ---------------------------- | ----------------------------------------------------------- |
@@ -154,8 +154,6 @@ const { tenant } = await api.nextPimApi<{ tenant: { id: string; name: string } }
 
 ## References
 
-- [High-Level Helpers](references/high-level-helpers.md) - Catalogue Fetcher, Navigation Fetcher, Product Hydrater, Order Manager, Customer Manager, Cart Manager, and more
-- [Utilities](references/utilities.md) - GraphQL Builder, Signature Verification, Binary File Manager, Pricing Utilities, Request Profiling
-- [Official Documentation](https://crystallize.com/docs/developer/sdk/js-api-client)
+- [Official Documentation](https://crystallize.com/docs/developer/sdk/js-api-client) - High-level helpers and utilities (GraphQL Builder, Signature Verification, Binary File Manager, Pricing Utilities, Request Profiling)
 - [GitHub Repository](https://github.com/CrystallizeAPI/libraries/tree/main/components/js-api-client)
 - [NPM Package](https://www.npmjs.com/package/@crystallize/js-api-client)
