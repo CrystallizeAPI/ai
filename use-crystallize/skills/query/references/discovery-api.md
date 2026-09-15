@@ -1,6 +1,7 @@
 # Discovery API Reference
 
-The Discovery API is the primary API for powering storefronts with product information and marketing content. It is a read-only API optimized for high performance.
+The Discovery API is the primary API for powering storefronts with product information and marketing
+content. It is a read-only API optimized for high performance.
 
 ## Base URL
 
@@ -8,32 +9,57 @@ The Discovery API is the primary API for powering storefronts with product infor
 https://api.crystallize.com/{tenant-identifier}/discovery
 ```
 
-Replace `{tenant-identifier}` with your tenant name.
+Replace `{tenant-identifier}` with your tenant name — the **bare** identifier, no `@` (that prefix
+belongs to the Core API).
 
 ## Authentication
 
-By default, the Discovery API is open. If you configure restricted access for your Catalogue API, you need to provide authentication:
+By default, the Discovery API is open. If you configure restricted access for your Catalogue API, you
+need to provide authentication:
 
 - Static token via header
 - Access tokens for programmatic access
 
 > **Important**: Always secure your API with authentication in production environments.
 
-## Key Features
+## The schema is generated per tenant
 
-### Semantic Schema
+This is the single most important thing to know before writing a query. The Discovery schema is
+**derived from the tenant's shapes and index settings**, so it differs between tenants and changes when
+the tenant is re-indexed:
 
-The Discovery API follows the structure of your shapes and components. Field names in queries match your shape definitions, making the API intuitive to use.
+- Every shape becomes a type and a `browse` field — `product`, `category`, `brand`, …
+- Filter, facet and sort inputs (`TenantFilter`, `ProductFacet`, `TenantSort`, …) are generated from
+  indexed component fields — `price_default`, `stock_oslo`, `specs_label`, `variants_topics`, …
+- `TenantLanguage` is an enum of the tenant's languages
+- Ranking inputs and their enums appear **only** on tenants served for ranking (see below)
 
-### Combined Browse and Search
+**Introspect, do not assume.** An un-ignited tenant answers
+`{"success": false, "message": "There is no ignited Tenant for <tenant>."}` rather than serving a
+schema at all.
 
-One query model for both browsing categories and searching products. This simplifies frontend development.
+> **Note**: The Discovery API uses **lowercase** type names in inline fragments (`... on product`,
+> `... on category`) because types are derived from your shape identifiers. Interface fragments keep
+> their capital (`... on Product`, `... on Folder`, `... on Document`).
 
-### Filtering and Faceting
+## Queries
 
-Filter by any attribute, component, or price range. Get facet counts for building filter UIs.
+| Query          | Use for                                                                             |
+| -------------- | ----------------------------------------------------------------------------------- |
+| `search`       | Full-text search across **all** shapes; polymorphic hits                            |
+| `browse`       | Shape-typed access — each shape becomes its own query with all its component fields |
+| `autocomplete` | Type-ahead; hardcoded on `name`                                                     |
+| `topics`       | Children of a topic in the topic map                                                |
 
-## Query Structure
+`search`, `autocomplete` and every field under `browse` take the same argument set:
+
+```text
+language, publicationState, path, pathResolutionMethod, term,
+pagination, options, rankBy, context, nearestTo, filters, facets, sorting
+```
+
+`Folder.children` and `Topic.items` take that same set, which is what makes nested category listings
+filterable and rankable in one round trip.
 
 ### Basic Search
 
@@ -42,17 +68,22 @@ Filter by any attribute, component, or price range. Get facet counts for buildin
     search(language: en, filters: { type_in: [product] }, pagination: { limit: 20, after: "XXXX" }) {
         summary {
             totalHits
-            facets
+            hasMoreHits
             endCursor: endToken
+            facets
         }
         hits {
             id
             name
             path
+            shape
+            score
         }
     }
 }
 ```
+
+Hits are polymorphic — use one inline fragment per shape, and read `shape` to tell them apart.
 
 ### Filtering by Shape
 
@@ -71,7 +102,7 @@ Filter by any attribute, component, or price range. Get facet counts for buildin
 
 ```graphql
 {
-    search(language: en, filters: { price_sales: { range: { gte: 20, lte: 20 } } }) {
+    search(language: en, filters: { price_sales: { range: { gte: 20, lte: 100 } } }) {
         hits {
             name
             path
@@ -93,9 +124,64 @@ Filter by any attribute, component, or price range. Get facet counts for buildin
 }
 ```
 
+## Filter operators
+
+Filters compose with `AND` and `OR`, each taking a list of nested filters.
+
+| Input                          | Operators                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `StringFilter`                 | `exists`, `equals`, `not_equals`, `in`, `not_in`, `contains`, `not_contains`, `phrase`, `regex`, `not_regex` |
+| `StringFilterWithAutocomplete` | the above plus `autocomplete: { term, options }`                                                             |
+| `NumberFilter`                 | `exists`, `equals`, `not_equals`, `in`, `not_in`, `range: { gt, gte, lt, lte }`                              |
+| `DateFilter`                   | `exists`, `equals`, `not_equals`, `in`, `not_in`, `range: { gt, gte, lt, lte }`                              |
+| `BooleanFilter`                | `exists`, `equals`, `not_equals`                                                                             |
+
+`type_in: [ItemType]` (`product`, `document`, `folder`) is the common way to narrow a `search`.
+
+## Typo tolerance (fuzzy search)
+
+Search is **exact by default**. Opt into typo tolerance through `options.fuzzy`:
+
+```graphql
+{
+    search(language: en, term: "gren", options: { fuzzy: { fuzziness: SINGLE, prefixLength: 1 } }) {
+        hits {
+            name
+            path
+        }
+    }
+}
+```
+
+| Option          | Default | Meaning                                                       |
+| --------------- | ------- | ------------------------------------------------------------- |
+| `fuzziness`     | `NONE`  | Max single-character edits: `NONE`, `SINGLE`, `DOUBLE`        |
+| `prefixLength`  | `0`     | Leading characters that must match exactly before edits apply |
+| `maxExpensions` | `50`    | Max term variations generated                                 |
+
+Raising `fuzziness` widens the candidate set and costs latency — prefer `SINGLE` before `DOUBLE`, and
+use `prefixLength` to keep short, common terms precise.
+
+## Autocomplete
+
+```graphql
+{
+    autocomplete(language: en, term: "espr", pagination: { limit: 8 }) {
+        hits {
+            name
+            path
+        }
+    }
+}
+```
+
+`autocomplete` matches on `name` and otherwise takes the same arguments as `search` — including filters
+and ranking.
+
 ## Browse Queries
 
-The `browse` API provides **shape-typed access** — each shape becomes its own query type with all component fields available directly. This is the recommended approach for storefronts.
+The `browse` API provides **shape-typed access** — each shape becomes its own query type with all
+component fields available directly. This is the recommended approach for storefronts.
 
 ### Browse by Shape
 
@@ -103,6 +189,11 @@ The `browse` API provides **shape-typed access** — each shape becomes its own 
 {
     browse {
         product(language: en, pagination: { limit: 25 }) {
+            summary {
+                totalHits
+                hasMoreHits
+                endCursor
+            }
             hits {
                 name
                 path
@@ -148,6 +239,7 @@ The `browse` API provides **shape-typed access** — each shape becomes its own 
 
 - Use `path: "/shop/*"` for direct children (wildcard)
 - Use `path: "/shop/exact-item"` for a specific item
+- `pathResolutionMethod` (`canonical`, `alias`, `history`, `shortcut`) controls how a path is resolved
 - Use aliases to combine multiple browse queries in one request
 
 ### Combined Query with Aliases
@@ -177,11 +269,31 @@ The `browse` API provides **shape-typed access** — each shape becomes its own 
 }
 ```
 
+## Sorting
+
+`sorting` takes one or more generated fields plus `score`, each `asc` or `desc`:
+
+```graphql
+{
+    browse {
+        product(language: en, sorting: { price_default: asc, itemId: asc }) {
+            hits {
+                name
+                path
+            }
+        }
+    }
+}
+```
+
+**Always add a deterministic secondary field** (such as `itemId`) so pagination stays stable across
+pages. Note that `sorting` does **not** compose predictably with ranking — see below.
+
 ## Pagination
 
 ### Cursor-Based Pagination (Recommended)
 
-Use `paginationToken` (returned as `endCursor` in summary) for efficient, consistent pagination:
+Use `paginationToken` (returned as `endToken` in summary) for efficient, consistent pagination:
 
 ```graphql
 {
@@ -190,7 +302,7 @@ Use `paginationToken` (returned as `endCursor` in summary) for efficient, consis
             summary {
                 totalHits
                 hasMoreHits
-                endCursor
+                endCursor: endToken
             }
             hits {
                 name
@@ -204,32 +316,19 @@ Use `paginationToken` (returned as `endCursor` in summary) for efficient, consis
 **Flow:**
 
 1. First request: omit `after` (or set to `null`)
-2. Use `summary.endCursor` as the `after` value for the next page
+2. Use `summary.endToken` as the `after` value for the next page
 3. Stop when `summary.hasMoreHits` is `false`
 
-> **Note**: `skip`-based pagination is deprecated. Use cursor-based pagination (`after`) for all new implementations. `skip` becomes increasingly expensive on large result sets.
+`pagination` accepts `limit`, `after`, `before` and `skip`.
 
-The same cursor pattern works with `search`:
-
-```graphql
-{
-    search(language: en, pagination: { limit: 20, after: "CURSOR" }) {
-        summary {
-            totalHits
-            hasMoreHits
-            endCursor
-        }
-        hits {
-            name
-            path
-        }
-    }
-}
-```
+> **Note**: `skip`-based pagination is deprecated for ordinary queries. Use cursor-based pagination
+> (`after`). `skip` becomes increasingly expensive on large result sets. **The exception is ranked
+> queries** — see below.
 
 ## Faceting
 
-Get counts for filter values:
+Get counts for filter values. `StringFacet` takes `key` and `limit`; `NumberFacet` and `DateFacet` also
+require `boundaries`.
 
 ```graphql
 {
@@ -245,16 +344,62 @@ Get counts for filter values:
 }
 ```
 
+`summary.facets` is a `Hash`, and accepts an optional `key` argument to pull a single facet out.
+
+`summary.priceRange(priceIdentifier: "default", quantity: 1) { min max }` gives the price bounds of the
+current result set — useful for a range slider that matches the active filters.
+
+## Ranking, personalization and similarity
+
+Ranking-enabled tenants additionally accept `rankBy`, `context` and `nearestTo`, and expose `rankScore`
+and `rankExplain` on hits. That surface — vocabularies, `setItemTaste`, `igniteDiscoApi`, the five
+`rankBy` signals, `context.userTaste`, `nearestTo` and the rerank window — is covered by the
+[[vector-ranking]] skill.
+
+Two things to know from here:
+
+1. **The arguments are absent from the schema until the tenant is served for ranking.** Referencing them
+   on an ordinary tenant is a GraphQL validation error, not an unranked result. Detect the capability:
+   `{ __type(name: "RankByInput") { name } }`.
+2. **Ranked queries page differently.** When a rerank runs, cursor tokens fall back to offset
+   pagination — use `skip` + `limit`, and remember that `skip` offsets into a bounded rerank window
+   (`options.rerankWindow`, default 500, cap 2000).
+
+## Profiling
+
+Every query can report how it was served:
+
+```graphql
+{
+    search(language: en, term: "chair") {
+        summary {
+            profiling {
+                executionTime
+                queryEngine
+                collection
+                webNode
+                lastIndexCompletedAt
+            }
+        }
+    }
+}
+```
+
+`lastIndexCompletedAt` is the reliable way to confirm a re-index actually landed.
+
 ## Async Updates
 
-The Discovery API is asynchronously updated from your published data and therefore eventually consistent:
+The Discovery API is asynchronously updated from your published data and therefore eventually
+consistent:
 
 - Typical delay: under 1 second
 - Large imports may take longer to surface
+- A full re-index (`igniteDiscoApi`) takes minutes, not seconds, to propagate
 
 For cases requiring exact current state, use the Catalogue API instead.
 
 ## Related Links
 
+- [[vector-ranking]] — ranking, personalization and similarity
 - [Crystallize Discovery API Documentation](https://crystallize.com/docs/developer/apis/discovery-api)
 - [Demo tenant: Furnitut](https://www.furnitut.com/)

@@ -26,6 +26,8 @@ Before writing queries, understand the context. Ask clarifying questions:
 - Know the exact path? Need strong consistency? → **Catalogue API**
 - Admin interface? Orders, customers, shapes? → **Core API**
 - Cart/checkout operations? → **Shop API**
+- Need results _ordered_ by relevance rules, personalization, or similarity? → **Discovery API** with
+  `rankBy` / `context` / `nearestTo` — see [[vector-ranking]]
 
 ## How It Works
 
@@ -114,7 +116,9 @@ The Discovery API is the primary API for frontend development. It supports:
 - Faceted navigation
 - Sorting and cursor-based pagination
 
-The Discovery API has two entry points: `search` for full-text queries with facets, and `browse` for shape-typed access where each shape becomes its own query type.
+The Discovery API has three entry points: `search` for full-text queries across all shapes, `browse` for shape-typed access where each shape becomes its own query type, and `autocomplete` for type-ahead on `name`. A fourth query, `topics`, walks the topic map.
+
+**The Discovery schema is generated per tenant** from its shapes and index settings — filter, facet and sort fields differ between tenants, and ranking arguments exist only on tenants served for ranking. Introspect rather than assume.
 
 > **Note**: The Discovery API uses lowercase type names in inline fragments (`... on product`, `... on category`) because types are derived from your shape identifiers. You can still use it for interface (`... on Product`, `... on Folder`).
 
@@ -226,11 +230,18 @@ query {
 5. **Handle async updates** - Discovery API may have sub-second delay for recently published content
 6. **Protect APIs in production** - Configure authentication for sensitive data
 7. **Use Core API for complex filters** - Only Core API supports filtering orders by customer, SKU, payment provider
+8. **Detect the Discovery schema, don't hardcode it** - Filter/sort/facet fields and the ranking arguments are tenant-generated; introspect before building a query
 
 ## References
 
 - [Core API Queries Reference](references/core-api.md) - Items, customers, orders, shapes with advanced filtering
-- [Discovery API Reference](references/discovery-api.md) - Detailed search, filter, and faceting documentation
+- [Discovery API Reference](references/discovery-api.md) - Search, browse, autocomplete, filters, facets, sorting, fuzzy matching, pagination and profiling
 - [Catalogue API Reference](references/catalogue-api.md) - Path-based query documentation
 - [Shop API Queries Reference](references/shop-api-queries.md) - Cart and checkout query documentation (`/cart` endpoint)
 - [Shop API Order Queries Reference](references/shop-api-order-queries.md) - Order queries by ID or customer (`/order` endpoint)
+
+## Related skills
+
+Reading is only half of it — [[mutation]] covers writes across the same APIs, and [[js-api-client]]
+wraps all of them for JS/TS. For ranking Discovery results by relevance rules, a shopper's taste, or
+similarity to another item, use [[vector-ranking]].

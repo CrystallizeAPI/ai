@@ -191,3 +191,9 @@ If the user is working in a JS/TS project, prefer generating code using `@crysta
 - [Core API Mutations](references/core-api.md) - Item CRUD, variants, components, customers, publish/unpublish, delete, media uploads
 - [Shop API Cart Mutations](references/shop-api-mutations.md) - Cart hydration, item management, checkout flow, cart lifecycle
 - [Shop API Order Mutations](references/shop-api-order-mutations.md) - Order creation (from cart or direct), payments, pipelines, metadata
+
+## Related skills
+
+[[query]] covers reads across the same APIs. For bulk writes that would otherwise hit rate limits, use
+[[mass-operations]]. Vector ranking has its own Core API mutations — `upsertVocabulary`, `setItemTaste`
+and `igniteDiscoApi` — documented in [[vector-ranking]].

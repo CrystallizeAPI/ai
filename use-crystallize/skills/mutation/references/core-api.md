@@ -13,6 +13,7 @@ See [SKILL.md](../SKILL.md) for endpoint URLs and authentication headers.
 - [Order Mutations](#order-mutations) - Update order metadata
 - [Media & Images](#media--images) - Upload images for items and variants
 - [Flow Mutations](#flow-mutations) - Manage item workflows
+- [Vector Ranking Mutations](#vector-ranking-mutations) - Vocabularies, item taste, re-indexing
 - [Error Handling](#error-handling)
 
 ---
@@ -554,6 +555,70 @@ mutation SetFlowStage {
 ```
 
 ---
+
+## Vector Ranking Mutations
+
+Discovery's vector ranking is authored entirely on the Core API. Four calls, in this order:
+
+| Mutation                                          | Notes                                                                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `upsertVocabulary(input: UpsertVocabularyInput!)` | **Full replace**, not a patch — omitted dimensions are dropped                                                                 |
+| `setItemTaste(input: SetItemTasteInput!)`         | One item, one language, one vocabulary. Writes the **draft**                                                                   |
+| `publishItems(ids: [ID!]!, language: String!)`    | The indexer reads the published version — skipping this fails silently                                                         |
+| `igniteDiscoApi(stacks: opensearch)`              | Async; poll `bulkTask(id:)` until `complete`, then allow propagation. `stacks: opensearch` is required for vectors to be built |
+
+```graphql
+mutation UpsertVocabulary($input: UpsertVocabularyInput!) {
+    upsertVocabulary(input: $input) {
+        name
+        dimensions {
+            id
+            weight
+        }
+        lastUpdated
+    }
+}
+
+mutation SetItemTaste($input: SetItemTasteInput!) {
+    setItemTaste(input: $input) {
+        __typename
+        ... on Product {
+            id
+        }
+        ... on BasicError {
+            errorName
+            message
+        }
+    }
+}
+
+mutation Index {
+    igniteDiscoApi(stacks: opensearch) {
+        __typename
+        ... on BulkTaskIgnition {
+            id
+            type
+            status
+            createdAt
+        }
+        ... on BasicError {
+            errorName
+            message
+        }
+    }
+}
+```
+
+All three results are unions whose error members implement `BasicError`, so a single fragment covers
+every failure and `errorName` identifies it. `setItemTaste` and `igniteDiscoApi` can both return
+`ExperimentalFeaturesNotAvailableError`, which means vectors are not enabled for the tenant.
+
+Read back with `vocabulary(name:)` and `item(id:, language:) { taste { vocabulary entries { key weight } } }`.
+
+**Re-run `igniteDiscoApi` after every change to vocabularies or taste entries** — an unindexed change
+has no effect and raises no error. Omitting `stacks: opensearch` likewise fails silently: the index
+rebuilds, but without vectors. Full guidance, including vocabulary design, positional weights and
+key validation, is in the [[vector-ranking]] skill.
 
 ## Error Handling
 

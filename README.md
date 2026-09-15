@@ -8,7 +8,7 @@ This repo contains three sub-projects:
 
 | Project        | Path                                       | Description                                                                                                       |
 | -------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| **Skills**     | `use-crystallize/skills/`                  | Markdown-based skill modules for AI agents (query, mutation, content-model, pricing, permissions, etc.)           |
+| **Skills**     | `use-crystallize/skills/`                  | Markdown-based skill modules for AI agents (query, mutation, content-model, pricing, vector-ranking, etc.)        |
 | **MCP Server** | `use-crystallize/mcp-servers/crystallize/` | Cloudflare Workers MCP server providing authenticated access to Crystallize APIs                                  |
 | **Docs**       | `docs/`                                    | Astro Starlight documentation site deployed to [crystallizeapi.github.io/ai](https://crystallizeapi.github.io/ai) |
 
@@ -57,7 +57,7 @@ bun type-check      # TypeScript type checking
 
 Skills are plain markdown files in `use-crystallize/skills/` — no build step required. Each skill has a `SKILL.md` with YAML frontmatter and an optional `references/` directory with supporting docs.
 
-Available skills: `content-model`, `data-creation`, `information-architecture`, `js-api-client`, `mass-operations`, `mutation`, `permissions`, `plugins`, `pricing`, `query`, `taxonomy` — the directory itself is the authoritative list.
+Available skills: `content-model`, `data-creation`, `information-architecture`, `js-api-client`, `mass-operations`, `mutation`, `permissions`, `plugins`, `pricing`, `query`, `taxonomy`, `vector-ranking` — the directory itself is the authoritative list.
 
 ## Using the Claude Plugin
 
