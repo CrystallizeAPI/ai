@@ -285,6 +285,42 @@ mutation UpdateSelection {
 }
 ```
 
+### Colors
+
+```graphql
+mutation UpdateColors {
+    item {
+        updateComponent(
+            itemId: "item-id"
+            language: "en"
+            component: {
+                componentId: "brand-color"
+                colors: {
+                    colors: [
+                        { label: "Midnight Blue", hex: "#191970", rgb: { r: 25, g: 25, b: 112 }, pantone: "2758 C" }
+                    ]
+                }
+            }
+        ) {
+            ... on Item {
+                id
+            }
+        }
+    }
+}
+```
+
+The content input is `colors: { colors: [GraphqlInputColorEntry!] }` — note the doubled key: the
+component input field is `colors`, and it wraps a list also called `colors`.
+
+Each entry carries any combination of `hex`, `rgb { r g b a }`, `hsl { h s l a }`,
+`cmyk { c m y k }`, `pantone`, `ral` and `label`. **They are notations of the same colour, not
+separate colours** — send as many as the item actually has, and write the whole list every time, since
+the list replaces rather than merges. `colors` is also valid inside `NestableComponentInput`, so it
+works within chunks, choices and pieces.
+
+See the [[content-model]] skill for when to use Colors rather than a Selection.
+
 ### Item Relations
 
 ```graphql

@@ -68,12 +68,12 @@ Choosing the right component for each piece of **additional** data determines ho
 
 ### "I need a controlled set of options"
 
-| Scenario                                                    | Component     |
-| ----------------------------------------------------------- | ------------- |
-| Predefined dropdown or multi-select (color, size, material) | **Selection** |
-| Boolean flag (featured, in-stock, certified)                | **Switch**    |
-| A date or timestamp                                         | **Datetime**  |
-| Geographic coordinates                                      | **Location**  |
+| Scenario                                                  | Component     |
+| --------------------------------------------------------- | ------------- |
+| Predefined dropdown or multi-select (size, material, fit) | **Selection** |
+| Boolean flag (featured, in-stock, certified)              | **Switch**    |
+| A date or timestamp                                       | **Datetime**  |
+| Geographic coordinates                                    | **Location**  |
 
 - **Selection** → dropdown, radio buttons, or checkboxes with predefined options. Each option has a `key` (API value) and `value` (display label). Configure min/max selections to control behavior:
     - **Radio/Enum pattern**: min=1, max=1, required → exactly one selection, renders as radio buttons or dropdown
@@ -83,6 +83,32 @@ Choosing the right component for each piece of **additional** data determines ho
 - **Switch** → true/false toggle. Use for: "Featured", "On Sale", "Available in store", "Organic certified".
 - **Datetime** → date with optional time (type: `datetime`). Use for: launch date, preorder availability, expiration, event scheduling.
 - **Location** → latitude/longitude. Use for: store locator, pickup points, product origin.
+
+### "I need to store a colour"
+
+| Scenario                                                                | Component                  |
+| ----------------------------------------------------------------------- | -------------------------- |
+| A brand, product or material colour that has to render as a real swatch | **Colors**                 |
+| A colour _name_ used only for filtering and navigation                  | **Selection** or **Topic** |
+
+- **Colors (`colors`)** → stores one or more colour entries. Each entry can carry the same colour in several notations **at once** — `hex`, `rgb`, `hsl`, `cmyk`, `pantone`, `ral` — plus a free-text `label`. The component is a **list**, so a single component holds a whole colourway.
+    - **Configuration**: `min` / `max` (number of entries), `colorPresets` (a fixed palette editors pick from), `customColorSpaces` (which notations beyond the default are offered), `requireLabel`, plus the usual `required`, `discoverable` and `multilingual`.
+    - **`colorPresets` is how you enforce a brand palette.** Editors choose from the palette instead of typing hex values, which is the difference between a design system and 40 slightly different greys.
+    - **`requireLabel: true`** forces every entry to be named ("Midnight Blue"). The label is what the storefront shows; the value is what it renders.
+
+**Why one entry carries several notations**: screen wants `hex`/`rgb`, print wants `cmyk`/`pantone`, paint and industrial want `ral`. One authoritative entry serves all three. Modelling them as three separate Single Line components guarantees they drift apart the first time a colour is corrected.
+
+#### Colors vs Selection — the decision people get wrong
+
+| You need                                                        | Use                          |
+| --------------------------------------------------------------- | ---------------------------- |
+| The actual colour, to render (swatch, chip, 3D configurator)    | **Colors**                   |
+| A stable token to filter, facet and build URLs on               | **Selection** or a **Topic** |
+| Both — the normal case for fashion, paint, furniture, packaging | **Both**, deliberately       |
+
+Run them side by side: the Selection or topic carries `red` for navigation and filtering, and the Colors component carries `#B22222` plus its Pantone for rendering.
+
+**Do not filter on colour values.** Shoppers filter on "Red", not on `#B22222`, and two near-identical hexes will not group into one facet. The filterable token and the renderable value are different jobs — give them different components.
 
 ### "I need to group or structure fields"
 
@@ -322,22 +348,23 @@ Every component has an **isTranslatable** flag that determines whether content c
 
 Different components have different default `isTranslatable` values based on their typical use cases:
 
-| Component                | Default isTranslatable | Typical use case                                              |
-| ------------------------ | ---------------------- | ------------------------------------------------------------- |
-| **Single Line**          | ✓ True                 | Titles, subtitles, slogans, taglines                          |
-| **Rich Text**            | ✓ True                 | Descriptions, marketing copy, specifications                  |
-| **Paragraph Collection** | ✓ True                 | Blog posts, landing pages, editorial content                  |
-| **Numeric**              | ✗ False                | Dimensions, weights, ratings (universal values)               |
-| **Properties Table**     | ✗ False                | Technical specs with shared keys/values                       |
-| **Images**               | ✗ False                | Product photos (same images, translate captions)              |
-| **Videos**               | ✗ False                | Product videos (same videos, translate captions)              |
-| **Files**                | ✗ False                | Shared downloads (or create separate per-market)              |
-| **Selection**            | ✗ False                | Shared options (size, color codes)                            |
-| **Switch**               | ✗ False                | Boolean flags (universal true/false)                          |
-| **Datetime**             | ✗ False                | Universal dates (launch, expiration)                          |
-| **Location**             | ✗ False                | Geographic coordinates (universal)                            |
-| **Item Relation**        | ✗ False                | Relationships are shared, but related items can be translated |
-| **Grid Relation**        | ✗ False                | Grid references shared, grid content can be translated        |
+| Component                | Default isTranslatable | Typical use case                                               |
+| ------------------------ | ---------------------- | -------------------------------------------------------------- |
+| **Single Line**          | ✓ True                 | Titles, subtitles, slogans, taglines                           |
+| **Rich Text**            | ✓ True                 | Descriptions, marketing copy, specifications                   |
+| **Paragraph Collection** | ✓ True                 | Blog posts, landing pages, editorial content                   |
+| **Numeric**              | ✗ False                | Dimensions, weights, ratings (universal values)                |
+| **Properties Table**     | ✗ False                | Technical specs with shared keys/values                        |
+| **Images**               | ✗ False                | Product photos (same images, translate captions)               |
+| **Videos**               | ✗ False                | Product videos (same videos, translate captions)               |
+| **Files**                | ✗ False                | Shared downloads (or create separate per-market)               |
+| **Selection**            | ✗ False                | Shared options (size, colour codes)                            |
+| **Colors**               | ✗ False                | Colour values are universal — `label` is the translatable part |
+| **Switch**               | ✗ False                | Boolean flags (universal true/false)                           |
+| **Datetime**             | ✗ False                | Universal dates (launch, expiration)                           |
+| **Location**             | ✗ False                | Geographic coordinates (universal)                             |
+| **Item Relation**        | ✗ False                | Relationships are shared, but related items can be translated  |
+| **Grid Relation**        | ✗ False                | Grid references shared, grid content can be translated         |
 
 **Important**: These are defaults when adding components. You can override them based on your specific use case.
 
@@ -636,6 +663,9 @@ Is the data a reference to another item?
   → Yes, to catalogue items → Item Relation
   → Yes, to a curated grid → Grid Relation
 
+Is the data a colour that has to render?
+  → Yes → Colors (add a Selection or topic alongside it if you also need to filter by colour)
+
 Is the data a choice from fixed options?
   → Yes, string labels → Selection
   → Yes, true/false → Switch
@@ -676,10 +706,15 @@ The **discoverable** flag determines whether a component is **indexed in the Dis
 **Examples:**
 
 - Numeric components (price, weight, dimensions) → enables range filters
-- Selection components (color, size, material) → enables faceted filtering
+- Selection components (colour, size, material) → enables faceted filtering
 - Single Line (model number, GTIN) → enables exact-match filtering
 - Switch (featured, on-sale) → enables boolean filtering
 - Item Relations (brand, category) → enables filtering by related items
+
+**Colors is the exception — do not reach for `discoverable` to build a colour filter.** Filter on the
+Selection or topic that carries the colour _name_, and keep the Colors component for the value you
+render. A hex is a poor facet: shoppers pick "Red", not `#B22222`, and two near-identical hexes will
+not collapse into one bucket. See "Colors vs Selection" above.
 
 **Do NOT mark as discoverable when:**
 
@@ -761,12 +796,13 @@ Every component type supports validation rules to enforce data integrity and gui
 
 ### Selection Components
 
-| Component     | Available validations                      |
-| ------------- | ------------------------------------------ |
-| **Selection** | Min/max selections, required/optional      |
-| **Switch**    | No validations (always boolean true/false) |
-| **Datetime**  | Min/max date range, required/optional      |
-| **Location**  | Required/optional                          |
+| Component     | Available validations                                                                         |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| **Selection** | Min/max selections, required/optional                                                         |
+| **Switch**    | No validations (always boolean true/false)                                                    |
+| **Datetime**  | Min/max date range, required/optional                                                         |
+| **Location**  | Required/optional                                                                             |
+| **Colors**    | Min/max number of entries, require label, restrict available colour spaces, required/optional |
 
 **Example use cases:**
 
@@ -775,6 +811,9 @@ Every component type supports validation rules to enforce data integrity and gui
 - **Required multi-select**: min=1, max=3 → "Select 1-3 colors" — at least one required, up to 3 allowed
 - **Preselected defaults**: Set `isPreselected: true` on commonly chosen options to prefill the selection for editors. Useful for default sizes, standard shipping modes, or common categories. Multiple options can be preselected.
 - Date range: launch date must be in the future, expiration within 2 years
+- **Colors with min=1, max=1, `requireLabel: true`**: exactly one named brand colour per item
+- **Colors with `colorPresets`**: editors can only choose from the approved palette
+- **Colors with `customColorSpaces: ["hex", "pantone"]`**: a print-facing shape that wants screen and press values, and nothing else
 
 ### Relationship Components
 
