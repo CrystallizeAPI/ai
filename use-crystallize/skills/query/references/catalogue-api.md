@@ -102,6 +102,46 @@ For search, filtering, and faceting, use the Discovery API instead.
 }
 ```
 
+### Reading a Colors component
+
+A `colors` component returns `ColorsContent`, holding a list of entries. Each entry carries whichever
+notations were stored — they are the **same colour** expressed several ways, so select the ones your
+frontend actually renders rather than all of them.
+
+```graphql
+{
+    catalogue(language: "en", path: "/shop/furniture/dining-chair") {
+        name
+        components {
+            id
+            content {
+                ... on ColorsContent {
+                    colors {
+                        label
+                        hex
+                        rgb {
+                            r
+                            g
+                            b
+                            a
+                        }
+                        pantone
+                        ral
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+`ColorEntry` exposes `label`, `hex`, `rgb { r g b a }`, `hsl { h s l a }`, `cmyk { c m y k }`,
+`pantone` and `ral`. Every field is nullable — an entry only carries the notations that were authored,
+so a storefront reading `hex` needs a fallback for entries stored as Pantone only.
+
+Colour **filtering** does not belong here or in Discovery; filter on the Selection or topic that
+carries the colour name. See [[content-model]] for the modelling rule.
+
 ## cURL Example
 
 ```bash

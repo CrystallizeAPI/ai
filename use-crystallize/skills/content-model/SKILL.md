@@ -1,6 +1,6 @@
 ---
 name: content-model
-description: Design content models in Crystallize using Shapes, Pieces, Components, Topic Maps, and Grids. Create product structures, define document types, build taxonomies, organize catalogue items, design relationships between items, implement classification bridges, configure item relations with shape restrictions, and architect scalable data models. Use when modeling content, creating shapes, defining components, building taxonomies, designing relationship patterns, implementing semantic bridges, configuring product variants, or structuring catalogue hierarchies.
+description: Design content models in Crystallize using Shapes, Pieces, Components, Topic Maps, and Grids. Create product structures, define document types, build taxonomies, organize catalogue items, design relationships between items, implement classification bridges, configure item relations with shape restrictions, model brand and product colours with the Colors component (hex, RGB, HSL, CMYK, Pantone, RAL, colour presets, swatches), and architect scalable data models. Use when modeling content, creating shapes, defining components, building taxonomies, designing relationship patterns, implementing semantic bridges, configuring product variants, choosing between a Colors component and a Selection for colour, or structuring catalogue hierarchies.
 metadata:
     author: Crystallize
     version: "3.0"

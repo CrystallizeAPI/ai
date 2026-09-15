@@ -71,7 +71,7 @@ Used in both `components` and `variantComponents` arrays, and recursively inside
 }
 ```
 
-**`ComponentType` enum:** `boolean` | `componentChoice` | `componentMultipleChoice` | `contentChunk` | `datetime` | `files` | `gridRelations` | `images` | `itemRelations` | `location` | `numeric` | `paragraphCollection` | `piece` | `propertiesTable` | `richText` | `selection` | `singleLine` | `videos`
+**`ComponentType` enum:** `boolean` | `colors` | `componentChoice` | `componentMultipleChoice` | `contentChunk` | `datetime` | `files` | `gridRelations` | `images` | `itemRelations` | `location` | `numeric` | `paragraphCollection` | `piece` | `propertiesTable` | `richText` | `selection` | `singleLine` | `videos`
 
 ---
 
@@ -265,6 +265,39 @@ config: {
 ```
 
 **`options` is required** (non-nullable array). Each option requires `key` (the API identifier) and `value` (the display label).
+
+---
+
+### colors
+
+```typescript
+config: {
+  colors: {
+    required?: Boolean
+    discoverable?: Boolean
+    multilingual?: Boolean
+    min?: Int                 // min number of colour entries
+    max?: Int                 // max number of colour entries
+    requireLabel?: Boolean    // force every entry to carry a label
+    colorPresets?: {          // fixed palette editors pick from
+      label?: String
+      hex?: String
+      rgb?: { r: Int!, g: Int!, b: Int!, a?: Float }
+      hsl?: { h: Int!, s: Int!, l: Int!, a?: Float }
+      cmyk?: { c: Int!, m: Int!, y: Int!, k: Int! }
+      pantone?: String
+      ral?: String
+    }[]
+    customColorSpaces?: ColorSpace[]   // cmyk | hex | hsl | pantone | ral | rgb
+  }
+}
+```
+
+Every field is optional — `colors` with no config is valid. One colour entry may carry several
+notations at once, so `colorPresets` entries and stored content share the same shape.
+
+Use `colorPresets` to lock a shape to a brand palette, and `customColorSpaces` to narrow which
+notations editors are offered — a print-facing shape might expose only `hex` and `pantone`.
 
 ---
 
