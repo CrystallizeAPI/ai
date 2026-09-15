@@ -25,9 +25,9 @@ outside API rate limits, coordinated multi-step changes, and large-scale content
 
 ## Decide the execution path first
 
-| Situation | Path |
-| --- | --- |
-| User has the Crystallize CLI, or is doing a production migration | **CLI** (default — recommended) |
+| Situation                                                          | Path                                        |
+| ------------------------------------------------------------------ | ------------------------------------------- |
+| User has the Crystallize CLI, or is doing a production migration   | **CLI** (default — recommended)             |
 | Browser/app context, CI without CLI, or building tooling around it | **Raw API** (see `references/lifecycle.md`) |
 
 ## Workflow
@@ -46,22 +46,22 @@ Component IDs that don't exist on the target shape are the single most common ca
 
 ```json
 {
-  "version": "1.0.0",
-  "operations": [
-    {
-      "intent": "piece/upsert",
-      "identifier": "rating-system",
-      "name": "Rating System",
-      "components": [
+    "version": "1.0.0",
+    "operations": [
         {
-          "id": "name",
-          "name": "Name",
-          "type": "singleLine",
-          "config": { "singleLine": { "required": true } }
+            "intent": "piece/upsert",
+            "identifier": "rating-system",
+            "name": "Rating System",
+            "components": [
+                {
+                    "id": "name",
+                    "name": "Name",
+                    "type": "singleLine",
+                    "config": { "singleLine": { "required": true } }
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 }
 ```
 
@@ -114,18 +114,18 @@ dependency is positional — the referencing operation has to come later in the 
 that creates its target. This is a universal rule: it applies to content exactly as it applies to the
 content model. There is no deferred resolution and no second pass.
 
-| Reference | Must already exist |
-| --- | --- |
-| `shape/upsert` choice → piece | the `piece/upsert` |
-| item's `shapeIdentifier` | the `shape/upsert` |
-| `tree.parentId` | the parent `folder/create` (or `{{ defaults.rootItemId }}`) |
-| `topicIds` on an item | the `topic/*` operations |
-| `itemRelations` content | every item it points at |
-| `item/updateComponent/*` | the item, and the component on its shape |
-| `product/variant/*`, `…/price/modify`, `…/stock/modify` | the product, price variant, stock location |
-| `item/flow/stage/addItems` | the `flow/*` defining that stage |
-| `order`/`subscription-contract` customer link | the `customer/upsert` |
-| any `{{ myRef.… }}` | the operation carrying that `_ref` |
+| Reference                                               | Must already exist                                          |
+| ------------------------------------------------------- | ----------------------------------------------------------- |
+| `shape/upsert` choice → piece                           | the `piece/upsert`                                          |
+| item's `shapeIdentifier`                                | the `shape/upsert`                                          |
+| `tree.parentId`                                         | the parent `folder/create` (or `{{ defaults.rootItemId }}`) |
+| `topicIds` on an item                                   | the `topic/*` operations                                    |
+| `itemRelations` content                                 | every item it points at                                     |
+| `item/updateComponent/*`                                | the item, and the component on its shape                    |
+| `product/variant/*`, `…/price/modify`, `…/stock/modify` | the product, price variant, stock location                  |
+| `item/flow/stage/addItems`                              | the `flow/*` defining that stage                            |
+| `order`/`subscription-contract` customer link           | the `customer/upsert`                                       |
+| any `{{ myRef.… }}`                                     | the operation carrying that `_ref`                          |
 
 Chain with `_ref` where there is no natural identifier, and with a shared `identifier` /
 `resourceIdentifier` where there is.
@@ -174,7 +174,7 @@ logs, not to you. Validate locally to see them.
 ## Rules that prevent most failures
 
 - **An item `upsert` with neither `itemId` nor `resourceIdentifier` always CREATES** — on every run.
-  `externalReference` is *not* a lookup key. This is the number-one duplicate-data trap: give every
+  `externalReference` is _not_ a lookup key. This is the number-one duplicate-data trap: give every
   `product|document|folder /upsert` a `resourceIdentifier`. Identifier-keyed upserts (`piece`, `shape`,
   `customer`, `customer/group`, `pricelist`, `flow`, `product/variant`) are genuinely idempotent;
   `order/upsert` and `subscription-contract/upsert` are not unless you pass a real `id`.
@@ -182,8 +182,8 @@ logs, not to you. Validate locally to see them.
   uploads fine, then fails the whole task at execution and abandons every remaining operation. It is
   the only one of the 59 intents in this position. Unpublish via the Core API `unpublishItem`
   mutation instead.
-- **Prefer `upsert` for re-runnability — but upserts derive from the *create* input schema**, so they
-  need the *full* create payload, not a sparse patch. `product/upsert` requires `tree`, `vatTypeId`, and
+- **Prefer `upsert` for re-runnability — but upserts derive from the _create_ input schema**, so they
+  need the _full_ create payload, not a sparse patch. `product/upsert` requires `tree`, `vatTypeId`, and
   `variants` exactly as `product/create` does. (`product/variant/update` is the exception — it's
   `.partial()`, so it genuinely accepts a sparse patch.)
 - **At `version: "1.0.0"` there is no upsert return-shape trap.** The v1.0.0 converters normalise every
@@ -203,9 +203,9 @@ logs, not to you. Validate locally to see them.
   `{{ ... }}` expression, nothing else. This is why `{{ defaults.vatTypeIds.[0] }}` and
   `{{ defaults.rootItemId }}` work where a literal placeholder like `"TODO"` fails validation.
 - **A handlebars expression that fails to render is written through literally.** The renderer catches
-  the error, logs it, and returns the *raw template string* — so a bad reference silently stores
+  the error, logs it, and returns the _raw template string_ — so a bad reference silently stores
   `{{ myRef.id }}` as data rather than failing the operation.
-- **`item/paths/set*` needs two operations to converge.** If anything must be removed, that run *only*
+- **`item/paths/set*` needs two operations to converge.** If anything must be removed, that run _only_
   removes; the add is expected as a separate operation. Not atomic, despite the name.
 - **Respect the domain limits — the schema does not.** A file that exceeds one validates, uploads, and
   fails at execution, or worse succeeds with altered data. **One invalid operation rejects the entire

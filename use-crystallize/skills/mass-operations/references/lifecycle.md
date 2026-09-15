@@ -20,18 +20,21 @@ that detail away (see Troubleshooting).
 ```
 crystallize mass-operation dump-content-model <tenant> <file>
 ```
+
 Generates a starter file containing the tenant's current shapes and pieces. Use this to ground shape
 identifiers and component IDs instead of guessing them.
 
 ```
 crystallize mass-operation run <tenant> <file>
 ```
+
 Validates → requests presigned upload → pushes the file → creates the bulk task with `autoStart` →
 waits for completion while tailing logs.
 
 ```
 crystallize mass-operation execute-mutations <tenant> <file> [image-mapping-file]
 ```
+
 Runs client-side GraphQL mutations alongside mass operations, for steps the runner doesn't cover.
 
 All commands support `--no-interactive` for CI and reuse stored credentials. `--legacy-spec` converts
@@ -44,9 +47,9 @@ verified against the runner source and may drift. `crystallize mass-operation --
 
 ### Endpoints and auth
 
-| Endpoint | URL | Auth |
-| --- | --- | --- |
-| Core API | `https://api.crystallize.com/@{tenant}` | Headers below |
+| Endpoint    | URL                                              | Auth                       |
+| ----------- | ------------------------------------------------ | -------------------------- |
+| Core API    | `https://api.crystallize.com/@{tenant}`          | Headers below              |
 | File upload | Returned in `generatePresignedUploadRequest.url` | Presigned — no auth needed |
 
 ```
@@ -59,19 +62,19 @@ X-Crystallize-Access-Token-Secret: <your-token-secret>
 
 ```graphql
 mutation GeneratePresignedUpload($filename: String!, $contentType: String!) {
-  generatePresignedUploadRequest(
-    input: {
-      type: MASS_OPERATIONS
-      filename: $filename
-      contentType: $contentType
+    generatePresignedUploadRequest(input: { type: MASS_OPERATIONS, filename: $filename, contentType: $contentType }) {
+        ... on PresignedUploadRequest {
+            url
+            fields {
+                name
+                value
+            }
+        }
+        ... on BasicError {
+            error
+            errorName
+        }
     }
-  ) {
-    ... on PresignedUploadRequest {
-      url
-      fields { name value }
-    }
-    ... on BasicError { error errorName }
-  }
 }
 ```
 
@@ -84,27 +87,27 @@ Multipart form POST. **Order matters: all presigned fields first, the file last.
 
 ```typescript
 async function uploadToPresignedUrl(
-  presignedUrl: string,
-  fields: Array<{ name: string; value: string }>,
-  fileContent: string
+    presignedUrl: string,
+    fields: Array<{ name: string; value: string }>,
+    fileContent: string,
 ): Promise<void> {
-  const formData = new FormData();
+    const formData = new FormData();
 
-  // Add all presigned fields first (order matters!)
-  for (const field of fields) {
-    formData.append(field.name, field.value);
-  }
+    // Add all presigned fields first (order matters!)
+    for (const field of fields) {
+        formData.append(field.name, field.value);
+    }
 
-  // Add the file last
-  const blob = new Blob([fileContent], { type: 'application/json' });
-  formData.append('file', blob);
+    // Add the file last
+    const blob = new Blob([fileContent], { type: "application/json" });
+    formData.append("file", blob);
 
-  const response = await fetch(presignedUrl, { method: 'POST', body: formData });
-  if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
+    const response = await fetch(presignedUrl, { method: "POST", body: formData });
+    if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
 }
 
 // The storage key is inside `fields` — there is no top-level `key`
-const storageKey = fields.find(f => f.name === 'key')?.value;
+const storageKey = fields.find((f) => f.name === "key")?.value;
 ```
 
 Equivalent with curl:
@@ -126,10 +129,16 @@ curl -X POST "$PRESIGNED_URL" \
 
 ```graphql
 mutation CreateMassOperationBulkTask($key: String!, $autoStart: Boolean) {
-  createMassOperationBulkTask(input: { key: $key, autoStart: $autoStart }) {
-    ... on BulkTaskMassOperation { id status }
-    ... on BasicError { error errorName }
-  }
+    createMassOperationBulkTask(input: { key: $key, autoStart: $autoStart }) {
+        ... on BulkTaskMassOperation {
+            id
+            status
+        }
+        ... on BasicError {
+            error
+            errorName
+        }
+    }
 }
 ```
 
@@ -139,10 +148,16 @@ mutation CreateMassOperationBulkTask($key: String!, $autoStart: Boolean) {
 
 ```graphql
 mutation StartMassOperationBulkTask($id: ID!) {
-  startMassOperationBulkTask(id: $id) {
-    ... on BulkTaskMassOperation { id status }
-    ... on BasicError { error errorName }
-  }
+    startMassOperationBulkTask(id: $id) {
+        ... on BulkTaskMassOperation {
+            id
+            status
+        }
+        ... on BasicError {
+            error
+            errorName
+        }
+    }
 }
 ```
 
@@ -174,14 +189,21 @@ Worth knowing when a task behaves oddly:
 
 ```graphql
 query GetBulkTaskStatus($id: ID!) {
-  bulkTask(id: $id) {
-    ... on BulkTaskMassOperation {
-      id
-      status
-      info { error errorName stack }
+    bulkTask(id: $id) {
+        ... on BulkTaskMassOperation {
+            id
+            status
+            info {
+                error
+                errorName
+                stack
+            }
+        }
+        ... on BasicError {
+            error
+            errorName
+        }
     }
-    ... on BasicError { error errorName }
-  }
 }
 ```
 
@@ -191,12 +213,12 @@ Lifecycle: **`pending → started → complete | error`**. The status enum is ex
 `{pending, started, complete, error}` — there is **no `running` state**, despite what the public docs
 say.
 
-| Status | Meaning |
-| --- | --- |
-| `pending` | Created but not started. Only a `pending` task will be picked up |
-| `started` | The operation loop is running |
+| Status     | Meaning                                                            |
+| ---------- | ------------------------------------------------------------------ |
+| `pending`  | Created but not started. Only a `pending` task will be picked up   |
+| `started`  | The operation loop is running                                      |
 | `complete` | The loop finished. **Individual operations may still have failed** |
-| `error` | The task aborted — check `info` |
+| `error`    | The task aborted — check `info`                                    |
 
 `complete` means "the runner reached the end of the array", not "everything worked".
 
@@ -204,12 +226,21 @@ say.
 
 ```graphql
 query OperationLogs($id: ID!, $first: Int) {
-  operationLogs(filter: { operationId: $id }, first: $first) {
-    edges {
-      node { status statusCode message input output }
+    operationLogs(filter: { operationId: $id }, first: $first) {
+        edges {
+            node {
+                status
+                statusCode
+                message
+                input
+                output
+            }
+        }
+        pageInfo {
+            hasNextPage
+            endCursor
+        }
     }
-    pageInfo { hasNextPage endCursor }
-  }
 }
 ```
 
@@ -221,11 +252,11 @@ will not return every log in one call. The filter also accepts two fields the do
 Each entry stores the original input payload, the command executed, the result, a `status`
 (`success` / `partial` / `failure`), and a `statusCode`.
 
-| status | statusCode | When |
-| --- | --- | --- |
-| `success` | `200` | Command executed without throwing |
-| `partial` | `206` | `item/publish` only — some items failed, or zero succeeded |
-| `failure` | `500` | The command threw, or the converter failed to build it |
+| status    | statusCode | When                                                       |
+| --------- | ---------- | ---------------------------------------------------------- |
+| `success` | `200`      | Command executed without throwing                          |
+| `partial` | `206`      | `item/publish` only — some items failed, or zero succeeded |
+| `failure` | `500`      | The command threw, or the converter failed to build it     |
 
 Those are the only three the runner emits. The underlying DTO permits `201/400/401/403/404/502/503/504`
 too, but nothing writes them.
@@ -244,15 +275,15 @@ operation whose `{{ upload ... }}` queued them.
 
 ```json
 {
-  "bulkTask": {
-    "id": "abc123",
-    "status": "error",
-    "info": {
-      "error": "Invalid Operation File",
-      "errorName": "Error",
-      "stack": "Error: Invalid Operation File\n    at OperationsFetcherService.fetch..."
+    "bulkTask": {
+        "id": "abc123",
+        "status": "error",
+        "info": {
+            "error": "Invalid Operation File",
+            "errorName": "Error",
+            "stack": "Error: Invalid Operation File\n    at OperationsFetcherService.fetch..."
+        }
     }
-  }
 }
 ```
 
@@ -261,27 +292,27 @@ runtime failure on a single operation, which is logged and stepped over.
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| `Invalid Operation File`, no detail | Server logs per-field zod issues to its own logger, not to `info` | Parse locally with `OperationsSchema`, or run via the CLI |
-| Task `error`: `No converter found for intent item/unpublish` | `item/unpublish` is unimplemented in the runner | Remove it; use the Core API `unpublishItem` mutation |
-| Task `error`: `TypeError: Invalid Version: 1` | `version` is `1`, `1.0` or `*` — valid per the regex, invalid per semver | Use `"1.0.0"` |
-| Task `error`: `No operations retrieved from spec file` | Empty `operations` array, or an unreadable/empty upload | Check the file actually uploaded |
-| Task stuck in `pending` | `autoStart: false` and never started | Call `startMassOperationBulkTask` |
-| Re-run created duplicate products/folders | Item `upsert` without `itemId` or `resourceIdentifier` always creates | Add a `resourceIdentifier` to every item upsert |
-| Re-run created duplicate orders/contracts | `order/upsert` and `subscription-contract/upsert` only dedupe on a real `id` | Track ids, or accept non-idempotence |
-| `ResourceIdentifier is not implemented yet` | That intent doesn't support it | See `intents.md` § "Where `resourceIdentifier` actually works" |
-| Operation missing entirely from `operationLogs` | Converter returned no command | See `intents.md` § "Silent skips" |
-| A field literally contains `{{ myRef.id }}` | Template render threw; the renderer returns the raw string | Fix the reference; check the intent's real `_ref` output |
-| Reference resolves to an object, not an ID | Running at `version: "0.0.1"` | Use `"1.0.0"`, where upserts are normalised flat |
-| `fetch*` returned pre-update data | Fetch cache isn't invalidated by that intent | Use an uncached helper (`*ByResourceIdentifier`, `fetchProductVariantBySku`) |
-| Variant `topicIds` didn't apply | Stripped by the schema, not re-attached by the runner | Assign variant topics via another API |
-| Component content saved but wrong | `item/updateComponent/item` runs with content validation disabled | Verify component IDs against `dump-content-model` |
-| `400 Bad Request` on mutations | Missing union type fragments | Add `... on BulkTaskMassOperation` and `... on BasicError` |
-| `Failed to fetch` on upload | Browser CORS restriction | Upload server-side or proxy the S3 request |
-| `key` is undefined | Looking for a top-level `key` | Read it from the fields array: `fields.find(f => f.name === 'key').value` |
-| Task `error` with no message | Not querying `info` | Add `info { error errorName stack }` to the `bulkTask` query |
-| `Invalid component ID …` | Component doesn't exist on that shape | Re-check against `dump-content-model` output |
+| Symptom                                                      | Cause                                                                        | Fix                                                                          |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `Invalid Operation File`, no detail                          | Server logs per-field zod issues to its own logger, not to `info`            | Parse locally with `OperationsSchema`, or run via the CLI                    |
+| Task `error`: `No converter found for intent item/unpublish` | `item/unpublish` is unimplemented in the runner                              | Remove it; use the Core API `unpublishItem` mutation                         |
+| Task `error`: `TypeError: Invalid Version: 1`                | `version` is `1`, `1.0` or `*` — valid per the regex, invalid per semver     | Use `"1.0.0"`                                                                |
+| Task `error`: `No operations retrieved from spec file`       | Empty `operations` array, or an unreadable/empty upload                      | Check the file actually uploaded                                             |
+| Task stuck in `pending`                                      | `autoStart: false` and never started                                         | Call `startMassOperationBulkTask`                                            |
+| Re-run created duplicate products/folders                    | Item `upsert` without `itemId` or `resourceIdentifier` always creates        | Add a `resourceIdentifier` to every item upsert                              |
+| Re-run created duplicate orders/contracts                    | `order/upsert` and `subscription-contract/upsert` only dedupe on a real `id` | Track ids, or accept non-idempotence                                         |
+| `ResourceIdentifier is not implemented yet`                  | That intent doesn't support it                                               | See `intents.md` § "Where `resourceIdentifier` actually works"               |
+| Operation missing entirely from `operationLogs`              | Converter returned no command                                                | See `intents.md` § "Silent skips"                                            |
+| A field literally contains `{{ myRef.id }}`                  | Template render threw; the renderer returns the raw string                   | Fix the reference; check the intent's real `_ref` output                     |
+| Reference resolves to an object, not an ID                   | Running at `version: "0.0.1"`                                                | Use `"1.0.0"`, where upserts are normalised flat                             |
+| `fetch*` returned pre-update data                            | Fetch cache isn't invalidated by that intent                                 | Use an uncached helper (`*ByResourceIdentifier`, `fetchProductVariantBySku`) |
+| Variant `topicIds` didn't apply                              | Stripped by the schema, not re-attached by the runner                        | Assign variant topics via another API                                        |
+| Component content saved but wrong                            | `item/updateComponent/item` runs with content validation disabled            | Verify component IDs against `dump-content-model`                            |
+| `400 Bad Request` on mutations                               | Missing union type fragments                                                 | Add `... on BulkTaskMassOperation` and `... on BasicError`                   |
+| `Failed to fetch` on upload                                  | Browser CORS restriction                                                     | Upload server-side or proxy the S3 request                                   |
+| `key` is undefined                                           | Looking for a top-level `key`                                                | Read it from the fields array: `fields.find(f => f.name === 'key').value`    |
+| Task `error` with no message                                 | Not querying `info`                                                          | Add `info { error errorName stack }` to the `bulkTask` query                 |
+| `Invalid component ID …`                                     | Component doesn't exist on that shape                                        | Re-check against `dump-content-model` output                                 |
 
 ## Browser CORS
 
@@ -293,14 +324,14 @@ The S3 bucket may block cross-origin requests from a browser. Options, in order 
 
 ```javascript
 export default defineConfig({
-  server: {
-    proxy: {
-      '/api/s3-upload': {
-        target: 'https://crystallize-mass-operations-production.s3.eu-central-1.amazonaws.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/s3-upload/, ''),
-      },
+    server: {
+        proxy: {
+            "/api/s3-upload": {
+                target: "https://crystallize-mass-operations-production.s3.eu-central-1.amazonaws.com",
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/api\/s3-upload/, ""),
+            },
+        },
     },
-  },
 });
 ```

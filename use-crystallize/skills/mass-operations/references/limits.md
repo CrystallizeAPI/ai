@@ -21,24 +21,24 @@ re-check anything load-bearing before depending on it.
 
 Three distinct modes. Knowing which one applies tells you whether to expect an error at all.
 
-| Mode | What you see | Blast radius |
-| --- | --- | --- |
-| **schema-validation** | task `error`, `Invalid Operation File`, nothing runs | the whole file |
-| **runtime-throw** | that operation logs `failure` / 500, run continues | one operation |
-| **silent** | **nothing** — no error, no log, wrong data stored | however many rows carry it |
+| Mode                  | What you see                                         | Blast radius               |
+| --------------------- | ---------------------------------------------------- | -------------------------- |
+| **schema-validation** | task `error`, `Invalid Operation File`, nothing runs | the whole file             |
+| **runtime-throw**     | that operation logs `failure` / 500, run continues   | one operation              |
+| **silent**            | **nothing** — no error, no log, wrong data stored    | however many rows carry it |
 
 The silent class is the dangerous one and it is large. Local validation cannot catch any of it,
-because the value is legal — it is the *behaviour* that differs from what you wrote.
+because the value is legal — it is the _behaviour_ that differs from what you wrote.
 
 ## File-level
 
-| Limit | Value | Mode |
-| --- | --- | --- |
-| **One invalid operation rejects the entire file** | all-or-nothing `safeParse` | schema-validation |
-| Spec file size (presigned POST content-length-range) | **50 MiB** max, 1 byte min (`UPLOAD_MAX_SIZE`) | upload rejected |
-| Offload to standalone task | **1 MiB** (`MASS_OPERATIONS_STANDALONE_TASK_FILE_SIZE_THRESHOLD`) | none — runs elsewhere |
-| Operations per file | **no cap** | — |
-| `version` format | `/^(\d+\.)?(\d+\.)?(\*|\d+)$/` — but only `1.0.0` works, see `SKILL.md` | runtime-throw |
+| Limit                                                | Value                                                             | Mode                                         |
+| ---------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------- |
+| **One invalid operation rejects the entire file**    | all-or-nothing `safeParse`                                        | schema-validation                            |
+| Spec file size (presigned POST content-length-range) | **50 MiB** max, 1 byte min (`UPLOAD_MAX_SIZE`)                    | upload rejected                              |
+| Offload to standalone task                           | **1 MiB** (`MASS_OPERATIONS_STANDALONE_TASK_FILE_SIZE_THRESHOLD`) | none — runs elsewhere                        |
+| Operations per file                                  | **no cap**                                                        | —                                            |
+| `version` format                                     | `/^(\d+\.)?(\d+\.)?(\*                                            | \d+)$/`— but only`1.0.0`works, see`SKILL.md` | runtime-throw |
 
 **All-or-nothing validation is the one to internalise.** There is no partial acceptance: operation
 500 of 500 being malformed means operations 1–499 never run. Chunk large files so one bad row costs
@@ -46,15 +46,15 @@ you one chunk, and validate locally before every upload.
 
 ## Batch caps per operation
 
-| Intent | Cap | Counting subtlety |
-| --- | --- | --- |
-| `topic/create`, `topic/upsert` | **30 topics** | counts the **whole subtree recursively** — 1 root + 29 descendants |
-| `item/flow/stage/addItems` | **50 items** | raw array length; throws during conversion, so the op is skipped with a 500 |
-| `order/*` | **500 cart items** | |
-| `order/*` | **100 applied promotions**, **50 related orders** | |
-| Any item or variant | **250 `topicIds`** | product variants share one **deduplicated union** across all variants |
-| `flow/*` | **30 stages**, **8 actions per stage** | nested `onFailure` actions are **not** counted |
-| `customer/*`, `customer/group/*` | **5 parents**, **20 addresses**, hierarchy depth **5** | |
+| Intent                           | Cap                                                    | Counting subtlety                                                           |
+| -------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `topic/create`, `topic/upsert`   | **30 topics**                                          | counts the **whole subtree recursively** — 1 root + 29 descendants          |
+| `item/flow/stage/addItems`       | **50 items**                                           | raw array length; throws during conversion, so the op is skipped with a 500 |
+| `order/*`                        | **500 cart items**                                     |                                                                             |
+| `order/*`                        | **100 applied promotions**, **50 related orders**      |                                                                             |
+| Any item or variant              | **250 `topicIds`**                                     | product variants share one **deduplicated union** across all variants       |
+| `flow/*`                         | **30 stages**, **8 actions per stage**                 | nested `onFailure` actions are **not** counted                              |
+| `customer/*`, `customer/group/*` | **5 parents**, **20 addresses**, hierarchy depth **5** |                                                                             |
 
 `item/publish` has a 50-id batch cap that you **cannot reach** — the converter always sends exactly
 one `itemId`.
@@ -114,12 +114,12 @@ rather than an error.
 
 ### Strings, dates, identifiers
 
-- **`ValidatedString` never trims.** Leading/trailing whitespace is stored *and counts toward every
-  length cap*.
+- **`ValidatedString` never trims.** Leading/trailing whitespace is stored _and counts toward every
+  length cap_.
 - **`ValidatedString` coerces via `toString()`** — a number or boolean becomes its string form rather
   than being rejected. An explicit `null` raises a raw `TypeError`.
 - **Datetime is re-parsed by `new Date()` and re-emitted as UTC ISO.** Offsets are normalised away.
-- **Topic `pathIdentifier` is sliced to 64 chars *before* slugification**, so a long topic name
+- **Topic `pathIdentifier` is sliced to 64 chars _before_ slugification**, so a long topic name
   silently produces a different stored path.
 - **`KeyValuePair` coerces an empty-string value to `null`.**
 - **Tree-path collisions are silently rewritten** with a random suffix — one 5-char attempt, one
@@ -150,53 +150,53 @@ Cases where two components behave oppositely from the same JSON.
 - **`item/updateComponent/item` skips ALL component content validation**: min/max counts, file size, MIME type and `required` are simply not executed. The identical payload
   via `item/updateComponent/sku`, `product/upsert`, `document/upsert` **is** validated and throws.
   Only reference existence and type are still checked. Enforcement depends on which intent you chose.
-- **Order line items and payment objects are `.strict()`** — they reject *any* unknown key, while
+- **Order line items and payment objects are `.strict()`** — they reject _any_ unknown key, while
   nearly every other schema silently strips them. The one place a typo errors instead of vanishing.
 
 ## Component capacity
 
 Ceilings on the `max` you may configure, and therefore on content.
 
-| Component | Cap |
-| --- | --- |
-| `itemRelations` | **75** (quick-select folders: 100) |
-| `images`, `files`, `videos`, `gridRelations` | **512** |
-| `colors` | **100** |
-| `numeric` `decimalPlaces` | 0–**64** |
-| Configurable `min`/`max` bounds | max **1048576**, min **256** |
-| Component nesting depth | **5**, following piece expansion |
+| Component                                    | Cap                                |
+| -------------------------------------------- | ---------------------------------- |
+| `itemRelations`                              | **75** (quick-select folders: 100) |
+| `images`, `files`, `videos`, `gridRelations` | **512**                            |
+| `colors`                                     | **100**                            |
+| `numeric` `decimalPlaces`                    | 0–**64**                           |
+| Configurable `min`/`max` bounds              | max **1048576**, min **256**       |
+| Component nesting depth                      | **5**, following piece expansion   |
 
 ## String and number bounds
 
-| Field | Bound |
-| --- | --- |
-| **Default for every unqualified string** | min 1, **max 256** |
-| Shape / piece / flow identifier | **2–64**, charset `[A-Za-z0-9]` plus `; : + @ (` and space |
-| `resourceIdentifier` | 1–**256**, charset `[A-Za-z0-9]` plus `. - _ / @` |
-| `externalReference` | 1–256 |
-| Item / catalogue item name | **512** |
-| Product variant name | **1024** |
-| SKU | **512** |
-| Variant attribute key / value | **128** / **2048** |
-| Component name / description | 256 / 1024 |
-| `singleLine` text, meta value, tree path | **1048576** |
-| Meta key | 256 |
-| Image alt text / URL | 1024 / 10240 |
-| Order `additionalInformation` | 10240 |
-| Language code | 2–20 |
-| Currency code | 10 |
-| Topic display colour | 4–9, `/^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/` |
-| Uploaded filename (basename of the `{{upload}}` URL) | 3–512 |
-| Every `id` field | exactly 24 lowercase hex, or `{{ ... }}` |
-| Price | −1e9 … 1e9 |
-| Percent (order tax & discount) | −1000 … 1000 |
-| Order cart item quantity | 0 … 1e6 |
-| Item tree position | 1 … 100000 |
-| Latitude / longitude | ±90 / ±180 |
-| Focal point | x, y each 0 … 1 |
-| **`product/variant/price/modify` price** | **minimum 1** — you cannot set 0 this way |
-| **`product/variant/stock/modify` quantity** | **positive integer** |
-| Stock (elsewhere) | `ValidatedInteger`, **fractional input silently truncated** |
+| Field                                                | Bound                                                       |
+| ---------------------------------------------------- | ----------------------------------------------------------- |
+| **Default for every unqualified string**             | min 1, **max 256**                                          |
+| Shape / piece / flow identifier                      | **2–64**, charset `[A-Za-z0-9]` plus `; : + @ (` and space  |
+| `resourceIdentifier`                                 | 1–**256**, charset `[A-Za-z0-9]` plus `. - _ / @`           |
+| `externalReference`                                  | 1–256                                                       |
+| Item / catalogue item name                           | **512**                                                     |
+| Product variant name                                 | **1024**                                                    |
+| SKU                                                  | **512**                                                     |
+| Variant attribute key / value                        | **128** / **2048**                                          |
+| Component name / description                         | 256 / 1024                                                  |
+| `singleLine` text, meta value, tree path             | **1048576**                                                 |
+| Meta key                                             | 256                                                         |
+| Image alt text / URL                                 | 1024 / 10240                                                |
+| Order `additionalInformation`                        | 10240                                                       |
+| Language code                                        | 2–20                                                        |
+| Currency code                                        | 10                                                          |
+| Topic display colour                                 | 4–9, `/^#([A-Fa-f0-9]{3}                                    | [A-Fa-f0-9]{6})$/` |
+| Uploaded filename (basename of the `{{upload}}` URL) | 3–512                                                       |
+| Every `id` field                                     | exactly 24 lowercase hex, or `{{ ... }}`                    |
+| Price                                                | −1e9 … 1e9                                                  |
+| Percent (order tax & discount)                       | −1000 … 1000                                                |
+| Order cart item quantity                             | 0 … 1e6                                                     |
+| Item tree position                                   | 1 … 100000                                                  |
+| Latitude / longitude                                 | ±90 / ±180                                                  |
+| Focal point                                          | x, y each 0 … 1                                             |
+| **`product/variant/price/modify` price**             | **minimum 1** — you cannot set 0 this way                   |
+| **`product/variant/stock/modify` quantity**          | **positive integer**                                        |
+| Stock (elsewhere)                                    | `ValidatedInteger`, **fractional input silently truncated** |
 
 ## Structural rules
 

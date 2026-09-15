@@ -198,22 +198,22 @@ mutation CreateRole {
 
 ```graphql
 mutation UpdateRole($roleId: ID!) {
-  user {
-    role {
-      update(
-        id: $roleId
-        input: {
-          name: "Content Editor"
-          tenantPermissions: {
-            # Set CRUD permissions per resource
-          }
+    user {
+        role {
+            update(
+                id: $roleId
+                input: {
+                    name: "Content Editor"
+                    tenantPermissions: {
+                        # Set CRUD permissions per resource
+                    }
+                }
+            ) {
+                id
+                name
+            }
         }
-      ) {
-        id
-        name
-      }
     }
-  }
 }
 ```
 
