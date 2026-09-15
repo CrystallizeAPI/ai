@@ -122,21 +122,17 @@ mutation SetItemTaste($input: SetItemTasteInput!) {
         ... on Document {
             id
         }
-        ... on ItemNotFoundError {
-            message
-        }
-        ... on ExperimentalFeaturesNotAvailableError {
-            message
-        }
-        ... on UnauthorizedError {
-            message
-        }
-        ... on UnknownError {
+        ... on BasicError {
+            errorName
             message
         }
     }
 }
 ```
+
+Every error member of the union implements the `BasicError` interface, so one fragment covers all of
+them — `errorName` tells you which one you got. Spelling out individual error types is only worth it
+when you branch on a field the interface does not carry.
 
 ```json
 {
@@ -166,8 +162,9 @@ SetItemTasteResult (union)   Product | Folder | Document
                              | UnauthorizedError | UnknownError
 ```
 
-`ExperimentalFeaturesNotAvailableError` is in the result union and is **not** in the public docs — handle
-it. It means vectors are not enabled for the tenant at all.
+`ExperimentalFeaturesNotAvailableError` is in the result union and is **not** in the public docs. It
+means vectors are not enabled for the tenant at all — read `errorName` off the `BasicError` fragment to
+tell it apart from the others.
 
 ### Order is the input to positional weights
 
@@ -253,16 +250,8 @@ mutation Index {
             status
             createdAt
         }
-        ... on ExperimentalFeaturesNotAvailableError {
-            message
-        }
-        ... on InvalidIdError {
-            message
-        }
-        ... on UnauthorizedError {
-            message
-        }
-        ... on UnknownError {
+        ... on BasicError {
+            errorName
             message
         }
     }

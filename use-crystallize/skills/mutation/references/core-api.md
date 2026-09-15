@@ -585,10 +585,8 @@ mutation SetItemTaste($input: SetItemTasteInput!) {
         ... on Product {
             id
         }
-        ... on ItemNotFoundError {
-            message
-        }
-        ... on ExperimentalFeaturesNotAvailableError {
+        ... on BasicError {
+            errorName
             message
         }
     }
@@ -603,15 +601,17 @@ mutation Index {
             status
             createdAt
         }
-        ... on ExperimentalFeaturesNotAvailableError {
-            message
-        }
-        ... on UnauthorizedError {
+        ... on BasicError {
+            errorName
             message
         }
     }
 }
 ```
+
+All three results are unions whose error members implement `BasicError`, so a single fragment covers
+every failure and `errorName` identifies it. `setItemTaste` and `igniteDiscoApi` can both return
+`ExperimentalFeaturesNotAvailableError`, which means vectors are not enabled for the tenant.
 
 Read back with `vocabulary(name:)` and `item(id:, language:) { taste { vocabulary entries { key weight } } }`.
 
