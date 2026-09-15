@@ -1,0 +1,9 @@
+# oxfmt (via `make codeclean`) reads this file.
+#
+# oxfmt formats fenced code blocks inside Markdown. It parses ```handlebars
+# blocks as JavaScript and rewrites them, which changes documented template
+# syntax rather than just its layout — `{{ 0.firstName }}` becomes
+# `{{[0].firstName}}`, a different Handlebars expression. The mass-operations
+# templating reference documents exactly what the runner accepts, so it must
+# not be reformatted until oxfmt leaves handlebars blocks alone.
+use-crystallize/skills/mass-operations/references/templating.md
