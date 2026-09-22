@@ -62,11 +62,11 @@ the argument in the schema as the capability check.
 
 Three enums are generated **per tenant**, so they are never hardcodable:
 
-| Enum                         | Built from                                                           | Gotcha                                                              |
-| ---------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `TenantVocabularyIdentifier` | your vocabularies                                                    | a new vocabulary is only a valid value **after the next index run** |
-| `TenantRankByField`          | NUMBER and DATE **filterable** attributes, **facet fields excluded** | it is _not_ "any numeric field" — introspect it                     |
-| `TenantRankByTieBreaker`     | sortable fields (token, number, date)                                | `tieBreaker` is **required** on every `rankBy`                      |
+| Enum                         | Built from                                                           | Gotcha                                                                                                                  |
+| ---------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `TenantVocabularyIdentifier` | your vocabularies                                                    | a new vocabulary is only a valid value **after the next index run**; until a tenant has one, the argument is a `String` |
+| `TenantRankByField`          | NUMBER and DATE **filterable** attributes, **facet fields excluded** | it is _not_ "any numeric field" — introspect it                                                                         |
+| `TenantRankByTieBreaker`     | sortable fields (token, number, date)                                | `tieBreaker` is **required** on every `rankBy`                                                                          |
 
 Introspect all three rather than guessing:
 
@@ -124,7 +124,7 @@ Two properties fall out of this and drive every design decision:
 ```text
 Core        upsertVocabulary                    once per vocabulary — FULL REPLACE, not a patch
 Core        setItemTaste                        once per item, per vocabulary — writes the DRAFT
-Core        publishItems                        the step that is easy to miss
+Core        publishItem                         per item and language — the step that is easy to miss
 Core        igniteDiscoApi(stacks: opensearch)  poll bulkTask until "complete", then let it propagate
 Discovery   search(rankBy:)                     your rules: margin, stock, velocity, recency
 Discovery   search(context:)                    ranked for this shopper
@@ -168,20 +168,21 @@ They are **not** on `Topic.children`, which takes `language` only. Note the nami
 
 Four of these produce **no error at all** — they are the reason this skill exists.
 
-| Symptom                                 | Cause                                                      | Fix                                                                                                                     |
-| --------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Order unrelated to taste, no errors     | Taste is on the draft only                                 | `publishItems`, index again, retest                                                                                     |
-| Order unchanged after editing taste     | No index run since the change                              | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                               |
-| Index rebuilt, still no vectors         | `igniteDiscoApi` run without `stacks: opensearch`          | Re-run with `stacks: opensearch`                                                                                        |
-| Rankings subtly wrong, no errors        | `magnitude` miscomputed client-side                        | Assert `sqrt(Σ w²)` against a known case                                                                                |
-| `rankScore` comes back `null`           | No rerank ran — no `rankBy`, or every term had `weight: 0` | Give at least one term a non-zero weight                                                                                |
-| Vocabulary "does not exist in enum"     | No index run since it was created                          | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                               |
-| `context` / `rankBy` unknown in schema  | Ranking not enabled for the tenant, or not indexed         | Confirm ranking is enabled, then index and wait for `complete` plus propagation. Detect the capability, don't assume it |
-| `Malformed taste entry key`             | Key has no colon                                           | Use `dimensionId:value`                                                                                                 |
-| `Unknown dimension`                     | Prefix is not a declared dimension                         | Add it to the vocabulary, or fix the key                                                                                |
-| `tieBreaker` validation error           | Required field missing                                     | Add a `tieBreaker`                                                                                                      |
-| `ExperimentalFeaturesNotAvailableError` | Vectors not enabled for the tenant                         | Enable the feature before authoring taste                                                                               |
-| Page 2 empty under ranking              | `skip` ran past the rerank window                          | Raise `options.rerankWindow` (default 500, cap 2000)                                                                    |
+| Symptom                                 | Cause                                                       | Fix                                                                                                                     |
+| --------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Order unrelated to taste, no errors     | Taste is on the draft only                                  | `publishItem`, index again, retest                                                                                      |
+| Order unchanged after editing taste     | No index run since the change                               | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                               |
+| Index rebuilt, still no vectors         | `igniteDiscoApi` run without `stacks: opensearch`           | Re-run with `stacks: opensearch`                                                                                        |
+| Rankings subtly wrong, no errors        | `magnitude` miscomputed client-side                         | Assert `sqrt(Σ w²)` against a known case                                                                                |
+| `rankScore` comes back `null`           | No rerank ran — no `rankBy`, or every term had `weight: 0`  | Give at least one term a non-zero weight                                                                                |
+| Vocabulary "does not exist in enum"     | No index run since it was created                           | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                               |
+| `Vocabulary <name> not found`           | No vocabulary indexed yet; the argument is still a `String` | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`, then pass the enum value unquoted                            |
+| `context` / `rankBy` unknown in schema  | Ranking not enabled for the tenant, or not indexed          | Confirm ranking is enabled, then index and wait for `complete` plus propagation. Detect the capability, don't assume it |
+| `Malformed taste entry key`             | Key has no colon                                            | Use `dimensionId:value`                                                                                                 |
+| `Unknown dimension`                     | Prefix is not a declared dimension                          | Add it to the vocabulary, or fix the key                                                                                |
+| `tieBreaker` validation error           | Required field missing                                      | Add a `tieBreaker`                                                                                                      |
+| `ExperimentalFeaturesNotAvailableError` | Vectors not enabled for the tenant                          | Enable the feature before authoring taste                                                                               |
+| Page 2 empty under ranking              | `skip` ran past the rerank window                           | Raise `options.rerankWindow` (default 500, cap 2000)                                                                    |
 
 ## How ranking composes with the rest of the query
 

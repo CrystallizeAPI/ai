@@ -18,7 +18,7 @@ cart → placed → ordered
 | ----------- | ----------------------------------------------- | -------- |
 | `cart`      | Active cart, items and prices can be changed    | Yes      |
 | `placed`    | Locked for payment — no modifications allowed   | No       |
-| `ordered`   | Fulfilled — linked to an order via `orderId`    | No       |
+| `ordered`   | Linked to an order via `orderId`                | No       |
 | `abandoned` | Explicitly abandoned (e.g., user left checkout) | No       |
 
 Query the cart state with:
@@ -30,7 +30,7 @@ query {
         state # cart | placed | ordered | abandoned
         isStale # true if prices may have changed since last hydration
         isExpired # true if cart has expired
-        orderId # set after fulfill, links to the order
+        orderId # set when an order is created from the cart
     }
 }
 ```
@@ -418,7 +418,7 @@ mutation {
 
 ### Fulfill Cart
 
-After creating an order (via [`createFromCart`](shop-api-order-mutations.md) on the `/order` endpoint), mark the cart as fulfilled by linking it to the order ID:
+**Not needed after `createFromCart`.** [`createFromCart`](shop-api-order-mutations.md) on the `/order` endpoint already moves the cart to `ordered` and sets `orderId`, and the order id is the cart id. Use `fulfill` to link a cart to an order created some other way:
 
 ```graphql
 mutation {
@@ -488,8 +488,10 @@ The full checkout flow spans the Core API, `/cart` endpoint, and `/order` endpoi
 2. (Optional edits)           → POST /cart   — addSkuItem, setCustomer, setAddresses, etc.
 3. Place Cart                 → POST /cart   — Lock cart for payment
 4. Create Order               → POST /order  — createFromCart (⚠ different endpoint!)
-5. (Optional) Fulfill         → POST /cart   — Link cart to order ID
 ```
+
+After step 4 the cart is `ordered` and linked to the order; the order id is the cart id. There is no
+separate fulfill step.
 
 ### Customer Creation
 

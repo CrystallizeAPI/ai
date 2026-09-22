@@ -548,6 +548,9 @@ mutation {
 }
 ```
 
+`createFromCart` also moves the cart to `ordered` and sets its `orderId`. The order id is the cart id, so
+there is nothing left to link: do not follow it with `fulfill`.
+
 ## Best Practices
 
 1. **Use the correct endpoint** — Cart operations on `/cart`, order operations on `/order`

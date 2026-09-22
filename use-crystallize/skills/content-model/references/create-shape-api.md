@@ -140,7 +140,7 @@ config: {
     required?: Boolean
     discoverable?: Boolean
     multilingual?: Boolean
-    decimalPlaces?: Int
+    decimalPlaces?: Int  // 1–64; leave it out for integers (mass operations reject 0)
     units?: String[]   // list of allowed units editors can select (e.g. ["kg", "g", "lb"])
   }
 }
