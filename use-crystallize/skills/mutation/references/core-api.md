@@ -600,7 +600,7 @@ Discovery's vector ranking is authored entirely on the Core API. Four calls, in 
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `upsertVocabulary(input: UpsertVocabularyInput!)` | **Full replace**, not a patch — omitted dimensions are dropped                                                                 |
 | `setItemTaste(input: SetItemTasteInput!)`         | One item, one language, one vocabulary. Writes the **draft**                                                                   |
-| `publishItems(ids: [ID!]!, language: String!)`    | The indexer reads the published version — skipping this fails silently                                                         |
+| `publishItem(id: ID!, language: String!)`         | The indexer reads the published version — skipping this fails silently. See the note on `publishItems` below                   |
 | `igniteDiscoApi(stacks: opensearch)`              | Async; poll `bulkTask(id:)` until `complete`, then allow propagation. `stacks: opensearch` is required for vectors to be built |
 
 ```graphql
@@ -650,6 +650,11 @@ every failure and `errorName` identifies it. `setItemTaste` and `igniteDiscoApi`
 `ExperimentalFeaturesNotAvailableError`, which means vectors are not enabled for the tenant.
 
 Read back with `vocabulary(name:)` and `item(id:, language:) { taste { vocabulary entries { key weight } } }`.
+
+Prefer `publishItem` per item over `publishItems` here. `publishItem` returns the published version
+(`PublishInfo`) or an error for that item; `publishItems` returns a `PublishItemsRequest`, and its return
+is not proof that the items are published yet — index right after it and the index may read the old
+versions.
 
 **Re-run `igniteDiscoApi` after every change to vocabularies or taste entries** — an unindexed change
 has no effect and raises no error. Omitting `stacks: opensearch` likewise fails silently: the index

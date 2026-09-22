@@ -98,7 +98,9 @@ Treat `propertiesTable` as config-driven: the shape decides the shape of the dat
 
 - **`decimalPlaces` FLOORS the stored number.** It is not a display setting — the value is truncated
   on write, and it does not round.
-- **`decimalPlaces: 0` takes a `parseInt(String(...))` branch that destroys small-magnitude numbers.**
+- **`decimalPlaces: 0` is rejected** by mass-operation validation (`Too small: expected number to be >0`).
+  Leave the key out for integers. If a shape's config holds 0 anyway, the runner's content path takes a
+  `parseInt(String(...))` branch that destroys small-magnitude numbers.
 - An empty-string `unit` is silently dropped in content, but **throws** in shape config.
 
 ### Choice and selection filter to configured options
@@ -162,7 +164,7 @@ Ceilings on the `max` you may configure, and therefore on content.
 | `itemRelations`                              | **75** (quick-select folders: 100) |
 | `images`, `files`, `videos`, `gridRelations` | **512**                            |
 | `colors`                                     | **100**                            |
-| `numeric` `decimalPlaces`                    | 0–**64**                           |
+| `numeric` `decimalPlaces`                    | 1–**64** (0 is rejected)           |
 | Configurable `min`/`max` bounds              | max **1048576**, min **256**       |
 | Component nesting depth                      | **5**, following piece expansion   |
 

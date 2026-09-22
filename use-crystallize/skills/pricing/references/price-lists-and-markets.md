@@ -140,30 +140,55 @@ Price lists override or adjust the base price (from price variants) for specific
     - **Period** (optional) — Start and end dates
     - **Target** — Market, customer group, or individual customer
 
-### Via PIM API
+### Via Core API
 
 ```graphql
 mutation CreatePriceList {
-    priceList {
-        create(
-            input: {
-                tenantId: "your-tenant-id"
-                identifier: "eu-summer-sale"
-                name: "EU Summer Sale"
-                modifierType: PERCENTAGE
-                priceVariants: ["retail"]
-                selectedProductVariants: { type: ALL }
-                targetAudience: { marketIdentifiers: ["eu-retail"] }
-                startDate: "2025-06-01T00:00:00Z"
-                endDate: "2025-08-31T23:59:59Z"
-            }
-        ) {
+    createPriceList(
+        input: {
+            identifier: "eu-summer-sale"
+            name: "EU Summer Sale"
+            modifierType: PERCENTAGE
+            priceVariants: [{ identifier: "retail", modifier: -10 }]
+            selectedProductVariants: { type: ALL_SKUS }
+            targetAudience: { type: SOME, marketIdentifiers: ["eu-retail"] }
+            startDate: "2025-06-01T00:00:00Z"
+            endDate: "2025-08-31T23:59:59Z"
+        }
+    ) {
+        ... on PriceList {
             identifier
             name
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
+
+Every part of the input is an object, not a bare identifier:
+
+| Field                     | Shape                                                                                              |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `priceVariants`           | `[{ identifier, modifier, decimalPlaces? }]` — `modifier` is read according to `modifierType`      |
+| `selectedProductVariants` | `{ type: ALL_SKUS \| SOME_SKUS, variants?: [{ sku, priceVariants: [{ identifier, modifier }] }] }` |
+| `targetAudience`          | `{ type: EVERYONE \| SOME, marketIdentifiers?, customerGroupIdentifiers?, customerIdentifiers? }`  |
+
+`targetAudience.type` is required. With `SOME`, name the audience in one or more of the identifier lists.
+There is no `ALL` selection type — it is `ALL_SKUS` or `SOME_SKUS`. A list for specific SKUs:
+
+```graphql
+selectedProductVariants: {
+    type: SOME_SKUS
+    variants: [{ sku: "olive-oil-500ml", priceVariants: [{ identifier: "retail", modifier: -15 }] }]
+}
+```
+
+The legacy PIM API (`priceList { create(input: { tenantId, ... }) }`) takes the same input shape plus
+`tenantId`. In a mass operation the intent is `pricelist/create` or `pricelist/upsert`, with the same
+fields at the top level of the operation.
 
 ### Adjustment Types
 

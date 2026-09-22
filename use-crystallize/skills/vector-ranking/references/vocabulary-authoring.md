@@ -221,12 +221,23 @@ items were published before you attached taste, publish them again or the served
 vectors.
 
 ```graphql
-mutation Publish($ids: [ID!]!, $language: String!) {
-    publishItems(ids: $ids, language: $language) {
+mutation Publish($id: ID!, $language: String!) {
+    publishItem(id: $id, language: $language) {
         __typename
+        ... on PublishInfo {
+            versionId
+        }
+        ... on BasicError {
+            errorName
+            message
+        }
     }
 }
 ```
+
+Publish **per item and per language**. `publishItem` answers with the published version or an error
+for that item. `publishItems` returns a `PublishItemsRequest` instead, and its return is not proof that
+the items are published yet — index right after it and the index may read the old versions.
 
 **Skipping this step produces no error.** Queries still return results, and the order may even change —
 it just has no relation to taste. The check in step 6 is the only thing that catches it.
@@ -283,6 +294,12 @@ From then on the tenant's Discovery schema includes `context`, `rankBy` and `nea
 vocabulary you created becomes a value of the `TenantVocabularyIdentifier` enum. **A vocabulary is only
 a valid enum value after the next index run** — until then, queries referencing it fail schema
 validation.
+
+Before a tenant has any indexed vocabulary, the same arguments (`nearestTo.vocabulary`,
+`userTaste.vocabulary`) are typed `String`, and a query fails with `Vocabulary <name> not found`. After
+the index run they take the enum: `vocabulary: taste`, not `vocabulary: "taste"`. A query or a typed
+variable written for one form fails on the other, so check the type with introspection (see
+[SKILL.md](../SKILL.md)) before you hardcode either.
 
 ## 6. Verify
 
