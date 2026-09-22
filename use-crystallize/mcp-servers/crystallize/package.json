@@ -16,8 +16,8 @@
         "goals": "bun run bin/plausible-goals.ts"
     },
     "dependencies": {
-        "@crystallize/js-api-client": "^7.3.0",
-        "@crystallize/schema": "^6.13.0",
+        "@crystallize/js-api-client": "^7.4.0",
+        "@crystallize/schema": "^6.14.0",
         "@modelcontextprotocol/ext-apps": "1.7.1",
         "@modelcontextprotocol/sdk": "1.28.0",
         "agents": "^0.8.7",

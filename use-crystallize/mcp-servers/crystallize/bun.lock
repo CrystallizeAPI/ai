@@ -5,8 +5,8 @@
     "": {
       "name": "crystallize-mcp-server",
       "dependencies": {
-        "@crystallize/js-api-client": "^7.3.0",
-        "@crystallize/schema": "^6.13.0",
+        "@crystallize/js-api-client": "^7.4.0",
+        "@crystallize/schema": "^6.14.0",
         "@modelcontextprotocol/ext-apps": "1.7.1",
         "@modelcontextprotocol/sdk": "1.28.0",
         "agents": "^0.8.7",
@@ -122,9 +122,9 @@
 
     "@cloudflare/workers-types": ["@cloudflare/workers-types@4.20260317.1", "", {}, "sha512-+G4eVwyCpm8Au1ex8vQBCuA9wnwqetz4tPNRoB/53qvktERWBRMQnrtvC1k584yRE3emMThtuY0gWshvSJ++PQ=="],
 
-    "@crystallize/js-api-client": ["@crystallize/js-api-client@7.3.0", "", { "dependencies": { "@crystallize/schema": "^6.13.0", "jose": "^6.2.3", "json-to-graphql-query": "^2.3.0", "mime-lite": "^1.0.3", "zod": "^4.4.3" } }, "sha512-SROfk+JRtrv4wHLNpcA1q4iJY7lMCpmgX+IU0xqnGV2c9ZdgIJWR8GX+q6UXo0Lwh6asdZmiNjD/+4qXrOKFaw=="],
+    "@crystallize/js-api-client": ["@crystallize/js-api-client@7.4.0", "", { "dependencies": { "@crystallize/schema": "^6.14.0", "jose": "^6.2.10", "json-to-graphql-query": "^2.3.0", "mime-lite": "^1.0.3", "zod": "^4.4.3" } }, "sha512-jvh1Shgjop7MNnrPcoEHrhunrICOJFmzDF91UGXdQV4cqT9Sd2ecJwkN1nutL1mgWuEvydBtlErsDCo1Jx0L0A=="],
 
-    "@crystallize/schema": ["@crystallize/schema@6.13.0", "", { "dependencies": { "tslib": "^2.8.1", "zod": "^4.3.6" } }, "sha512-+jRrn/5HR9JtxO0eONnQKi9LADceb/TgybLmLvNGTLwIsVIepyiRO7jwUFWEtAHZpZNZjndWhkKxt5XMk1LBeQ=="],
+    "@crystallize/schema": ["@crystallize/schema@6.14.0", "", { "dependencies": { "tslib": "^2.8.1", "zod": "^4.3.6" } }, "sha512-d/6dXHzTUk9Lbh50Ahrjpx4zIAH3u/10YX6d0u5WDzMyZ+jMtL07aCWz402duXkPO8OK6v+UJIvRoJpY1YPCrg=="],
 
     "@cspotcode/source-map-support": ["@cspotcode/source-map-support@0.8.1", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
 
@@ -763,6 +763,8 @@
     "@babel/helper-compilation-targets/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
     "@babel/helper-create-class-features-plugin/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
+
+    "@crystallize/js-api-client/jose": ["jose@6.2.12", "", {}, "sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw=="],
 
     "@img/sharp-wasm32/@emnapi/runtime": ["@emnapi/runtime@1.9.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-VYi5+ZVLhpgK4hQ0TAjiQiZ6ol0oe4mBx7mVv7IflsiEp0OWoVsp/+f9Vc1hOhE0TtkORVrI1GvzyreqpgWtkA=="],
 
