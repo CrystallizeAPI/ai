@@ -105,5 +105,6 @@ rental listing without matching on the path in four languages.
 ## Services around a booking
 
 Delivery, damage waiver, cleaning, an operator: sell them as ordinary products and add them to the cart
-as normal lines, or as `type: service` lines. They are not bookable themselves — they follow the booking
-they belong to. Group them with the booking line's `group` so the basket can show them together.
+as normal lines, or as `type: service` lines. They are not bookable themselves; they follow the booking
+they belong to. Give them and the booking line the same `group` so the basket can show them together.
+Set `group` and `type` through `hydrate`: `bookSkuItem` ignores both on a new line.

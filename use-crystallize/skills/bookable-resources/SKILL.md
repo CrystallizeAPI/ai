@@ -36,7 +36,7 @@ be booked, and the Shop API holds them for a shopper while they shop, then hands
 | **Pool**         | What can be booked on one product: **named units** (machine 1, machine 2) **or** a plain **capacity**       |
 | **Reservation**  | One hold on one window, in one cart line. It expires unless it is confirmed                                 |
 | **Window**       | `start` and `end`, absolute times. Availability is asked and holds are taken per window                     |
-| **Confirmation** | What turns a hold into a booking that survives. It is two calls, not one — see below                        |
+| **Confirmation** | What turns a hold into a booking that survives. It must run after the cart has its `orderId` — see below    |
 
 Booking sits on the **product**; the price comes from the **variant**. A rental sold by the day, the
 weekend and the week is therefore one bookable product with three variants.
@@ -46,12 +46,13 @@ weekend and the week is therefore one bookable product with three variants.
 ```text
 Core    createBookingPolicy          the rules — every duration in SECONDS
 Core    setBookable(id, language)    one pool per product: units[] OR capacity, never both
-Core    publishItem                  until it is published the Shop API answers NotBookable
+Core    publishItem                  the Shop API reads published data only — publish after EVERY
+                                     setBookable, reapplyBookablePolicy or clearBookable
 Shop    availability / checkBooking  what is free, and would this exact booking be taken
 Shop    bookSkuItem                  a hold on the cart, in state PENDING
 Shop    place                        re-checks the holds and extends them to placedHoldDuration
 Shop    createFromCart               the order. It only snapshots the reservations
-Shop    confirmCartBooking           twice: before the order, and again once the cart has its orderId
+Shop    confirmCartBooking           once the cart has its orderId (optionally also before payment)
 ```
 
 Everything a storefront does is on Discovery and the Shop API. **Core is for setup only** — policies,
@@ -59,8 +60,8 @@ pools and publishing are admin-time work, never called from a storefront at runt
 
 ## Is this tenant bookable?
 
-Ask for the policies. A tenant without the capability answers with an error rather than an empty list,
-so match on the type, not on the message:
+There is no feature flag: every tenant has booking policies, and **role permissions are the gate**. Ask
+for the policies to find out whether this session can manage them:
 
 ```graphql
 {
@@ -71,28 +72,32 @@ so match on the type, not on the message:
         }
         ... on BasicError {
             errorName
+            message
         }
     }
 }
 ```
 
-`ExperimentalFeaturesNotAvailableError` means the tenant is not served for bookings.
+A connection means yes. `FORBIDDEN` means the role lacks the `bookingPolicies` permission. That
+usually happens on a custom role created before bookings existed, and it is fixed on the role, not in
+the query.
 
 ## Failure modes
 
 The first three produce no error at all — they are the reason this skill exists.
 
-| Symptom                                                    | Cause                                                                 | Fix                                                                                       |
-| ---------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Admin shows "No order — not checked out" on a paid booking | `confirmCartBooking` ran before the cart had its `orderId`            | Confirm **again** after `createFromCart` — see [booking-flow](references/booking-flow.md) |
-| `NotBookable` on a product you just made bookable          | The item is not published, or the query's `language` is wrong         | Publish it; pass the language the item exists in                                          |
-| A policy change has no effect on products                  | Products hold a `policySnapshot` taken when the pool was set          | `reapplyBookablePolicy`                                                                   |
-| Every booking answers `NotBookable` on every product       | The tenant is not served for bookings                                 | Probe `bookingPolicies` first                                                             |
-| Windows land a day off, or holds never expire              | A duration was sent in minutes, hours or days                         | Every policy duration is **seconds**; read `humanized` back to check                      |
-| `ReservationConflict` on a unit that looked free           | Someone took it between the availability query and the booking        | Walk the other `freeUnitIds` and retry                                                    |
-| `CancellationWindowClosed` when removing a basket line     | The window applies to holds that were never bought                    | Re-hydrate the cart without that line instead                                             |
-| `BookablePoolKindChangeError`                              | The product already has the other kind of pool                        | `clearBookable` first, then set the new pool                                              |
-| `BookingPolicyInUseError` on delete                        | Products still reference the policy (`stats.referencingProductCount`) | Move those products to another policy first                                               |
+| Symptom                                                      | Cause                                                                            | Fix                                                                                       |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Admin shows "No order — not checked out" on a paid booking   | `confirmCartBooking` ran before the cart had its `orderId`                       | Confirm **again** after `createFromCart` — see [booking-flow](references/booking-flow.md) |
+| `NotBookable` on a product you just made bookable            | The item is not published, or the query's `language` is wrong                    | Publish it; pass the language the item exists in                                          |
+| A pool or policy change has no effect in the Shop            | Bookable edits are drafts; products keep the `policySnapshot` they were set with | `reapplyBookablePolicy` for a policy change, then **publish** the product                 |
+| `FORBIDDEN` from `createBookingPolicy`                       | The role has no `bookingPolicies` permission                                     | Grant it on the role                                                                      |
+| Holds vanish within seconds, or `InvalidRange` on every date | A duration was sent in minutes, hours or days                                    | Every policy duration is **seconds**; read `humanized` back to check                      |
+| `hydrate` throws "A placed cart cannot be hydrated"          | The cart is placed; its contents are frozen                                      | Change bookings before `place`, or through `/booking/admin` after                         |
+| `ReservationConflict` on a unit that looked free             | Someone took it between the availability query and the booking                   | Walk the other `freeUnitIds` and retry                                                    |
+| `CancellationWindowClosed` when removing a basket line       | The window applies to holds that were never bought                               | Re-hydrate the cart without that line instead                                             |
+| `BookablePoolKindChangeError`                                | Capacity → units while a capacity pool is published                              | `clearBookable`, publish, cancel or wait out open reservations, then set units            |
+| `BookingPolicyInUseError` on delete                          | Products still reference the policy (`stats.referencingProductCount`)            | Move those products to another policy and publish them                                    |
 
 ## References
 

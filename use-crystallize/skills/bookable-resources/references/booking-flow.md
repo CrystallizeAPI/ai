@@ -42,6 +42,7 @@ mutation Book($id: UUID, $input: CartBookingItemInput!) {
         ... on Cart {
             id
             items {
+                lineId
                 name
                 meta
             }
@@ -91,8 +92,12 @@ booking someone else may have taken that unit. Any other refusal is final — st
 "meta": { "reservationIds": "18a6b9d4-…", "booking.window": "2026-10-01T08:00:00.000Z/2026-10-01T16:00:00.000Z" }
 ```
 
-`booking.window` is written for you. **Write the `unitId` into the line's `meta` yourself** — the cart
-does not return a line's unit, and you need it to re-hydrate the line without losing the hold.
+`booking.window` is written for you. **Write the `unitId` into the line's `meta` yourself.** `CartItem`
+has no booking field, and a pinned line re-hydrated without its `unitId` does not match its hold: it
+is rebooked, possibly onto another unit. `reservation(cartId:, id:) { unitId }` can recover a lost one.
+
+`bookSkuItem` ignores `group` and `type` on a new line. To group a booking with its services, set
+`group` when you next `hydrate`.
 
 Read one hold with `reservation(cartId:, id:)`:
 `{ id, productId, variantSku, unitId, start, end, state, source, cartLineId, orderId, expiresAt }`.
@@ -104,28 +109,51 @@ the line slides its expiry forward. There is no "extend the hold" mutation.
 
 That cuts both ways, and the second half is the useful one:
 
-- **To keep a booking**, send every line on every hydrate, including its `unitId` meta.
+- **To keep a booking**, send every line on every hydrate, with its window and unit:
+
+    ```json
+    {
+        "sku": "RENT-GAS55-DAY",
+        "quantity": 1,
+        "lineId": "…",
+        "booking": { "start": "2026-10-01T08:00:00Z", "end": "2026-10-01T16:00:00Z", "unitId": "GAS55-OSL-1" },
+        "meta": [{ "key": "unitId", "value": "GAS55-OSL-1" }]
+    }
+    ```
+
+    A line is matched to its hold by window and unit, so resend both unchanged. `lineId` (selectable on
+    `CartItem`) is the line's server-minted handle; send it back when two lines share a SKU.
+
 - **To remove one from the basket**, re-hydrate without it. Do **not** use `cancelReservation`: the
   policy's cancellation window applies to a hold that was never bought, so a rental starting tomorrow
   under a two-day window answers `CancellationWindowClosed` and the shopper cannot empty their own
   basket. Verified against a live tenant.
 
-`cancelReservation(cartId:, reservationId:)` is right when the shopper is outside the window, and
-`rebookReservation(cartId:, reservationId:, newBooking:)` moves a hold to a new window atomically —
-`ReservationConflict` is the only outcome worth retrying.
+`cancelReservation(cartId:, reservationId:)` succeeds only while the start is at least
+`cancellationWindow` seconds away. It is right for a line that is far enough out, and
+`rebookReservation(cartId:, reservationId:, newBooking:)` moves a hold to a new window atomically. It
+moves every reservation on that line, so a quantity-3 line moves as one. `ReservationConflict` is the
+only outcome worth retrying.
 
-## 4. Place, order, confirm — in that order, and confirm twice
+**All of this is for a draft cart.** Once the cart is placed, `hydrate` throws "A placed cart cannot be
+hydrated", and `cancelReservation`/`rebookReservation` throw `InvalidStateError`. Finish every change to
+the bookings before `place`.
+
+## 4. Place, pay, order, confirm — in that order
 
 ```text
-place(id)                     re-checks every hold, extends to placedHoldDuration
-confirmCartBooking(cartId)    the holds still stand; safe to take payment
+place(id)                     re-checks every hold, extends to placedHoldDuration (0 = pendingHoldDuration)
+confirmCartBooking(cartId)    OPTIONAL: the holds still stand, and are now committed — see below
+… take payment …
 createFromCart(id, input)     the order (on /order). It snapshots the reservations
 … wait for cart.orderId …     the cart is linked in the background, ~500 ms
-confirmCartBooking(cartId)    again — this is what writes orderId onto the reservations
+confirmCartBooking(cartId)    REQUIRED: this is what writes orderId onto the reservations
 ```
 
 **`confirmCartBooking` writes `orderId` onto the reservations only if the cart already has one.** The
-cart gets its `orderId` a few hundred milliseconds after `createFromCart` returns, so a single confirm
+order id is the cart id, but `createFromCart` returns before it links the cart: it saves the order
+and stamps `orderId` on the cart in the background. The cart therefore gets its `orderId` a few
+hundred milliseconds after `createFromCart` returns, so a single confirm
 before the order leaves every reservation `{ state: CONFIRMED, orderId: null }`, and the admin shows
 "No order — not checked out" for a booking that was paid for.
 
@@ -144,9 +172,15 @@ async function linkReservations(cartId: string) {
 }
 ```
 
-Keep the first confirm as well: it is what proves the holds still stand before the shopper is charged.
-`confirmCartBooking` answers `Cart`, `NotPlaced`, `NothingToConfirm` or `ReservationNoLongerHeld` — the
-last one means a hold expired while payment was in flight, and the shopper has to pick another window.
+**The first confirm commits the slot before the money moves.** A `CONFIRMED` reservation never expires:
+it blocks the calendar until its window ends. It is what proves the holds still stand before the
+shopper is charged. If you keep it, cancel the reservations through `/booking/admin` when the payment
+fails, or the machine stays blocked with no order behind it. If you drop it, `place` is still the
+last check before payment, and the holds live for `placedHoldDuration` while payment runs.
+`confirmCartBooking` answers `Cart`, `NotPlaced`, `NothingToConfirm` or `ReservationNoLongerHeld`. The
+last one means a hold expired while payment was in flight; select its `missing` field for the ids. It
+is all or nothing: the surviving holds stay `PENDING`, and the shopper has to pick another window for
+the lost one.
 
 When payment is confirmed server-side by a gateway webhook, run the confirmation there rather than in the
 browser round trip.
@@ -156,8 +190,26 @@ cart id.
 
 ## After the order
 
-- A confirmed reservation on an ordered cart **cannot be cancelled through the cart**: "A reservation
-  cannot be cancelled through a cart that is no longer editable." The Shop API's `/booking/admin`
-  endpoint is where a sold booking is administered.
-- A reservation's `state` is a string. The ones a storefront meets are `PENDING` before confirmation and
-  `CONFIRMED` after it; a hold that was never confirmed disappears when it expires.
+- A reservation on a placed or ordered cart **cannot be cancelled through the cart**: "A reservation
+  cannot be cancelled through a cart that is no longer editable." Cancel it on the Shop API's
+  `/booking/admin` endpoint, which needs a token with both the `booking` and `booking:admin` scopes and
+  ignores the cancellation window. Run it server-side only:
+
+    ```graphql
+    mutation {
+        cancel(id: "18a6b9d4-…", reason: "payment failed") {
+            id
+            state
+        }
+    }
+    ```
+
+    `bulkCancel(ids:, reason:)` takes up to 100 ids and answers per id; it is not atomic.
+
+- **A hold lost after `place` cannot be re-picked on that cart.** A placed cart cannot be hydrated or
+  rebooked. On `ReservationNoLongerHeld`, cancel the survivors (above), refund if the money has
+  moved, and start a new cart for the new window.
+- A reservation's `state` is a string: `PENDING`, `CONFIRMED`, `COMPLETED`, `CANCELLED` or `EXPIRED`. A
+  hold that runs out becomes `EXPIRED`, up to a minute late, while its line stays in the cart. The next
+  `hydrate` takes it again if the window is still free and throws `BookingNoLongerAvailable` if not;
+  `place` refuses it with `HoldNoLongerHeld`.

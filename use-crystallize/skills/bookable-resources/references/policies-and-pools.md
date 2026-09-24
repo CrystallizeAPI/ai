@@ -57,6 +57,9 @@ mutation CreatePolicy($input: CreateBookingPolicyInput!) {
 | `pendingHoldDuration` | yes      | How long a hold in a live cart survives (15 minutes = `900`)                    |
 | `placedHoldDuration`  | no       | How long a hold survives after `place`, while payment happens (1 day = `86400`) |
 
+A `placedHoldDuration` of `0`, or none, gives a placed cart a fresh `pendingHoldDuration`. Set it
+when payment takes longer than a live hold, such as an invoice or a bank transfer.
+
 **Read `humanized` back after writing.** It returns the same values as `{ value, unit }` in days, hours,
 minutes or seconds, which is the cheapest way to catch a duration that was sent in the wrong unit. The
 mistake is silent otherwise: a `cancellationWindow` of `2` is two seconds, not two days.
@@ -69,7 +72,9 @@ it, and `deleteBookingPolicy` refuses with `BookingPolicyInUseError` while that 
 
 ## The pool
 
-`setBookable` attaches a policy and says what can be booked. One product, one language, one pool.
+`setBookable` attaches a policy and says what can be booked. One product, one pool. `language` is
+required, but the pool is not per language: every language of the product shares it, so set it and
+reapply it once per product.
 
 ```graphql
 mutation SetBookable($id: String!, $language: String!, $input: GraphqlBookableInputInput!) {
@@ -99,8 +104,14 @@ Two kinds, and a product has exactly one of them:
 storefront reads it back from Discovery and can show "the machine in Oslo". There is no other place to
 put it.
 
-Switching a product from one kind to the other answers `BookablePoolKindChangeError`. `clearBookable`
-removes the pool, `bookableProducts` lists every bookable product in the tenant.
+Units → capacity is allowed. Capacity → units answers `BookablePoolKindChangeError` while the
+**published** pool is a capacity pool, because capacity-era reservations carry no unit. Clear it with
+`clearBookable`, publish that, cancel or wait out the open reservations, then set the units.
+
+`clearBookable(id, language)` removes the pool, but only from the draft: the Shop keeps taking bookings
+until the product is published again. Unpublish to stop bookings at once. `bookableProducts` lists
+products with a **published** bookable configuration only. A product configured but never published
+is not in it.
 
 ## The snapshot
 
@@ -139,11 +150,18 @@ removes the pool, `bookableProducts` lists every bookable product in the tenant.
 ```
 
 **Editing a policy does not reach the products that use it.** They keep their snapshot until
-`reapplyBookablePolicy` runs. Change the window, reapply, then check a product's
-`policySnapshot.version` — this is the step that makes "we changed the cancellation window and nothing
-happened" go away.
+`reapplyBookablePolicy(id, language)` runs on each one. It re-freezes the policy's current terms and
+leaves the pool untouched, so do not re-run `setBookable` for this. Change the window, reapply, check
+the product's `policySnapshot`, then **publish**. Until the publish, the Shop still books under the old
+terms. This is the step that makes "we changed the cancellation window and nothing happened" go away.
+
+Reservations already taken keep the terms they were admitted under. A policy edit never changes a
+booking a shopper already holds.
 
 ## Publish
 
-A bookable product that is not published answers `NotBookable` on every Shop API call, with no hint that
-publishing is what is missing. Publish per item and language with `publishItem` — see [[mutation]].
+The Shop reads the **published** bookable configuration only. A bookable product that is not
+published answers `NotBookable` on every Shop API call, with no hint that publishing is what is
+missing. `setBookable`, `reapplyBookablePolicy` and `clearBookable` all write to the draft, so each one
+needs a publish before the Shop sees it. Publish per item and language with `publishItem`. See
+[[mutation]].
