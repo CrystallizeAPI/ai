@@ -57,7 +57,7 @@ bun type-check      # TypeScript type checking
 
 Skills are plain markdown files in `use-crystallize/skills/` — no build step required. Each skill has a `SKILL.md` with YAML frontmatter and an optional `references/` directory with supporting docs.
 
-Available skills: `content-model`, `data-creation`, `information-architecture`, `js-api-client`, `mass-operations`, `mutation`, `permissions`, `plugins`, `pricing`, `query`, `responsive-images`, `taxonomy`, `vector-ranking` — the directory itself is the authoritative list.
+Available skills: `bookable-resources`, `content-model`, `data-creation`, `information-architecture`, `js-api-client`, `mass-operations`, `mutation`, `permissions`, `plugins`, `pricing`, `query`, `responsive-images`, `taxonomy`, `vector-ranking` — the directory itself is the authoritative list.
 
 ## Using the Claude Plugin
 
