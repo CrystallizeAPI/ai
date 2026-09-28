@@ -154,10 +154,51 @@ Variables:
 ```json
 {
     "customerIdentifier": "john@example.com",
-    "limit": 10,
+    "limit": 100,
     "skip": 0
 }
 ```
+
+> **Scope this on the server.** The JWT is per tenant, not per shopper: `orders` answers for whatever
+> `customerIdentifier` it is given. Take the identifier from the session and never from the client. The
+> same holds for `subscriptionContracts(customerIdentifier:)` on the `/subscription-contract` endpoint.
+
+**`limit`/`skip` paged inconsistently** in the Tools Universe build: `limit: 10` returned 5 orders and
+then 4 for a customer with 9. Ask for everything a customer has in one page (`limit: 100`) rather than
+walking pages.
+
+For a company or a department there is no query by parent: read the people's orders and filter on your
+own `meta` (the ordering person, the cost centre).
+
+## The Order Store and Core
+
+Shop API orders and Core orders are the same orders in two stores, and they do **not** converge. Two
+build findings decide how a storefront should read them.
+
+**Orders edited in Core appear more than once here.** Three `order { update }` calls on one seeded order
+left **three** orders in `orders(customerIdentifier:)`: new Shop ids, the same `coreId`, different
+`updatedAt`. A storefront that sums an order list then counts the same money several times over — the Lab
+Universe build saw a department budget of NOK 1,249,299 instead of 411,775. Two defences, use both:
+
+1. **Group by `coreId` and keep the most recently updated copy** whenever you read a list.
+2. **Change orders through the Shop API** (`setMeta`, `addToStage`) when a storefront reads them, so no
+   copy is ever made.
+
+**The sync runs one way, Shop → Core.** An order created with the Shop API gets its `coreId` in about ten
+seconds, and `addToStage` on the Shop API moves the Core stage too. Nothing comes back the other way:
+orders registered in Core with `registerOrder` showed up in the Shop store only sometimes, carrying the
+pipelines they had at creation time, and a later `updateOrderPipelineStage` or `deleteOrder` in Core never
+reached the Shop store at all (watched for minutes). So a storefront that lists orders with the Shop API
+must have them **created** there, and **moved between stages** there. Seed demo orders with the Shop API,
+not with `registerOrder`. (Tools Universe.)
+
+Two smaller consequences:
+
+- **`pipelines` comes back as identifiers only** (`{ identifier, stage }`). A storefront that shows a
+  stage name has to map the ids to names itself; the names live in the admin APIs, so resolve them at
+  build or seed time rather than at runtime.
+- **`coreId` can read `null`** on an order created with Shop `create` even after it has reached Core.
+  Don't treat a null `coreId` as "not synced yet".
 
 ## Order Response Types
 

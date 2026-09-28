@@ -551,6 +551,35 @@ mutation {
 `createFromCart` also moves the cart to `ordered` and sets its `orderId`. The order id is the cart id, so
 there is nothing left to link: do not follow it with `fulfill`.
 
+## The Order Store Syncs One Way
+
+Shop API orders and Core orders are two stores, and only one direction is reliable.
+
+**Shop → Core works.** An order created here gets its `coreId` in about ten seconds, and `addToStage`
+moves the Core stage with it. (`coreId` can still read `null` in the answer of a Shop `create` even after
+the order has reached Core, so don't use it as a sync flag.)
+
+**Core → Shop does not.** Orders registered in Core with `registerOrder` appeared in the Shop store only
+sometimes, carrying the pipelines they had at creation, and a later `updateOrderPipelineStage` or
+`deleteOrder` in Core never reached the Shop store at all (watched for minutes). **Seed demo orders with
+the Shop API, not with `registerOrder`**, if a storefront is going to list them.
+
+**Worse: editing an order in Core adds another copy of it to the Shop store.** Three `order { update }`
+calls on one seeded order left three orders in `orders(customerIdentifier:)` — new Shop ids, the same
+`coreId`, different `updatedAt`. A storefront that sums that list counts the same money several times
+over; the Lab Universe build read a department budget of NOK 1,249,299 instead of 411,775. So:
+
+- **Change orders through the Shop API** (`setMeta`, `addToStage`, `setPayments`) whenever a storefront
+  reads them.
+- If something must be edited in Core anyway, have the reader **group by `coreId` and keep the most
+  recently updated copy**.
+
+**There is no delete on the Shop API.** Cancelled or mistaken orders stay in the list. Archive them with
+`setMeta` (`archived: true`) and filter them out when reading; deleting the Core order does not remove the
+Shop one.
+
+(Both findings come from the Tools Universe and Lab Universe builds.)
+
 ## Best Practices
 
 1. **Use the correct endpoint** — Cart operations on `/cart`, order operations on `/order`
@@ -560,6 +589,8 @@ there is nothing left to link: do not follow it with `fulfill`.
 5. **Use `meta` for custom data** — Store fulfillment status, tracking numbers, external references
 6. **Use pipelines for workflow** — Track orders through fulfillment stages
 7. **Use `coreId`** — When you need to reference the order in Core API mutations
+8. **Write in one store** — If a storefront reads the orders, create and change them here, not in Core
+9. **Resolve pipeline names up front** — Orders carry pipeline and stage **ids** only; map them to names at build or seed time from the admin APIs
 
 ## Related
 
