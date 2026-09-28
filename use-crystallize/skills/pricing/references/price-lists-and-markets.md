@@ -252,6 +252,85 @@ Price Lists:
         Period: Jan 1 – Dec 31 (annual renewal)
 ```
 
+### Contract prices
+
+A negotiated B2B price — an institution's framework agreement, a chain's terms — is a **price list aimed
+at that customer**, not a price variant per customer. Two properties make it work, both measured on a live
+tenant:
+
+**A percentage list applies on top of the price variant's volume tiers.** The list price for one SKU had
+tiers 522 / 496 (from 10) / 470 (from 50) NOK. With a −18.0077 % list for the customer, the Catalogue API
+answered 428 / 406.68 / 385.36 for `count: 1 | 10 | 50` — each tier, less the percentage.
+
+```graphql
+query ContractPrice($skus: [String!]!, $c: [String!]) {
+    productVariants(skus: $skus, language: "en") {
+        sku
+        priceVariant(identifier: "nok") {
+            price # the list price
+            priceFor(count: 10, customerIdentifiers: $c) {
+                price # what this customer pays for 10
+                identifier # which price list applied
+                modifier
+                modifierType
+            }
+        }
+    }
+}
+```
+
+So keep the tiers on the variant and make the contract a **`PERCENTAGE`** list. An `ABSOLUTE` list sets a
+flat price and the tiers are gone — that is the only case where "price lists have no tiers" holds.
+
+**A list aimed at a customer reaches that customer's children.** With
+`targetAudience: { type: SOME, customerIdentifiers: ["nordvik-uh"] }`, the list resolved for a person whose
+`parents` include the institution (verified: a person identifier answered the institution's contract, with
+the list's identifier in `priceFor`), and for a department in between. One list per organisation is enough;
+you do not need customer groups, and you do not need the customer's own price variant.
+
+**Customer groups are a dead end here for now.** A group created with Core `createCustomerGroup` is listed
+by `customerGroups`, but `createPriceList(targetAudience: { customerGroupIdentifiers })` answers
+`CustomerGroupNotFoundError`, also after a wait — seen on two tenants. Target the customers directly.
+
+### Where each API resolves a price list
+
+This is the table to read before designing a B2B storefront, because the three APIs do not agree:
+
+| API           | Resolves a list for                                                                  | How                                                                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Discovery** | markets only — there is **no customer context**                                      | `<variant>PriceFor(marketIdentifiers:)`, `<variant>BestPriceListFor(…)`                                                                                     |
+| **Catalogue** | customer, customer group **or** market                                               | `priceVariant(identifier) { priceFor(count, customerIdentifiers, customerGroupIdentifiers, marketIdentifiers) { price identifier modifier modifierType } }` |
+| **Shop API**  | the cart's customer, plus `context.price.markets` and `context.price.customerGroups` | `hydrate` prices the lines                                                                                                                                  |
+
+`customerIdentifiers` is a **list** (`[String!]`), not a single string.
+
+A storefront that lists products from Discovery therefore cannot show a contract price from that query
+alone: `<variant>BestPriceList` comes back `null` for a customer-targeted list, since Discovery has no idea
+who is asking. Read the customer's terms from the **Catalogue API** server-side, cache them per
+organisation, and apply them where you render prices. The cart then agrees by itself, because the Shop API
+resolves the same list from the cart's customer.
+
+Note that every price variant generates its own Discovery fields — `nokPrice(count)`, `nokPriceTiers`,
+`nokPriceFor(marketIdentifiers, count)`, `nokBestPriceListFor(…)`, plus the filter/facet/sort field
+`price_nok`. A variant with no price for a product answers `null`, so `filters: { price_x: { exists: true } }`
+is a usable "is this on that price variant" filter. And because Discovery is public, anyone who knows a
+field name can read any price variant it exposes: keep genuinely confidential terms out of Discovery and
+read them from the Catalogue API server-side.
+
+### Working with big lists
+
+- **One `createPriceList` call carries a whole catalogue.** A list with 2,211 SKUs went in as a single
+  `SOME_SKUS` call with a modifier per SKU; no batching needed. `updatePriceList` replaces the SKU
+  selection whole, so send the complete set every time.
+- **`productVariants(skus:)` on the Catalogue API takes at most 150 SKUs** (`TOO_MANY_SKUS_PROVIDED`), and
+  `priceFor` is slow — about 2 s per 150 SKUs, and 8 s for 2,211 SKUs read five at a time. Reading the list
+  itself is much faster (3.5 s for 2,211): `priceList(identifier) { productVariants(language, first) { edges
+{ node { sku priceVariant(identifier) { priceList(identifier) { modifier modifierType } } } } } }`. Its
+  `pageInfo.hasNextPage` stays `true` past the last SKU, so stop on an empty page.
+- **`decimalPlaces` on a modifier does not round the result.** `decimalPlaces: 0` with −18.05 % on 698 NOK
+  answered 572.01. Round for display in the storefront, and set the cart's `context.price.decimals` per
+  currency.
+
 ### Resolution Priority
 
 When multiple price lists match a context, Crystallize evaluates them in this order:
@@ -272,5 +351,6 @@ When multiple price lists match a context, Crystallize evaluates them in this or
 
 - ❌ Creating a price list per product (use base variant prices instead)
 - ❌ Using price lists for structural price differences (use separate price variants)
+- ❌ A price variant per customer for B2B agreements (target a price list at the customer instead)
 - ❌ Overlapping lists with conflicting adjustments on the same scope
 - ❌ Forgetting to set an end date on campaign lists (they stay active forever)

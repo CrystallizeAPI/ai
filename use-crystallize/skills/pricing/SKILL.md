@@ -55,8 +55,15 @@ Q4: Do you need temporary discounts, coupon codes, or "buy X get Y" deals?
   → Yes → Set up Promotions (see Promotions below)
 
 Q5: Do you have customer-specific pricing (B2B agreements, VIP tiers)?
-  → Yes → Use Price Lists targeted to customer groups
+  → Yes → Use Price Lists targeted at the customer (see Contract prices below)
 ```
+
+**A negotiated price is a price list, not a price variant.** Price variants are price _types_ — list,
+recommended, wholesale, one per currency — shared by the whole catalogue. Modelling one per customer looks
+tempting for B2B and then collapses: every new account needs a new variant on every product, and the
+storefront has to know which variant to ask for. Put the agreement in a price list aimed at that customer
+instead, and keep the tiers on the underlying variant. See
+[references/price-lists-and-markets.md](references/price-lists-and-markets.md), "Contract prices".
 
 ## Price Variants
 
