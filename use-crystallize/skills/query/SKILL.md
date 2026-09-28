@@ -18,6 +18,9 @@ Before writing queries, understand the context. Ask clarifying questions:
 2. **Is this for a storefront or admin interface?** Discovery/Catalogue for storefronts, Shop API for carts and orders, Core for admin only — Core is rate limited and must not serve storefront traffic.
 3. **Do you need search/filtering or exact path reads?** Discovery for search and faceted navigation, Catalogue for deterministic reads by path.
 4. **Do you have authentication configured?** Core API requires access tokens. Discovery/Catalogue can be open but should be secured in production.
+   A public Discovery endpoint serves **every price variant it exposes** to anyone who knows the field name
+   (`nokPrice`, `wholesalePrice`, …), so confidential terms — negotiated B2B prices in particular — belong
+   in a price list read from the Catalogue API server-side, not in a price variant. See [[pricing]].
 5. **What volume of results?** Pagination strategy matters — cursor-based is recommended for all APIs.
 
 ## Choosing the Right API
