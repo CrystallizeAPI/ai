@@ -79,6 +79,35 @@ mutation Book($id: UUID, $input: CartBookingItemInput!) {
 **Check `__typename`.** The four refusals are results, not GraphQL errors, so a client that only looks at
 `errors` treats a refused booking as a success.
 
+### `quantity` is units out of the pool, not the length of the window
+
+This is the single thing most likely to produce a wrong price. Measured on a unit pool of 5, booking a
+**two-day** window on a **one-day** SKU priced at 39 net:
+
+| Sent                              | Result                                                        |
+| --------------------------------- | ------------------------------------------------------------- |
+| `quantity: 1`                     | one reservation over the whole window, line **39** — not 78   |
+| `quantity: 2`                     | **two** reservations, both over the whole window, line **78** |
+| `quantity: 6` (pool holds 5)      | `ReservationConflict`                                         |
+| `quantity: 2` **with** a `unitId` | `Output validation error` (`OUTPUT_VALIDATION_ERROR`) — a bug |
+
+So `quantity: 2` means _two machines_, or _two rooms_, for the same window — never "two days" or "two
+nights". **Nothing in the booking inputs prices by duration.** A window twice as long costs the same
+unless the price says otherwise, and the price only comes from the SKU.
+
+Two ways out, and the first is the one to reach for:
+
+1. **Sell the duration as variants** — a day SKU, a weekend SKU, a week SKU — and book the SKU whose
+   length matches the window. See [modelling.md](modelling.md).
+2. **When the shopper picks arbitrary dates** (hotel nights, hourly hire), book one managed line for the
+   first unit of time and add the rest as an **external** line (`addExternalItem`) that carries the
+   remaining nights, tied back to the booked line by your own `meta`. Do not reprice the booked line:
+   `place` refuses a cart whose booked line went through `changeCartItemPricing` with `NotBookable`,
+   even though the reservation itself survives it. A group discount works as a negative external line.
+   (From the Boutique Universe build, a hotel on nightly rates.)
+
+**A `unitId` and `quantity: 1` belong together.** To hold two named units, book twice — once per unit.
+
 **Put the customer on the cart before booking.** The reservation records who holds it at
 `bookSkuItem`/`hydrate` time, and only when the cart's customer has an identifier. Nothing sets it later.
 Create the cart with `hydrate(input: { customer, items: [] })`, or `setCustomer` before the first booking.
