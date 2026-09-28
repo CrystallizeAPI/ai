@@ -84,7 +84,9 @@ the query.
 
 ## Failure modes
 
-The first three produce no error at all — they are the reason this skill exists.
+Three of these are silent — a paid booking whose reservation has no order, a pool or policy change that
+has no effect, and a booking that vanishes when two are taken at once. They are the reason this skill
+exists; the rest name themselves.
 
 | Symptom                                                      | Cause                                                                            | Fix                                                                                       |
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
