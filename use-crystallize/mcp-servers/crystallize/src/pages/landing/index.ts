@@ -5,6 +5,7 @@ import { physicsScript } from "./physics";
 import { headMeta } from "./meta";
 import { featuresGrid } from "./features";
 import { analyticsHead } from "./analytics";
+import packageJson from "../../../package.json";
 
 // The command is assembled from three parts so the toggle script can rebuild the
 // middle (the URL + query string) live while keeping the prefix/headers fixed.
@@ -12,6 +13,9 @@ const INSTALL_PREFIX = "npx add-mcp ";
 const INSTALL_BASE_URL = "https://mcp.crystallize.com/mcp";
 const INSTALL_SUFFIX = ` --header "X-Crystallize-Access-Token-Id: YOUR_TOKEN_ID" --header "X-Crystallize-Access-Token-Secret: YOUR_TOKEN_SECRET"`;
 const installCommand = `${INSTALL_PREFIX}${INSTALL_BASE_URL}${INSTALL_SUFFIX}`;
+
+// Every release is tagged vX.Y.Z (see .github/workflows/release.yaml), so the tag always exists.
+const version = `v${packageJson.version}`;
 
 // Wires the feature-card switches: flipping a card appends/removes its query
 // parameter and rewrites the install command above. Only non-default states add
@@ -149,7 +153,11 @@ export function landingPage({ plausibleScriptUrl, plausibleEndpoint }: LandingPa
                         Open Source on
                         <a href="https://github.com/crystallizeapi/ai" target="_blank" rel="noopener">GitHub</a>
                         · Skills, MCP server & usage guide in the
-                        <a href="https://crystallizeapi.github.io/ai" target="_blank" rel="noopener">Documentation</a>.
+                        <a href="https://crystallizeapi.github.io/ai" target="_blank" rel="noopener">Documentation</a>
+                        ·
+                        <a href="https://github.com/crystallizeapi/ai/tree/${version}" target="_blank" rel="noopener"
+                            >${version}</a
+                        >
                     </p>
 
                     <p class="sling-hint">Drag anywhere to slingshot products ✨</p>
