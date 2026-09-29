@@ -1,0 +1,253 @@
+---
+// Sequence diagram of how the MCP server narrows context with TypeSafe's Jev model.
+// Plain inline SVG styled with Starlight's theme variables, so it follows light/dark mode with no extra dependency.
+const cols = { agent: 90, server: 300, jev: 510, api: 690 };
+const top = 24;
+const bottom = 540;
+---
+
+<figure class="jev-flow not-content">
+    <div class="scroll">
+        <svg
+            viewBox="0 0 780 560"
+            role="img"
+            aria-labelledby="jev-flow-title jev-flow-desc"
+            xmlns="http://www.w3.org/2000/svg"
+        >
+            <title id="jev-flow-title">How the MCP server picks context with Jev</title>
+            <desc id="jev-flow-desc">
+                The agent calls a tool with an intent or task. The MCP server gathers the candidates (Core schema
+                domains from the Crystallize API, or skill references), asks Jev one yes/no question per candidate in a
+                single request, keeps those scoring 0.5 or more, and returns one answer. If Jev is slow, down or picks
+                nothing, the server returns what it returned before Jev: the domain index or the reference list.
+            </desc>
+
+            <defs>
+                <marker id="jev-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0 0 L10 5 L0 10 z" class="head"></path>
+                </marker>
+                <marker id="jev-arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0 0 L10 5 L0 10 z" class="head-accent"></path>
+                </marker>
+            </defs>
+
+            {/* Participants and lifelines */}
+            {
+                [
+                    { x: cols.agent, title: "Your agent", sub: "Claude, Cursor, …" },
+                    { x: cols.server, title: "Crystallize MCP", sub: "Cloudflare Worker" },
+                    { x: cols.jev, title: "Jev", sub: "TypeSafe on Workers AI", accent: true },
+                    { x: cols.api, title: "Crystallize API", sub: "your tenant" },
+                ].map((p) => (
+                    <g>
+                        <line x1={p.x} y1={top + 44} x2={p.x} y2={bottom} class="lifeline" />
+                        <rect x={p.x - 78} y={top} width="156" height="44" rx="8" class={p.accent ? "actor accent" : "actor"} />
+                        <text x={p.x} y={top + 19} class="actor-title">{p.title}</text>
+                        <text x={p.x} y={top + 35} class="actor-sub">{p.sub}</text>
+                    </g>
+                ))
+            }
+
+            {/* 1. Tool call */}
+            <circle cx="30" cy="104" r="11" class="step" />
+            <text x="30" y="108" class="step-n">1</text>
+            <line x1={cols.agent} y1="112" x2={cols.server - 4} y2="112" class="msg" marker-end="url(#jev-arrow)" />
+            <text x={(cols.agent + cols.server) / 2} y="104" class="label">tool call + what it wants</text>
+            <text x={(cols.agent + cols.server) / 2} y="130" class="code">intent / task</text>
+
+            {/* 2. Candidates */}
+            <circle cx="30" cy="150" r="11" class="step" />
+            <text x="30" y="154" class="step-n">2</text>
+            <line x1={cols.server} y1="160" x2={cols.api - 4} y2="160" class="msg" marker-end="url(#jev-arrow)" />
+            <text x={(cols.server + cols.api) / 2} y="152" class="label">schema: introspection</text>
+            <line x1={cols.api} y1="186" x2={cols.server + 4} y2="186" class="msg reply" marker-end="url(#jev-arrow)" />
+            <text x={(cols.server + cols.api) / 2} y="180" class="label muted">84 domains as candidates</text>
+            <text x={cols.server - 12} y="206" class="note-left">skills: candidates are the bundled</text>
+            <text x={cols.server - 12} y="219" class="note-left">references of the requested skills</text>
+
+            {/* 3-4. Jev */}
+            <rect x={cols.server - 30} y="236" width={cols.jev - cols.server + 130} height="138" rx="10" class="zone" />
+            <text x={cols.server - 18} y="254" class="zone-label">one request, one yes/no question per candidate</text>
+
+            <circle cx="30" cy="278" r="11" class="step accent-fill" />
+            <text x="30" y="282" class="step-n">3</text>
+            <line x1={cols.server} y1="286" x2={cols.jev - 4} y2="286" class="msg accent-line" marker-end="url(#jev-arrow-accent)" />
+            <text x={(cols.server + cols.jev) / 2} y="272" class="label">intent + candidate summaries</text>
+            <text x={(cols.server + cols.jev) / 2} y="306" class="code small">“is this one needed?” × every candidate</text>
+
+            <circle cx="30" cy="330" r="11" class="step accent-fill" />
+            <text x="30" y="334" class="step-n">4</text>
+            <line x1={cols.jev} y1="338" x2={cols.server + 4} y2="338" class="msg reply accent-line" marker-end="url(#jev-arrow-accent)" />
+            <text x={(cols.server + cols.jev) / 2} y="330" class="label">a probability for each</text>
+            <text x={(cols.server + cols.jev) / 2} y="356" class="code small">registerOrder 0.78 · customer 0.54 · …</text>
+
+            {/* 5. Keep */}
+            <circle cx="30" cy="404" r="11" class="step" />
+            <text x="30" y="408" class="step-n">5</text>
+            <rect x={cols.server - 108} y="390" width="216" height="46" rx="8" class="keep" />
+            <text x={cols.server} y="409" class="label strong">keep everything ≥ 0.5</text>
+            <text x={cols.server} y="426" class="label muted">max 4 domains · max 3 references</text>
+
+            {/* 6. Answer */}
+            <circle cx="30" cy="470" r="11" class="step" />
+            <text x="30" y="474" class="step-n">6</text>
+            <line x1={cols.server} y1="478" x2={cols.agent + 4} y2="478" class="msg reply" marker-end="url(#jev-arrow)" />
+            <text x={(cols.agent + cols.server) / 2} y="470" class="label">one answer, with the picks</text>
+            <text x={(cols.agent + cols.server) / 2} y="494" class="code small">schema of registerOrder, order,</text>
+            <text x={(cols.agent + cols.server) / 2} y="507" class="code small">customer · or skill + references</text>
+
+            {/* Fallback */}
+            <path d={`M ${cols.jev + 70} 374 C ${cols.jev + 70} 430, ${cols.jev - 60} 456, ${cols.server + 8} 456`} class="fallback" marker-end="url(#jev-arrow)" />
+            <text x={cols.jev + 84} y="404" class="fallback-label">Jev slow (&gt; 8 s), down,</text>
+            <text x={cols.jev + 84} y="418" class="fallback-label">or picks nothing →</text>
+            <text x={cols.jev + 84} y="432" class="fallback-label">the answer from before Jev:</text>
+            <text x={cols.jev + 84} y="446" class="fallback-label">domain index / reference list</text>
+        </svg>
+    </div>
+    <figcaption>
+        The same flow serves <code>fetch-core-graphql-schema</code> (<code>intent</code>) and <code>skills</code>
+        (<code>task</code>). The agent never talks to Jev directly.
+    </figcaption>
+</figure>
+
+<style>
+    .jev-flow {
+        margin: 1.5rem 0;
+    }
+    .scroll {
+        overflow-x: auto;
+        border: 1px solid var(--sl-color-gray-5);
+        border-radius: 0.75rem;
+        background: var(--sl-color-gray-7, var(--sl-color-black));
+        padding: 0.75rem;
+    }
+    svg {
+        display: block;
+        width: 100%;
+        min-width: 560px;
+        height: auto;
+        font-family: var(--sl-font, system-ui, sans-serif);
+    }
+    figcaption {
+        margin-top: 0.5rem;
+        font-size: var(--sl-text-sm);
+        color: var(--sl-color-gray-3);
+    }
+
+    .lifeline {
+        stroke: var(--sl-color-gray-5);
+        stroke-width: 1.5;
+        stroke-dasharray: 4 5;
+    }
+    .actor {
+        fill: var(--sl-color-black);
+        stroke: var(--sl-color-gray-4);
+        stroke-width: 1.5;
+    }
+    .actor.accent {
+        fill: var(--sl-color-accent-low);
+        stroke: var(--sl-color-accent);
+    }
+    .actor-title {
+        text-anchor: middle;
+        font-size: 14px;
+        font-weight: 600;
+        fill: var(--sl-color-white);
+    }
+    .actor-sub {
+        text-anchor: middle;
+        font-size: 11px;
+        fill: var(--sl-color-gray-3);
+    }
+
+    .msg {
+        stroke: var(--sl-color-gray-2);
+        stroke-width: 1.75;
+        fill: none;
+    }
+    .msg.reply {
+        stroke-dasharray: 6 4;
+    }
+    .accent-line {
+        stroke: var(--sl-color-accent);
+    }
+    .head {
+        fill: var(--sl-color-gray-2);
+    }
+    .head-accent {
+        fill: var(--sl-color-accent);
+    }
+
+    .label {
+        text-anchor: middle;
+        font-size: 12.5px;
+        fill: var(--sl-color-white);
+    }
+    .label.muted {
+        fill: var(--sl-color-gray-3);
+    }
+    .label.strong {
+        font-weight: 600;
+    }
+    .code {
+        text-anchor: middle;
+        font-family: var(--__sl-font-mono, ui-monospace, monospace);
+        font-size: 12px;
+        fill: var(--sl-color-accent-high);
+    }
+    .code.small {
+        font-size: 11px;
+    }
+    .note-left {
+        text-anchor: end;
+        font-size: 11px;
+        font-style: italic;
+        fill: var(--sl-color-gray-3);
+    }
+
+    .zone {
+        fill: var(--sl-color-accent-low);
+        fill-opacity: 0.35;
+        stroke: var(--sl-color-accent);
+        stroke-opacity: 0.5;
+        stroke-dasharray: 5 4;
+    }
+    .zone-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        fill: var(--sl-color-accent-high);
+    }
+    .keep {
+        fill: var(--sl-color-black);
+        stroke: var(--sl-color-gray-3);
+        stroke-width: 1.25;
+    }
+
+    .step {
+        fill: var(--sl-color-gray-5);
+    }
+    .step.accent-fill {
+        fill: var(--sl-color-accent);
+    }
+    .step-n {
+        text-anchor: middle;
+        font-size: 12px;
+        font-weight: 700;
+        fill: var(--sl-color-white);
+    }
+    .step.accent-fill + .step-n {
+        fill: var(--sl-color-black);
+    }
+
+    .fallback {
+        fill: none;
+        stroke: var(--sl-color-gray-3);
+        stroke-width: 1.5;
+        stroke-dasharray: 2 4;
+    }
+    .fallback-label {
+        font-size: 11px;
+        fill: var(--sl-color-gray-3);
+    }
+</style>

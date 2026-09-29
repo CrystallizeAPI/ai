@@ -5,6 +5,7 @@ description: Connect your AI coding agent or chatbot to Crystallize using the Mo
 
 import { Steps, Code, Badge, Card, CardGrid } from "@astrojs/starlight/components";
 import McpTools from "../../../ui/components/astro/McpTools.astro";
+import JevFlow from "../../../ui/components/astro/JevFlow.astro";
 
 The Crystallize MCP Server lets AI agents interact with your Crystallize tenant through the [Model Context Protocol](https://modelcontextprotocol.io/). It runs on Cloudflare Workers and provides authenticated access to query and mutate your Crystallize data.
 
@@ -83,6 +84,37 @@ npx add-mcp "https://mcp.crystallize.com/mcp?exposeWrite=true" \
 ```
 
 > Enabling `exposeWrite` only makes the tools available — the access token's user must also have the required write permissions in Crystallize for mutations to succeed.
+
+## How the Server Picks Context
+
+The Core API schema and the skill references are too large to send to an agent in full. Two tools can take a
+one-sentence description of what the agent is trying to do; the server then asks
+[Jev](https://docs.typesafe.ai/), TypeSafe's decision model running on Cloudflare Workers AI, what that task needs.
+The server returns only those parts, in a single call.
+
+<JevFlow />
+
+Jev does not write text. It answers yes/no questions with a calibrated probability. The server asks one question per
+candidate ("does this task need it?"), all in a single request, and keeps every candidate scoring **0.5 or more**. A task
+can therefore get one part or several: "list the last 10 orders" gets `order`, and "find a customer by email and show
+their subscriptions" gets `customer` and `subscriptionContract`.
+
+| Tool                        | Input    | Candidates Jev scores                                                          | Returned                                  |
+| --------------------------- | -------- | ------------------------------------------------------------------------------ | ----------------------------------------- |
+| `fetch-core-graphql-schema` | `intent` | Every Core API domain (84 on a typical tenant), each with its queries and mutations | Combined schema of up to 4 domains        |
+| `skills`                    | `task`   | The references of the skills the agent requested (title, intro and headings)   | Main skill document + up to 3 references |
+
+Worth knowing:
+
+- **The agent stays in control.** An exact `domain`, explicit `references` or `includeAllReferences` skip Jev
+  entirely. Each answer shows what was picked and how confident Jev was, for example
+  `registerOrder (78%), order (63%), customer (54%)`, so the agent can ask for anything missing.
+- **Jev never blocks a tool call.** If it takes more than 8 seconds, fails, or picks nothing, the tool returns what it
+  returned before Jev: the list of domains, or the skill with its list of references.
+- **It is cheap.** A schema pick uses about 12.8k input tokens, and a reference pick about 1.7k. Both cost well under a
+  tenth of a cent per call.
+- **It is measured.** `bin/eval-domain-selection.ts` and `bin/eval-reference-selection.ts` in the MCP server package
+  replay real intents and tasks against the live model. Both currently get every needed part in 12 out of 12 cases.
 
 ## Authentication
 
