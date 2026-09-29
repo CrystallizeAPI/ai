@@ -1,0 +1,70 @@
+name: Release
+
+on:
+    workflow_dispatch:
+        inputs:
+            bump:
+                description: Which part of the version to bump
+                required: true
+                default: patch
+                type: choice
+                options:
+                    - patch
+                    - minor
+                    - major
+
+concurrency:
+    group: release
+    cancel-in-progress: false
+
+permissions:
+    contents: write
+
+jobs:
+    tag:
+        name: 🏷️ Bump and tag
+        if: github.ref == 'refs/heads/main'
+        runs-on: ubuntu-latest
+        outputs:
+            tag: ${{ steps.bump.outputs.tag }}
+        steps:
+            - name: ⬇️ Checkout repo
+              uses: actions/checkout@v6
+
+            - name: 📦 Setup Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: 📥 Install deps
+              run: make install
+
+            - name: 🏄 Run the tests
+              run: make tests
+
+            - name: 🔢 Bump the version
+              id: bump
+              env:
+                  BUMP: ${{ inputs.bump }}
+              run: |
+                  VERSION=$(bun use-crystallize/mcp-servers/crystallize/bin/bump-version.ts "$BUMP")
+                  echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+            - name: 🏷️ Commit, tag and push
+              env:
+                  TAG: ${{ steps.bump.outputs.tag }}
+              run: |
+                  git config user.name "Crystallize Bot"
+                  git config user.email "bot@crystallize.com"
+                  git add use-crystallize/.claude-plugin/plugin.json .claude-plugin/marketplace.json use-crystallize/mcp-servers/crystallize/package.json
+                  git commit -m "chore(release): $TAG"
+                  git tag -a "$TAG" -m "$TAG"
+                  git push --atomic origin HEAD:main "refs/tags/$TAG"
+
+    # A tag pushed with the default GITHUB_TOKEN does not trigger other workflows,
+    # so the tag's own push event will not start the deploy. Call it directly instead.
+    deploy:
+        name: 🚀 Deploy
+        needs: tag
+        uses: ./.github/workflows/deploy-mcp.yaml
+        with:
+            ref: ${{ needs.tag.outputs.tag }}
+        secrets: inherit

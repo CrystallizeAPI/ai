@@ -1,6 +1,9 @@
 {
     "$schema": "node_modules/wrangler/config-schema.json",
     "name": "crystallize-mcp-server",
+    // The Crystallize Cloudflare account. Pinned so a token or login that can see
+    // several accounts never deploys to the wrong one. Not a secret.
+    "account_id": "7341169551653f3f15b831f1c57e89e7",
     "main": "src/index.ts",
     "routes": [
         {

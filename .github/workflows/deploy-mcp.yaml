@@ -1,0 +1,53 @@
+name: Deploy MCP
+
+on:
+    push:
+        tags: ["v*.*.*"]
+    workflow_call:
+        inputs:
+            ref:
+                description: The tag to deploy
+                required: true
+                type: string
+
+concurrency:
+    group: deploy-mcp
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+jobs:
+    deploy:
+        name: 🚀 Deploy the MCP server
+        runs-on: ubuntu-latest
+        environment:
+            name: production
+            url: https://mcp.crystallize.com
+        env:
+            TAG: ${{ inputs.ref || github.ref_name }}
+        steps:
+            - name: ⬇️ Checkout repo
+              uses: actions/checkout@v6
+              with:
+                  ref: ${{ env.TAG }}
+
+            - name: 🔍 Check the tag matches the version
+              run: |
+                  VERSION=$(jq -r .version use-crystallize/mcp-servers/crystallize/package.json)
+                  if [ "v$VERSION" != "$TAG" ]; then
+                      echo "::error::Tag $TAG does not match package.json version $VERSION"
+                      exit 1
+                  fi
+
+            - name: 📦 Setup Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: 📥 Install deps
+              run: make install
+
+            - name: 🚢 Ship it
+              working-directory: use-crystallize/mcp-servers/crystallize
+              env:
+                  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+              run: bun run deploy
