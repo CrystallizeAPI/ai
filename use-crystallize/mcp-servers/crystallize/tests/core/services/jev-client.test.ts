@@ -17,6 +17,19 @@ describe("createJevClient", () => {
         expect(run).toHaveBeenCalledWith(JEV_MODEL, request);
     });
 
+    it("unwraps the AI Gateway envelope that third-party models come back in", async () => {
+        const inner: JevResponse = { model: "jev-1.13.0", answers: { d0: { type: "noul", noul: 0.99 } } };
+        const envelope = { state: "Completed", result: inner, gatewayMetadata: { keySource: "Unified" } };
+        const client = createJevClient({ ai: { run: async () => envelope } as JevBinding });
+
+        expect(await client(request)).toEqual(inner);
+    });
+
+    it("throws when the gateway envelope is not completed", async () => {
+        const client = createJevClient({ ai: { run: async () => ({ state: "Failed", result: {} }) } as JevBinding });
+        await expect(client(request)).rejects.toThrow('Jev request ended in state "Failed"');
+    });
+
     it("gives up when Jev does not answer in time", async () => {
         const client = createJevClient({ ai: { run: () => new Promise(() => {}) } as JevBinding }, 20);
         await expect(client(request)).rejects.toThrow("Jev timed out after 20ms");

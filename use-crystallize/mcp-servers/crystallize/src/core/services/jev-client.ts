@@ -10,6 +10,17 @@ export type JevBinding = {
     run(model: typeof JEV_MODEL, input: JevRequest): Promise<unknown>;
 };
 
+/**
+ * Third-party models on Workers AI answer through AI Gateway as `{ state, result, gatewayMetadata }`
+ * (verified live for typesafe/jev), while the model page documents the bare `{ model, answers }`. Accept both.
+ */
+function unwrapGatewayEnvelope(raw: unknown): Partial<JevResponse> | null {
+    if (!raw || typeof raw !== "object" || !("state" in raw)) return raw as Partial<JevResponse> | null;
+    const { state, result } = raw as { state: unknown; result?: unknown };
+    if (state !== "Completed") throw new Error(`Jev request ended in state "${String(state)}"`);
+    return result as Partial<JevResponse> | null;
+}
+
 export const createJevClient =
     ({ ai }: { ai: JevBinding }, timeoutMs = JEV_TIMEOUT_MS): JevClient =>
     async (request) => {
@@ -18,7 +29,7 @@ export const createJevClient =
             timer = setTimeout(() => reject(new Error(`Jev timed out after ${timeoutMs}ms`)), timeoutMs);
         });
         try {
-            const response = (await Promise.race([ai.run(JEV_MODEL, request), timeout])) as Partial<JevResponse> | null;
+            const response = unwrapGatewayEnvelope(await Promise.race([ai.run(JEV_MODEL, request), timeout]));
             if (!response || typeof response !== "object" || !response.answers) {
                 throw new Error("Jev returned no answers");
             }
