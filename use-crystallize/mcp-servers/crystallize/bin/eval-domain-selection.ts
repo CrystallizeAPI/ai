@@ -15,7 +15,11 @@ const env = (name: string) => {
     return value;
 };
 
-const accountId = env("CLOUDFLARE_ACCOUNT_ID");
+// The account is pinned in wrangler.jsonc (not a secret); CLOUDFLARE_ACCOUNT_ID overrides it.
+const pinnedAccountId = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf-8").match(
+    /"account_id"\s*:\s*"([0-9a-f]+)"/,
+)?.[1];
+const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || pinnedAccountId || env("CLOUDFLARE_ACCOUNT_ID");
 const apiToken = env("CLOUDFLARE_API_TOKEN");
 
 // A stand-in for the AI binding over the REST API, so the eval runs outside a Worker but still goes
