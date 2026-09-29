@@ -19,7 +19,7 @@ Runtime / Package manager: **Bun**
 
 ## Architecture
 
-- **Framework**: Astro 5 with Starlight documentation theme
+- **Framework**: Astro 7 with Starlight documentation theme
 - **Styling**: Tailwind CSS v4 via `@tailwindcss/vite` plugin, integrated with Starlight via `@astrojs/starlight-tailwind`
 - **React**: Available for interactive components (`@astrojs/react` integration, JSX configured in tsconfig)
 - **Content**: MDX files in `src/content/docs/` using Astro's content collections with Starlight's `docsLoader`
