@@ -1,13 +1,18 @@
 import z from "zod";
-import { skills } from "virtual:skills";
 import { defineToolWrapper } from "../../../contracts/tool";
+import type { SkillEntry } from "../../../contracts/skills";
+import type { SelectedReference, SkillReferenceSelector } from "../../../contracts/skill-reference-selector";
+import { sanitizeErrorMessage } from "../../security";
 
-type Deps = {};
+type Deps = {
+    skillsCatalog: SkillEntry[];
+    skillReferenceSelector: SkillReferenceSelector;
+};
 
-const skillSlugs = skills.map((s) => s.slug);
-const allReferenceSlugs = [...new Set(skills.flatMap((s) => s.references.map((r) => r.slug)))];
+export const createSkillsToolWrapper = ({ skillsCatalog: skills, skillReferenceSelector }: Deps) => {
+    const skillSlugs = skills.map((s) => s.slug);
+    const allReferenceSlugs = [...new Set(skills.flatMap((s) => s.references.map((r) => r.slug)))];
 
-export const createSkillsToolWrapper = (_deps: Deps) => {
     return defineToolWrapper({
         description:
             `IMPORTANT: Call this tool FIRST before using any other Crystallize tool. ` +
@@ -16,7 +21,8 @@ export const createSkillsToolWrapper = (_deps: Deps) => {
             `skills contain the knowledge you need to use the APIs correctly and avoid common mistakes. ` +
             `Available skills: ${skillSlugs.join(", ")}. ` +
             `Each skill has a main document and optional reference documents. Call with a skill slug to get its content. ` +
-            `Optionally specify reference slugs to include specific references (or use includeAllReferences). ` +
+            `Pass \`task\` (one sentence: what you are trying to do) and the server also includes the references ` +
+            `that task needs. Or specify reference slugs yourself (or use includeAllReferences). ` +
             `Available reference slugs across skills: ${allReferenceSlugs.join(", ")}.`,
         inputSchema: z.object({
             skills: z
@@ -26,21 +32,47 @@ export const createSkillsToolWrapper = (_deps: Deps) => {
                 .array(z.string())
                 .optional()
                 .describe(
-                    "Optional: specific reference slugs to include. If omitted, only the main skill document is returned.",
+                    "Optional: specific reference slugs to include. If omitted, only the main skill document is returned " +
+                        "(plus the references `task` needs, when given).",
                 ),
             includeAllReferences: z
                 .boolean()
                 .optional()
                 .describe("If true, include all references for the requested skills."),
+            task: z
+                .string()
+                .max(1000)
+                .optional()
+                .describe(
+                    "What you are trying to do, in one sentence (e.g. 'add Klarna to my checkout'). " +
+                        "The server picks the references of the requested skills that this task needs. " +
+                        "Ignored when `references` or `includeAllReferences` is given.",
+                ),
         }),
         annotations: {
             readOnlyHint: true,
         },
-        handler: async ({ skills: requestedSlugs, references, includeAllReferences }) => {
-            const parts: string[] = [];
+        handler: async ({ skills: requestedSlugs, references, includeAllReferences, task }) => {
+            const requested = requestedSlugs.map((slug) => ({ slug, skill: skills.find((s) => s.slug === slug) }));
 
-            for (const slug of requestedSlugs) {
-                const skill = skills.find((s) => s.slug === slug);
+            let picked: SelectedReference[] = [];
+            const selecting = !references && !includeAllReferences && !!task?.trim();
+            if (selecting) {
+                const candidates = requested.flatMap(({ skill }) =>
+                    skill ? skill.references.map((r) => ({ skill: skill.slug, slug: r.slug, content: r.content })) : [],
+                );
+                if (candidates.length > 0) {
+                    try {
+                        picked = await skillReferenceSelector.select(candidates, task!);
+                    } catch (error) {
+                        // Selection is an optimization: when Jev is unavailable, listing the references still works.
+                        console.warn(`Skill reference selection failed: ${sanitizeErrorMessage(error)}`);
+                    }
+                }
+            }
+
+            const parts: string[] = [];
+            for (const { slug, skill } of requested) {
                 if (!skill) {
                     parts.push(`## Skill "${slug}" not found.\nAvailable skills: ${skillSlugs.join(", ")}`);
                     continue;
@@ -48,20 +80,28 @@ export const createSkillsToolWrapper = (_deps: Deps) => {
 
                 parts.push(`## Skill: ${skill.name} (${skill.slug})\n\n${skill.content}`);
 
+                const pickedHere = picked.filter((p) => p.skill === skill.slug);
                 const refsToInclude = includeAllReferences
                     ? skill.references
                     : references
                       ? skill.references.filter((r) => references.includes(r.slug))
-                      : [];
+                      : pickedHere.map((p) => skill.references.find((r) => r.slug === p.slug)!);
+
+                if (pickedHere.length > 0) {
+                    const list = pickedHere.map((p) => `${p.slug} (${Math.round(p.probability * 100)}%)`).join(", ");
+                    parts.push(`_References picked for your task: ${list}_`);
+                }
 
                 for (const ref of refsToInclude) {
                     parts.push(`### Reference: ${ref.slug}\n\n${ref.content}`);
                 }
 
-                if (!includeAllReferences && !references && skill.references.length > 0) {
-                    parts.push(
-                        `\n_Available references for ${skill.slug}: ${skill.references.map((r) => r.slug).join(", ")}_`,
-                    );
+                if (!includeAllReferences && !references) {
+                    const others = skill.references.filter((r) => !pickedHere.some((p) => p.slug === r.slug));
+                    if (others.length > 0) {
+                        const label = pickedHere.length > 0 ? "Other references" : "Available references";
+                        parts.push(`\n_${label} for ${skill.slug}: ${others.map((r) => r.slug).join(", ")}_`);
+                    }
                 }
             }
 

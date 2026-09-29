@@ -36,6 +36,8 @@ src/
 │   ├── mass-operation-runner.ts                  # MassOperationRunner types (task + status)
 │   ├── mutation-executor.ts                      # MutationExecutor type (execute-once, no retry)
 │   ├── query-executor.ts                         # Query execution types (QueryExecutor, options, result)
+│   ├── skill-reference-selector.ts               # SkillReferenceSelector types (task → references)
+│   ├── skills.ts                                 # SkillEntry / SkillReference (shape of `virtual:skills`)
 │   ├── tenant-matcher.ts                         # TenantMatcher type
 │   └── tool.ts                                   # ToolWrapper type (incl. write marker) & defineToolWrapper helper
 ├── core/
@@ -62,7 +64,7 @@ src/
 │   │       ├── query-discovery.ts                # Execute Discovery API queries (with auto-correction)
 │   │       ├── query-shop-cart.ts                # Execute Shop Cart read queries (with auto-correction)
 │   │       ├── run-mass-operation.ts             # Validate, upload & start a mass operation (write)
-│   │       ├── skills.ts                         # Skills/documentation retrieval tool
+│   │       ├── skills.ts                         # Skills/documentation retrieval tool (references by task)
 │   │       └── tenant-overview.ts                # Show connected tenants as a UI panel
 │   └── services/
 │       ├── auth-context-helpers.ts               # Resolve client credentials from auth (token/session/bearer)
@@ -74,6 +76,7 @@ src/
 │       ├── jev-client.ts                         # Run TypeSafe's Jev (typesafe/jev) on the Workers AI binding
 │       ├── mass-operation-runner.ts              # Upload + create + start bulk tasks; read task status
 │       ├── query-with-correction.ts              # Execute queries with auto-correction on failure
+│       ├── skill-reference-selector.ts           # Pick the skill references a task needs (Jev Nouls)
 │       └── tenant-matcher.ts                     # Match tenant by id/identifier from auth context
 ├── middlewares/
 │   ├── auth.ts                                   # Auth middleware (Crystallize access tokens)
@@ -119,6 +122,10 @@ The app uses **Awilix** for dependency injection. The container is built once (s
 - `jevClient` — runs TypeSafe's Jev (`typesafe/jev`) on Workers AI
 - `coreDomainSelector` — picks the Core schema domains an `intent` needs (one Jev Noul per domain; the tool falls
   back to the domain index when it fails or picks nothing)
+- `skillReferenceSelector` — picks the references of the requested skills a `task` needs (one Jev Noul per
+  reference, over a title/intro/headings summary; the tool falls back to listing them)
+- `skillsCatalog` — the `virtual:skills` bundle, injected so the `skills` tool is testable (Bun cannot resolve
+  the Vite virtual module)
 - `graphqlQueryCorrector` — fix malformed GraphQL queries
 - `queryExecutor` — execute queries with auto-correction
 - `mutationExecutor` — execute mutations exactly once (no correction, no retry)
@@ -288,7 +295,9 @@ Used by `fetch-catalog-graphql-schema` and `fetch-discovery-graphql-schema` tool
 
 ### Skills (Virtual Module)
 
-The `skills` tool serves Crystallize documentation loaded at build time via a Vite plugin (`vite/plugins/skills.ts`). Skills are markdown files with frontmatter (`name`, `description`) loaded from `../../skills/` relative to the project root. Each skill directory contains a `SKILL.md` and optional `references/*.md` files. The virtual module `virtual:skills` is typed in `virtual-skills.d.ts`.
+The `skills` tool serves Crystallize documentation loaded at build time via a Vite plugin (`vite/plugins/skills.ts`).
+Given a `task` (and no explicit `references`/`includeAllReferences`), it asks Jev which references of the requested
+skills the task needs and includes those; `bun run bin/eval-reference-selection.ts` measures that selection live. Skills are markdown files with frontmatter (`name`, `description`) loaded from `../../skills/` relative to the project root. Each skill directory contains a `SKILL.md` and optional `references/*.md` files. The virtual module `virtual:skills` is typed in `virtual-skills.d.ts`.
 
 The `exposeSkills` query parameter (default: `true`) controls whether the skills tool is registered on the MCP server for a given request. Companion flags: `exposeUi` (default `true`, gates UI tools) and `exposeWrite` (default `false`, gates write tools — see "Write tools & the `exposeWrite` gate" above).
 
