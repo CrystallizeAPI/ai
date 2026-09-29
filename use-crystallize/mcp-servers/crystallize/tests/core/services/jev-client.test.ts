@@ -17,6 +17,11 @@ describe("createJevClient", () => {
         expect(run).toHaveBeenCalledWith(JEV_MODEL, request);
     });
 
+    it("gives up when Jev does not answer in time", async () => {
+        const client = createJevClient({ ai: { run: () => new Promise(() => {}) } as JevBinding }, 20);
+        await expect(client(request)).rejects.toThrow("Jev timed out after 20ms");
+    });
+
     it("throws when the response has no answers", async () => {
         const client = createJevClient({ ai: { run: async () => ({}) } as JevBinding });
         await expect(client(request)).rejects.toThrow("Jev returned no answers");

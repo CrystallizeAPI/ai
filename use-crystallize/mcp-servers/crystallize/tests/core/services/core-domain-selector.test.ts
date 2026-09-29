@@ -63,6 +63,25 @@ describe("scoreDomains", () => {
     });
 });
 
+describe("scoreDomains with unusable answers", () => {
+    it("skips answers without a numeric noul", async () => {
+        const jevClient: JevClient = async () =>
+            ({
+                model: "jev-1.13.0",
+                answers: { d0: { type: "noul", noul: Number.NaN }, d1: { type: "noul", noul: 0.8 } },
+            }) as JevResponse;
+        expect(await scoreDomains(jevClient, index, "create an order")).toEqual([{ name: "order", probability: 0.8 }]);
+    });
+
+    it("throws when no answer is usable, so a shape change is not mistaken for 'nothing relevant'", async () => {
+        const jevClient: JevClient = async () =>
+            ({ model: "jev-1.13.0", answers: { d0: { type: "noul", probability: 0.9 } } }) as unknown as JevResponse;
+        await expect(scoreDomains(jevClient, index, "create an order")).rejects.toThrow(
+            "Jev returned no usable answers",
+        );
+    });
+});
+
 describe("createCoreDomainSelector", () => {
     it("returns the picked domains for an intent", async () => {
         const jevClient: JevClient = async () => answers({ d0: 0.7, d1: 0.95, d2: 0.05 });

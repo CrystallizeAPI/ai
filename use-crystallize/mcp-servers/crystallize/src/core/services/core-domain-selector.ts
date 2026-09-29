@@ -45,8 +45,12 @@ export async function scoreDomains(
     const response = await jevClient(request);
     const scored: SelectedDomain[] = [];
     for (const [id, name] of domainByQuestionId) {
-        const answer = response.answers[id];
-        if (answer) scored.push({ name, probability: answer.noul });
+        const noul = response.answers[id]?.noul;
+        if (typeof noul === "number" && Number.isFinite(noul)) scored.push({ name, probability: noul });
+    }
+    // Zero usable answers means the response shape changed, not that nothing is relevant: fail loudly.
+    if (scored.length === 0 && domainByQuestionId.size > 0) {
+        throw new Error("Jev returned no usable answers");
     }
     return scored;
 }
