@@ -1,0 +1,58 @@
+[
+    { "task": "add Klarna to my Crystallize checkout", "skills": ["payments"], "expected": ["payments/klarna"] },
+    {
+        "task": "support both Vipps and Stripe payments for a Norwegian shop",
+        "skills": ["payments"],
+        "expected": ["payments/vipps-mobilepay", "payments/stripe"]
+    },
+    {
+        "task": "create a product shape through the API with a paragraph collection and a grid relation",
+        "skills": ["content-model"],
+        "expected": ["content-model/create-shape-api", "content-model/components"]
+    },
+    {
+        "task": "design landing pages that editors compose from reusable sections",
+        "skills": ["content-model"],
+        "expected": ["content-model/page-builder-pattern"]
+    },
+    {
+        "task": "set up a topic map for colours and sizes to tag products",
+        "skills": ["content-model"],
+        "expected": ["content-model/taxonomies"]
+    },
+    {
+        "task": "build a storefront product listing with facets and filters",
+        "skills": ["query"],
+        "expected": ["query/discovery-api"]
+    },
+    {
+        "task": "read a customer's orders from the admin API, then update one order's status",
+        "skills": ["query", "mutation"],
+        "expected": ["query/core-api", "mutation/core-api"]
+    },
+    {
+        "task": "upload product images from external URLs and attach them to items",
+        "skills": ["mutation"],
+        "expected": ["mutation/media"]
+    },
+    {
+        "task": "my bulk task is stuck in running, and how many operations can one file hold?",
+        "skills": ["mass-operations"],
+        "expected": ["mass-operations/lifecycle", "mass-operations/limits"]
+    },
+    {
+        "task": "run a 20% off Black Friday promotion with a coupon code",
+        "skills": ["pricing"],
+        "expected": ["pricing/promotions"]
+    },
+    {
+        "task": "bill metered usage at the end of each subscription period and renew the contract",
+        "skills": ["subscriptions"],
+        "expected": ["subscriptions/usage-and-renewals"]
+    },
+    {
+        "task": "boost high-margin products in category listings",
+        "skills": ["vector-ranking"],
+        "expected": ["vector-ranking/ranking-signals"]
+    }
+]

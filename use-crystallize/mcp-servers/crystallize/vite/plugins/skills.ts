@@ -48,7 +48,7 @@ function parseFrontmatter(raw: string): { name: string; description: string; bod
     };
 }
 
-function loadSkills(skillsDir: string): SkillEntry[] {
+export function loadSkills(skillsDir: string): SkillEntry[] {
     if (!fs.existsSync(skillsDir)) return [];
 
     const entries: SkillEntry[] = [];

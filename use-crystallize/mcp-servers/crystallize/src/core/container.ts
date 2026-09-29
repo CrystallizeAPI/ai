@@ -29,6 +29,8 @@ import { createAuthContextResolver } from "./services/auth-context-helpers";
 import { createCoreSchemaDomainSplitter } from "./services/core-schema-domain-splitter";
 import { createJevClient, type JevBinding } from "./services/jev-client";
 import { createCoreDomainSelector } from "./services/core-domain-selector";
+import { createSkillReferenceSelector } from "./services/skill-reference-selector";
+import { skills } from "virtual:skills";
 import { createPlausibleAnalyticsTracker } from "./services/plausible-analytics-tracker";
 import { AnalyticsTracker } from "../contracts/analytics-tracker";
 
@@ -53,6 +55,9 @@ const build = (env: CloudflareBindings) =>
         ai: asValue(env.AI as unknown as JevBinding),
         jevClient: asFunction(createJevClient).singleton(),
         coreDomainSelector: asFunction(createCoreDomainSelector).singleton(),
+        skillReferenceSelector: asFunction(createSkillReferenceSelector).singleton(),
+        // Built into the bundle by the Vite skills plugin; injected so the skills tool can be tested.
+        skillsCatalog: asValue(skills),
         graphqlQueryCorrector: asFunction(createGraphqlQueryCorrector).singleton(),
         queryExecutor: asFunction(createQueryExecutor).singleton(),
         mutationExecutor: asFunction(createMutationExecutor).singleton(),
