@@ -28,9 +28,11 @@ src/
 │   ├── analytics-tracker.ts                      # AnalyticsTracker / AnalyticsEvent / AnalyticsRequestContext types
 │   ├── app-context.ts                            # AppContext type (Bindings + Variables)
 │   ├── auth-context-resolver.ts                  # AuthContextResolver type (resolve client credentials)
+│   ├── core-domain-selector.ts                   # CoreDomainSelector / SelectedDomain types (intent → domains)
 │   ├── core-schema-domain-splitter.ts            # Core schema domain-splitting types
 │   ├── graphql-query-corrector.ts                # Query correction types (CorrectionResult, CorrectionLog)
 │   ├── graphql-schema-compacter.ts               # Schema compaction types (GraphqlSchemaCompacter, options)
+│   ├── jev.ts                                    # Jev request/response types + JevClient
 │   ├── mass-operation-runner.ts                  # MassOperationRunner types (task + status)
 │   ├── mutation-executor.ts                      # MutationExecutor type (execute-once, no retry)
 │   ├── query-executor.ts                         # Query execution types (QueryExecutor, options, result)
@@ -48,7 +50,7 @@ src/
 │   │       ├── build-mass-operation.ts           # Validate a mass-operation file (read-only)
 │   │       ├── fetch-catalog-graphql-schema.ts   # Fetch compacted Catalogue API schema
 │   │       ├── fetch-content-model.ts            # Fetch tenant shapes/content model
-│   │       ├── fetch-core-graphql-schema.ts      # Fetch compacted Core API schema (by domain)
+│   │       ├── fetch-core-graphql-schema.ts      # Fetch compacted Core API schema (by domain or intent)
 │   │       ├── fetch-discovery-graphql-schema.ts # Fetch compacted Discovery API schema
 │   │       ├── fetch-shop-cart-graphql-schema.ts # Fetch compacted Shop Cart API schema
 │   │       ├── get-mass-operation-status.ts      # Poll a mass-operation bulk task (read-only)
@@ -65,9 +67,11 @@ src/
 │   └── services/
 │       ├── auth-context-helpers.ts               # Resolve client credentials from auth (token/session/bearer)
 │       ├── compact-schema-builder.ts             # GraphQL schema compaction (introspection → compact text)
+│       ├── core-domain-selector.ts               # Pick the Core schema domains an intent needs (Jev Nouls)
 │       ├── core-schema-domain-splitter.ts        # Split the Core schema into queryable domains
 │       ├── execute-mutation.ts                   # Execute-once mutation executor (no correction, no retry)
 │       ├── graphql-query-corrector.ts            # Auto-correct malformed GraphQL queries (Levenshtein)
+│       ├── jev-client.ts                         # Run TypeSafe's Jev (typesafe/jev) on the Workers AI binding
 │       ├── mass-operation-runner.ts              # Upload + create + start bulk tasks; read task status
 │       ├── query-with-correction.ts              # Execute queries with auto-correction on failure
 │       └── tenant-matcher.ts                     # Match tenant by id/identifier from auth context
@@ -111,6 +115,10 @@ The app uses **Awilix** for dependency injection. The container is built once (s
 - `tenantMatcher` — resolve tenant from auth context
 - `graphqlSchemaCompacter` — compact introspection schemas
 - `coreSchemaDomainSplitter` — split the Core schema into queryable domains
+- `ai` — the Workers AI binding (`env.AI`), held by the cached container because bindings are isolate-stable
+- `jevClient` — runs TypeSafe's Jev (`typesafe/jev`) on Workers AI
+- `coreDomainSelector` — picks the Core schema domains an `intent` needs (one Jev Noul per domain; the tool falls
+  back to the domain index when it fails or picks nothing)
 - `graphqlQueryCorrector` — fix malformed GraphQL queries
 - `queryExecutor` — execute queries with auto-correction
 - `mutationExecutor` — execute mutations exactly once (no correction, no retry)
@@ -192,7 +200,7 @@ Goals panel has fewer `tool:` rows than that list, the difference is what to cre
 | `fetch-content-model`            | `fetchContentModelToolWrapper`           | Fetch tenant shapes / content model      |
 | `fetch-catalog-graphql-schema`   | `fetchCatalogGraphqlSchemaToolWrapper`   | Get compacted Catalogue schema           |
 | `fetch-discovery-graphql-schema` | `fetchDiscoveryGraphqlSchemaToolWrapper` | Get compacted Discovery schema           |
-| `fetch-core-graphql-schema`      | `fetchCoreGraphqlSchemaToolWrapper`      | Get compacted Core schema (by domain)    |
+| `fetch-core-graphql-schema`      | `fetchCoreGraphqlSchemaToolWrapper`      | Compacted Core schema (domain or intent) |
 | `fetch-shop-cart-graphql-schema` | `fetchShopCartGraphqlSchemaToolWrapper`  | Get compacted Shop Cart schema           |
 | `build-mass-operation`           | `buildMassOperationToolWrapper`          | Validate a mass-operation file           |
 | `get-mass-operation-status`      | `getMassOperationStatusToolWrapper`      | Poll a mass-operation bulk task          |
@@ -409,8 +417,9 @@ retroactive, so create that goal before shipping.
 - Visits, visit duration, bounce rate and entry/exit pages are **meaningless** for this traffic (they derive from a
   rolling 30-minute window over that coarse hash). That is precisely why session config lives in the path.
 - `analyticsTracker` is registered **`.scoped()`**, and `defer` / `analyticsRequestContext` are registered on the
-  request scope. `buildContainer` caches one container per isolate and ignores `env`, so anything request-derived
-  registered as a singleton would freeze at the first request.
+  request scope. `buildContainer` caches one container per isolate (built from the first request's `env`), so
+  anything request-derived registered as a singleton would freeze at the first request. Bindings like `AI` are
+  isolate-stable, which is why the container may hold them.
 - Localhost **and `*.workers.dev`** are skipped. `PLAUSIBLE_DOMAIN` sits in top-level `vars`, so it binds to every
   deploy including preview URLs; without that guard a preview would file its traffic as production.
 - `PLAUSIBLE_API_ENDPOINT` drives **both** sides: the server-side POST target, and the landing page's `data-api`
@@ -460,6 +469,8 @@ Use `c.set()` / `c.get()` in middleware/handlers. Extend `Variables` when adding
 - **Deployment**: Wrangler CLI
 - **Smart placement** enabled in wrangler config
 - Bindings type generated via `bun cf-typegen` → `worker-configuration.d.ts`
+- **Bindings**: `AI` (Workers AI; used for `typesafe/jev`). Local dev calls the remote model, so `wrangler login` is
+  needed for intent selection; without it `fetch-core-graphql-schema` falls back to the domain index.
 - **Vars** (plain `vars` in `wrangler.jsonc`, none are secrets): `PLAUSIBLE_DOMAIN` (site ID for server-side MCP
   events; unset to disable them), `PLAUSIBLE_SCRIPT_URL` (the landing page's `pa-XXXX.js`; unset to drop the
   script) and `PLAUSIBLE_API_ENDPOINT` (override for a self-hosted Plausible or a first-party proxy — it feeds

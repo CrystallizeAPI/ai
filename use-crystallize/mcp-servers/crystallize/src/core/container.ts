@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { asFunction, createContainer, InferCradleFromContainer, InjectionMode } from "awilix";
+import { asFunction, asValue, createContainer, InferCradleFromContainer, InjectionMode } from "awilix";
 import packageJson from "../../package.json";
 import { createFetchCatalogGraphqlSchemaToolWrapper } from "./mcp/tools/fetch-catalog-graphql-schema";
 import { createFetchContentModelToolWrapper } from "./mcp/tools/fetch-content-model";
@@ -27,6 +27,8 @@ import { createMutationExecutor } from "./services/execute-mutation";
 import { createMassOperationRunner } from "./services/mass-operation-runner";
 import { createAuthContextResolver } from "./services/auth-context-helpers";
 import { createCoreSchemaDomainSplitter } from "./services/core-schema-domain-splitter";
+import { createJevClient, type JevBinding } from "./services/jev-client";
+import { createCoreDomainSelector } from "./services/core-domain-selector";
 import { createPlausibleAnalyticsTracker } from "./services/plausible-analytics-tracker";
 import { AnalyticsTracker } from "../contracts/analytics-tracker";
 
@@ -36,7 +38,7 @@ export type Services = {
     analyticsTracker: AnalyticsTracker;
 };
 
-const build = () =>
+const build = (env: CloudflareBindings) =>
     createContainer({
         injectionMode: InjectionMode.PROXY,
         strict: true,
@@ -46,6 +48,11 @@ const build = () =>
         tenantMatcher: asFunction(createTenantMatcher).singleton(),
         graphqlSchemaCompacter: asFunction(createGraphlSchemaCompacter).singleton(),
         coreSchemaDomainSplitter: asFunction(createCoreSchemaDomainSplitter).singleton(),
+        // Bindings are fixed for the isolate's lifetime, unlike request-derived values, so the
+        // cached container can hold them. The cast: the generated `Ai` types predate typesafe/jev.
+        ai: asValue(env.AI as unknown as JevBinding),
+        jevClient: asFunction(createJevClient).singleton(),
+        coreDomainSelector: asFunction(createCoreDomainSelector).singleton(),
         graphqlQueryCorrector: asFunction(createGraphqlQueryCorrector).singleton(),
         queryExecutor: asFunction(createQueryExecutor).singleton(),
         mutationExecutor: asFunction(createMutationExecutor).singleton(),
@@ -78,7 +85,7 @@ const build = () =>
     });
 
 let container: ReturnType<typeof build> | null = null;
-export const buildContainer = (_env: CloudflareBindings) => (container ??= build());
+export const buildContainer = (env: CloudflareBindings) => (container ??= build(env));
 type Container = InferCradleFromContainer<ReturnType<typeof build>>;
 
 export const toolRegistry = {
