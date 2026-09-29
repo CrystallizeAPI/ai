@@ -34,6 +34,19 @@ Choosing the right component for each piece of **additional** data determines ho
 
 **Rule of thumb**: If you always know the key name upfront → use Numeric. If the keys vary per item → use Properties Table.
 
+> **A unit list makes a Numeric effectively required.** Content for a numeric with `units` has to name
+> one ("No unit provided for numeric item component `voltage`. Need to specify one of the following units:
+> V"), even when the list holds a single unit — and a numeric input cannot carry a unit without a number,
+> since `number` is non-null. So every item of that shape needs a value, on create **and** on every update
+> that sends components. Two builds hit this: a `vehicle` document for an electric car with no
+> displacement, and a variant component that only oils and chemicals fill, which made `updateProduct` fail
+> on a filter for a component none of its variants had. If the value is genuinely optional, leave `units`
+> out and put the unit in the component's name (`Volume (l)`), or split it into unit-free fields.
+
+Component definitions also take a **`description`**, which shows up as editor help. It is the natural place
+for a mapping to an industry standard — one build stored the ETIM feature code there
+(`ETIM EF000002 Nominal voltage`).
+
 ### "I need to store media"
 
 | Scenario                               | Component  |
@@ -129,6 +142,12 @@ These are **structural components** — they don't store data directly but organ
     - **Decision rule:** If this exact group structure only appears once in the entire content model → use a non-repeatable chunk instead of creating a piece
     - Building block for all bridge patterns (semantic, quantised, conditional, composite)
     - **A chunk must always have at least 1 child component — empty chunks are invalid.**
+    - **A chunk that is not `multilingual` shares its text across languages.** The setting covers the whole
+      chunk, including the `singleLine` and `richText` fields inside it, so translating one language
+      overwrites the others. A chunk holding text that should be translated needs `multilingual: true`.
+    - **A chunk on a variant may not publish.** One build found a variant's chunk sitting in the draft while
+      the published version and Discovery had `chunks: []`, where a `singleLine` on the same variant
+      published fine. If that happens, move the data to the product and identify each row by SKU.
 - **Choice (choice, componentChoice)** → select exactly ONE structure from a set. The editor picks which form applies, and only sees fields for that choice. Implements the **Polymorphic Choice** pattern. Use when a concept has multiple valid but mutually exclusive representations.
 - **Multiple Choice (componentMultipleChoice)** → select ONE OR MORE structures from a set. Similar to Choice but allows combining forms. Use when multiple structural forms can coexist on the same item.
     - **Common pattern**: Define each option as a **Piece** (reusable component group) for consistency across shapes

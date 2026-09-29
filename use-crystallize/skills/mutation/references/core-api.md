@@ -164,6 +164,44 @@ mutation MoveItem {
 
 ---
 
+## What a partial write replaces
+
+The item mutations are not patches. Sending a component list means "these are the components now", and
+the calls that look narrow have the widest blast radius. Every row below cost a build a round of
+re-imports.
+
+| Call                                                 | What it does to everything you did not send                         |
+| ---------------------------------------------------- | ------------------------------------------------------------------- |
+| `updateProduct` / `updateDocument` with `components` | **Replaces the whole component set** for that language              |
+| `updateProduct` / `updateDocument` with only `name`  | Leaves components alone — the safe way to rename                    |
+| `updateProductVariant` **without** `components`      | **Empties that variant's components** in that language              |
+| `updateComponent(itemId, language, component)`       | Touches that one component only — use it for partial edits          |
+| `product/upsert` and friends in a mass operation     | Replace all components, so send every one, not only the changed one |
+| `setItemTaste`                                       | Empties every **variant's** components on the draft (see below)     |
+
+**Translating is where this bites.** Writing two fields in a second language with
+`updateProduct(language: "no", input: { components: [tagline, summary] })` fails with "Need to provide at
+least 1 related items for component brand" — and had it passed, it would have dropped everything not
+sent. Translate with `updateComponent` per component, and rename with `update*(input: { name })`. Shared
+(non-multilingual) components then keep showing in every language, untouched.
+
+**`setItemTaste` has a side effect on variants.** After writing taste, the draft's variant components were
+gone in every language while product components survived, and the publish that follows taste then
+published them empty. Order the pipeline: taste first, then (re)write variant components, then publish.
+(Tools Universe. The same build first blamed a shape update and re-ran it, which changed nothing.)
+
+**A variant's content chunks may not publish at all.** On the same tenant a variant chunk sat in the
+draft, but after `publishItem` the `current` version — and Discovery — had `chunks: []`, while a
+`singleLine` on the same variant and a numeric on another shape's variants published fine. If a variant
+chunk disappears on publish, move that data to the product (one row per variant, with the SKU in it).
+
+**Creating an item validates its required components**, so create is not "create then fill": a document
+whose relation has `minItems: 1`, or a numeric with a unit list, fails `createDocument` with
+`ComponentContentValidationFailedError` unless those components are in the create input. Send everything
+on create.
+
+---
+
 ## Component Updates
 
 Use `updateComponent` to change individual fields on an item. Each call targets one component by its `componentId` (the identifier defined in the shape).

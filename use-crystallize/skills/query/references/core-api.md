@@ -119,6 +119,12 @@ query GetItem {
 
 ### List Items with Pagination
 
+> **`first` caps at 100.** Asking for more is refused —
+> `Invalid pagination options: Cannot list more than 100 items at a time.` — and it arrives as an
+> `INTERNAL_SERVER_ERROR` with the path pointing at whatever field you selected, which makes it look like
+> something else went wrong. Page with `after` instead. Verified on a live tenant: `first: 100` returned
+> 100 rows of 540 with `hasNextPage: true`, while `first: 150` and `first: 500` both errored.
+
 ```graphql
 query ListItems {
     items(
