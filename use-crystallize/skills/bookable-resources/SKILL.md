@@ -24,8 +24,8 @@ product sells again and again; what is scarce is the calendar.
 Crystallize serves this natively: a **policy** carries the rules, a **pool** carries the things that can
 be booked, and the Shop API holds them for a shopper while they shop, then hands them to the order.
 
-> Verified on 2026-09-24 against the live Core API and Shop API on a tenant with bookable resources,
-> including two test reservations taken and released. Where a claim comes from one storefront build
+> Verified on 2026-09-24 and 2026-09-28 against the live Core API and Shop API on a tenant with bookable
+> resources, including test reservations taken and released. Where a claim comes from one storefront build
 > rather than from the API, this skill says so.
 
 ## Five concepts
@@ -84,7 +84,9 @@ the query.
 
 ## Failure modes
 
-The first three produce no error at all — they are the reason this skill exists.
+Three of these are silent — a paid booking whose reservation has no order, a pool or policy change that
+has no effect, and a booking that vanishes when two are taken at once. They are the reason this skill
+exists; the rest name themselves.
 
 | Symptom                                                      | Cause                                                                            | Fix                                                                                       |
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -95,6 +97,8 @@ The first three produce no error at all — they are the reason this skill exist
 | Holds vanish within seconds, or `InvalidRange` on every date | A duration was sent in minutes, hours or days                                    | Every policy duration is **seconds**; read `humanized` back to check                      |
 | `hydrate` throws "A placed cart cannot be hydrated"          | The cart is placed; its contents are frozen                                      | Change bookings before `place`, or through `/booking/admin` after                         |
 | `ReservationConflict` on a unit that looked free             | Someone took it between the availability query and the booking                   | Walk the other `freeUnitIds` and retry                                                    |
+| Two bookings taken at once, one of them missing              | Concurrent `bookSkuItem` on one cart — both answered `Cart`                      | Serialize booking writes per cart, then read the cart back                                |
+| `InvalidRange` on a date far ahead                           | The window is past the policy's `advanceWindow`                                  | Widen the policy, or cap the calendar at the shortest `advanceWindow` in the basket       |
 | `CancellationWindowClosed` when removing a basket line       | The window applies to holds that were never bought                               | Re-hydrate the cart without that line instead                                             |
 | `BookablePoolKindChangeError`                                | Capacity → units while a capacity pool is published                              | `clearBookable`, publish, cancel or wait out open reservations, then set units            |
 | `BookingPolicyInUseError` on delete                          | Products still reference the policy (`stats.referencingProductCount`)            | Move those products to another policy and publish them                                    |

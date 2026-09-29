@@ -79,12 +79,46 @@ mutation Book($id: UUID, $input: CartBookingItemInput!) {
 **Check `__typename`.** The four refusals are results, not GraphQL errors, so a client that only looks at
 `errors` treats a refused booking as a success.
 
+### `quantity` is units out of the pool, not the length of the window
+
+This is the single thing most likely to produce a wrong price. Measured on a unit pool of 5, booking a
+**two-day** window on a **one-day** SKU priced at 39 net:
+
+| Sent                              | Result                                                        |
+| --------------------------------- | ------------------------------------------------------------- |
+| `quantity: 1`                     | one reservation over the whole window, line **39** — not 78   |
+| `quantity: 2`                     | **two** reservations, both over the whole window, line **78** |
+| `quantity: 6` (pool holds 5)      | `ReservationConflict`                                         |
+| `quantity: 2` **with** a `unitId` | `Output validation error` (`OUTPUT_VALIDATION_ERROR`) — a bug |
+
+So `quantity: 2` means _two machines_, or _two rooms_, for the same window — never "two days" or "two
+nights". **Nothing in the booking inputs prices by duration.** A window twice as long costs the same
+unless the price says otherwise, and the price only comes from the SKU.
+
+Two ways out, and the first is the one to reach for:
+
+1. **Sell the duration as variants** — a day SKU, a weekend SKU, a week SKU — and book the SKU whose
+   length matches the window. See [modelling.md](modelling.md).
+2. **When the shopper picks arbitrary dates** (hotel nights, hourly hire), book one managed line for the
+   first unit of time and add the rest as an **external** line (`addExternalItem`) that carries the
+   remaining nights, tied back to the booked line by your own `meta`. Do not reprice the booked line:
+   `place` refuses a cart whose booked line went through `changeCartItemPricing` with `NotBookable`,
+   even though the reservation itself survives it. A group discount works as a negative external line.
+   (From the Boutique Universe build, a hotel on nightly rates.)
+
+**A `unitId` and `quantity: 1` belong together.** To hold two named units, book twice — once per unit.
+
 **Put the customer on the cart before booking.** The reservation records who holds it at
 `bookSkuItem`/`hydrate` time, and only when the cart's customer has an identifier. Nothing sets it later.
 Create the cart with `hydrate(input: { customer, items: [] })`, or `setCustomer` before the first booking.
 
 **On `ReservationConflict`, walk the other `freeUnitIds`.** Between the availability query and the
 booking someone else may have taken that unit. Any other refusal is final — stop and tell the shopper.
+
+**A window past the policy's `advanceWindow` is refused as `InvalidRange`**, with nothing to say the
+policy is what stopped it. Products that are booked together need the same window: a room on a 120-day
+policy and a boat trip on a 60-day one means a summer booking can hold the room but not the trip. Cap
+the calendar at the shortest `advanceWindow` in the basket. (Observed in the Boutique Universe build.)
 
 **The reservation id comes back on the line's `meta`**, not on the cart's:
 
@@ -101,6 +135,25 @@ is rebooked, possibly onto another unit. `reservation(cartId:, id:) { unitId }` 
 
 Read one hold with `reservation(cartId:, id:)`:
 `{ id, productId, variantSku, unitId, start, end, state, source, cartLineId, orderId, expiresAt }`.
+
+**Look holds up one at a time.** Several `reservation(cartId:, id:)` fields aliased into a single query
+sometimes never answer — 3 of 10 attempts in the Boutique Universe build. One query per hold, with a
+timeout.
+
+### One hold at a time per cart
+
+Two `bookSkuItem` calls in flight against the same cart lose one of them, and **both answer `Cart`**.
+Measured on a unit pool of 5, two different windows, no `unitId`, 3 of 3 attempts:
+
+- one line survives; the other booking is simply not in the cart
+- the lost hold is orphaned — `reservation(cartId:, id:)` answers `null` while `availability` still counts
+  its unit as taken (`free: 4` of 5)
+- emptying the cart releases the surviving line only. The orphan lets go by itself after
+  `pendingHoldDuration` (15 minutes on that policy), and `free` goes back to 5
+
+So **serialize the booking writes for one cart** — a queue or a lock per cart id — and never read a
+`Cart` reply as proof the line is there: read the cart back and find the line by your own `meta` key.
+Reported to Crystallize engineering on 2026-09-28.
 
 ## 3. Keep it while they shop
 
