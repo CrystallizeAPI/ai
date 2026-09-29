@@ -16,6 +16,10 @@
     "placement": {
         "mode": "smart",
     },
+    // Workers AI, for TypeSafe's Jev model (typesafe/jev): picks Core schema domains for an intent.
+    "ai": {
+        "binding": "AI",
+    },
     "vars": {
         // Plausible site ID for the SERVER-side MCP events. The Events API needs
         // no key — the site is identified by this alone, so it is a plain var, not

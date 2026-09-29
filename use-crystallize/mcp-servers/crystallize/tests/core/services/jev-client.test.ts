@@ -1,6 +1,6 @@
 import { describe, it, expect, mock } from "bun:test";
 import { createJevClient, JEV_MODEL, type JevBinding } from "../../../src/core/services/jev-client";
-import type { JevRequest } from "../../../src/contracts/jev";
+import type { JevRequest, JevResponse } from "../../../src/contracts/jev";
 
 const request: JevRequest = {
     state: { intent: "list orders" },
@@ -9,7 +9,7 @@ const request: JevRequest = {
 
 describe("createJevClient", () => {
     it("runs typesafe/jev with the request and returns the response", async () => {
-        const response = { model: "jev-1.13.0", answers: { d0: { type: "noul", noul: 0.9 } } };
+        const response: JevResponse = { model: "jev-1.13.0", answers: { d0: { type: "noul", noul: 0.9 } } };
         const run = mock(async () => response);
         const client = createJevClient({ ai: { run } as JevBinding });
 
