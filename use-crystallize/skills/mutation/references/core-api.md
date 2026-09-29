@@ -4,67 +4,144 @@ The Core API provides full read/write access to items, shapes, customers, orders
 
 See [SKILL.md](../SKILL.md) for endpoint URLs and authentication headers.
 
+Two things decide the shape of every call on this page:
+
+- **Mutations are top level.** `createProduct`, `publishItem`, `updateComponent` — there is no `product { … }`
+  or `item { … }` wrapper. That wrapper belongs to the legacy PIM API, which is a different endpoint with a
+  different schema.
+- **The tenant is in the URL** (`https://api.crystallize.com/@<tenant>/core`), so no input takes a `tenantId`.
+  The PIM API does, which is the quickest way to tell a Core example from a PIM one.
+
 ## Table of Contents
 
-- [Item Mutations](#item-mutations) - Create, update, publish, unpublish, delete
-- [Component Updates](#component-updates) - Update individual fields on items
+- [Reading a result](#reading-a-result) - The union pattern every mutation uses
+- [Item Mutations](#item-mutations) - Create, publish, unpublish, delete, move
+- [Component Updates](#component-updates) - Update individual fields on items and variants
 - [Product Variants](#product-variants) - SKUs, pricing, stock, images
-- [Customer Mutations](#customer-mutations) - Individual, organization, update
-- [Order Mutations](#order-mutations) - Update order metadata
+- [Customer Mutations](#customer-mutations) - Create, update, delete, hierarchies
+- [Order Mutations](#order-mutations) - Update orders and their metadata
 - [Media & Images](#media--images) - Upload images for items and variants
 - [Flow Mutations](#flow-mutations) - Manage item workflows
 - [Vector Ranking Mutations](#vector-ranking-mutations) - Vocabularies, item taste, re-indexing
+- [Only in the legacy PIM API](#only-in-the-legacy-pim-api) - What Core does not have
 - [Error Handling](#error-handling)
 
 ---
 
-## Item Mutations
+## Reading a result
 
-### Create Product
+Every mutation returns a **union**: the thing you asked for, or one of several error types. The error members
+all implement `BasicError`, so one fragment catches every failure and `errorName` identifies it:
 
 ```graphql
-mutation CreateProduct {
-    product {
-        create(
-            input: {
-                tenantId: "tenant-id"
-                shapeIdentifier: "sneaker"
-                name: "Air Max 2024"
-                tree: { parentId: "folder-id" }
-            }
-        ) {
-            ... on Product {
-                id
-                name
-                path
-            }
-            ... on BasicError {
-                errorName
-                message
-            }
+mutation PublishItem($id: ID!, $language: String!) {
+    publishItem(id: $id, language: $language) {
+        __typename
+        ... on PublishInfo {
+            id
+            versionId
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
 
+Three error members are on almost every union: `UnauthorizedError` (the token lacks the permission),
+`UnknownError`, and `ExperimentalFeaturesNotAvailableError` (the feature is not enabled for the tenant). Select
+`__typename` when you want to branch on the outcome in code.
+
+**The success member is often not the item.** Reaching for `... on Item` is the most common mistake here:
+
+| Mutation                                     | Success member            |
+| -------------------------------------------- | ------------------------- |
+| `createProduct` / `updateProduct`            | `Product`                 |
+| `createDocument` / `createFolder`            | `Document` / `Folder`     |
+| `publishItem` / `unpublishItem`              | `PublishInfo`             |
+| `deleteItem` / `deleteCustomer`              | `DeleteCount { removed }` |
+| `updateComponent`                            | `UpdatedComponent`        |
+| `removeComponent`                            | `ItemComponentRemoved`    |
+| `addProductVariant` / `updateProductVariant` | `ProductVariant`          |
+| `modifyProductVariantStock`                  | `ProductStockLocation`    |
+| `modifyProductVariantPrice`                  | `ProductPriceVariant`     |
+| `addItemsToFlowStage`                        | `FlowContentList`         |
+
+The examples below keep the `BasicError` fragment where a call is easy to get wrong, and leave it out where it
+would only repeat itself. Add it everywhere in real code.
+
+---
+
+## Item Mutations
+
+`language` is an **argument**, not an input field, on every create and update.
+
+### Create Product
+
+`variants` and `vatTypeId` are required — a product cannot exist without at least one SKU and a VAT type. Read
+the VAT types from the PIM API (see [below](#only-in-the-legacy-pim-api)) and keep the id in your config.
+
+```graphql
+mutation CreateProduct($input: CreateProductInput!, $language: String!) {
+    createProduct(input: $input, language: $language) {
+        __typename
+        ... on Product {
+            id
+            name
+        }
+        ... on BasicError {
+            errorName
+            message
+        }
+    }
+}
+```
+
+```json
+{
+    "language": "en",
+    "input": {
+        "shapeIdentifier": "sneaker",
+        "name": "Air Max 2024",
+        "vatTypeId": "<vat type id>",
+        "tree": { "parentId": "<folder id>" },
+        "variants": [{ "sku": "air-max-2024-42", "name": "Size 42", "isDefault": true, "price": 129.99 }]
+    }
+}
+```
+
+`tree` is `{ parentId, position }`. Leave it out and the item is created without a place in the tree; add one
+later with `createItemTreeNode(input: { itemId, parentId, position })`.
+
+**Send every required component on create.** Creation validates the shape, so a required relation or a numeric
+with a unit list fails with `ComponentContentValidationFailedError` unless its content is in `components`.
+Create-then-fill does not work.
+
 ### Create Document
 
 ```graphql
-mutation CreateDocument {
-    document {
-        create(
-            input: {
-                tenantId: "tenant-id"
-                shapeIdentifier: "blog-post"
-                name: "Welcome to Our Store"
-                tree: { parentId: "blog-folder-id" }
-            }
-        ) {
-            ... on Document {
-                id
-                name
-            }
+mutation CreateDocument($input: CreateDocumentInput!, $language: String!) {
+    createDocument(input: $input, language: $language) {
+        ... on Document {
+            id
+            name
         }
+        ... on BasicError {
+            errorName
+            message
+        }
+    }
+}
+```
+
+```json
+{
+    "language": "en",
+    "input": {
+        "shapeIdentifier": "blog-post",
+        "name": "Welcome to Our Store",
+        "tree": { "parentId": "<folder id>" }
     }
 }
 ```
@@ -72,21 +149,27 @@ mutation CreateDocument {
 ### Create Folder
 
 ```graphql
-mutation CreateFolder {
-    folder {
-        create(
-            input: {
-                tenantId: "tenant-id"
-                shapeIdentifier: "category"
-                name: "Summer Collection"
-                tree: { parentId: "shop-folder-id" }
-            }
-        ) {
-            ... on Folder {
-                id
-                name
-            }
+mutation CreateFolder($input: CreateFolderInput!, $language: String!) {
+    createFolder(input: $input, language: $language) {
+        ... on Folder {
+            id
+            name
         }
+        ... on BasicError {
+            errorName
+            message
+        }
+    }
+}
+```
+
+```json
+{
+    "language": "en",
+    "input": {
+        "shapeIdentifier": "category",
+        "name": "Summer Collection",
+        "tree": { "parentId": "<shop folder id>" }
     }
 }
 ```
@@ -97,28 +180,38 @@ Publishing makes the item visible on the storefront. Creating an item does NOT p
 
 ```graphql
 mutation PublishItem {
-    item {
-        publish(id: "item-id", language: "en", includeDescendants: false) {
-            ... on Item {
-                id
-                publishedAt
-            }
+    publishItem(id: "<item id>", language: "en", includeDescendants: false) {
+        ... on PublishInfo {
+            id
+            versionId
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
 
-Set `includeDescendants: true` to publish all children (useful for folders).
+`includeDescendants: true` publishes the children too, which is what you want for a folder.
+`disableComponentValidation: true` publishes an item whose shape validation would otherwise block it — an empty
+numeric piece is the usual reason.
+
+`publishItems(ids: [ID!]!, language: String!)` exists for batches, but it answers with a `PublishItemsRequest`
+whose return is not proof that the items are published yet. Prefer `publishItem` per item when the next step
+depends on the published version.
 
 ### Unpublish Item
 
 ```graphql
 mutation UnpublishItem {
-    item {
-        unpublish(id: "item-id", language: "en", includeDescendants: false) {
-            ... on Item {
-                id
-            }
+    unpublishItem(id: "<item id>", language: "en", includeDescendants: false) {
+        ... on PublishInfo {
+            id
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
@@ -128,39 +221,36 @@ mutation UnpublishItem {
 
 ```graphql
 mutation DeleteItem {
-    item {
-        delete(id: "item-id") {
-            ... on Item {
-                id
-            }
-            ... on BasicError {
-                errorName
-                message
-            }
+    deleteItem(itemId: "<item id>") {
+        ... on DeleteCount {
+            removed
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
 
-Deleting a folder with children will fail unless children are moved or deleted first.
+The argument is `itemId`, and the answer is a count, not the item. Deleting a folder with children fails until
+the children are moved or deleted.
 
 ### Move Item in Tree
 
 ```graphql
 mutation MoveItem {
-    item {
-        moveToTree(itemId: "item-id", input: { parentId: "new-parent-folder-id", position: 0 }) {
-            ... on Item {
-                id
-                tree {
-                    parentId
-                    path
-                }
-            }
-        }
+    moveItemTreeNode(itemId: "<item id>", language: "en", input: { parentId: "<new parent id>", position: 1 }) {
+        itemId
+        parentId
+        path
+        position
     }
 }
 ```
+
+`moveItemTreeNode` returns an `ItemTreeNode` directly — it is one of the few mutations that is not a union.
+`position` is a `PositiveInt`, so it counts from 1.
 
 ---
 
@@ -204,148 +294,88 @@ on create.
 
 ## Component Updates
 
-Use `updateComponent` to change individual fields on an item. Each call targets one component by its `componentId` (the identifier defined in the shape).
-
-### Rich Text
+`updateComponent` changes one component on one item, in one language. It is the call to reach for when you are
+editing rather than rebuilding: everything else that takes `components` replaces the whole set.
 
 ```graphql
-mutation UpdateRichText {
-    item {
-        updateComponent(
-            itemId: "item-id"
-            language: "en"
-            component: {
-                componentId: "description"
-                richText: { html: "<p>New product description with <strong>rich text</strong></p>" }
-            }
-        ) {
-            ... on Item {
+mutation UpdateComponent($itemId: ID!, $language: String!, $component: ComponentInput!) {
+    updateComponent(itemId: $itemId, language: $language, component: $component) {
+        __typename
+        ... on UpdatedComponent {
+            updatedComponentPath
+            item {
                 id
-                updatedAt
             }
-            ... on BasicError {
-                message
-            }
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
+```
+
+Arguments worth knowing:
+
+| Argument                   | Meaning                                                                    |
+| -------------------------- | -------------------------------------------------------------------------- |
+| `itemId`                   | The item to edit                                                           |
+| `sku`                      | Edit a **variant's** component instead — pass the SKU rather than `itemId` |
+| `language`                 | Required; components are per language unless the shape says otherwise      |
+| `disableContentValidation` | Write content the shape would otherwise reject                             |
+
+`ComponentInput` is `{ componentId, <one content key> }`. The content key names the component type, and the
+examples below differ only in that key. `removeComponent(itemId:, language:, componentId:)` clears one.
+
+### Rich Text
+
+`html` and `json` are **lists** — one entry per block.
+
+```json
+{ "componentId": "description", "richText": { "html": ["<p>New product description</p>"] } }
 ```
 
 ### Single Line
 
-```graphql
-mutation UpdateSingleLine {
-    item {
-        updateComponent(
-            itemId: "item-id"
-            language: "en"
-            component: { componentId: "tagline", singleLine: { text: "Premium quality materials" } }
-        ) {
-            ... on Item {
-                id
-            }
-        }
-    }
-}
+```json
+{ "componentId": "tagline", "singleLine": { "text": "Premium quality materials" } }
 ```
 
 ### Numeric
 
-```graphql
-mutation UpdateNumeric {
-    item {
-        updateComponent(
-            itemId: "item-id"
-            language: "en"
-            component: { componentId: "weight", numeric: { number: 1.5, unit: "kg" } }
-        ) {
-            ... on Item {
-                id
-            }
-        }
-    }
-}
+`number` is required, so a numeric cannot carry a unit without a value.
+
+```json
+{ "componentId": "weight", "numeric": { "number": 1.5, "unit": "kg" } }
 ```
 
 ### Boolean (Switch)
 
-```graphql
-mutation UpdateSwitch {
-    item {
-        updateComponent(
-            itemId: "item-id"
-            language: "en"
-            component: { componentId: "featured", boolean: { value: true } }
-        ) {
-            ... on Item {
-                id
-            }
-        }
-    }
-}
+```json
+{ "componentId": "featured", "boolean": { "value": true } }
 ```
 
 ### Images Component
 
-```graphql
-mutation UpdateImages {
-    item {
-        updateComponent(
-            itemId: "item-id"
-            language: "en"
-            component: {
-                componentId: "gallery"
-                images: [{ key: "image-key-from-upload", altText: "Product front view" }]
-            }
-        ) {
-            ... on Item {
-                id
-            }
-        }
-    }
-}
+`images` is a list of `ImageInput`, and `key` is the only required field. The key comes from the media library —
+see [Media & Images](#media--images).
+
+```json
+{ "componentId": "gallery", "images": [{ "key": "<image key>", "altText": "Product front view" }] }
 ```
 
 ### Selection
 
-```graphql
-mutation UpdateSelection {
-    item {
-        updateComponent(
-            itemId: "item-id"
-            language: "en"
-            component: { componentId: "color", selection: { keys: ["red"] } }
-        ) {
-            ... on Item {
-                id
-            }
-        }
-    }
-}
+```json
+{ "componentId": "color", "selection": { "keys": ["red"] } }
 ```
 
 ### Colors
 
-```graphql
-mutation UpdateColors {
-    item {
-        updateComponent(
-            itemId: "item-id"
-            language: "en"
-            component: {
-                componentId: "brand-color"
-                colors: {
-                    colors: [
-                        { label: "Midnight Blue", hex: "#191970", rgb: { r: 25, g: 25, b: 112 }, pantone: "2758 C" }
-                    ]
-                }
-            }
-        ) {
-            ... on Item {
-                id
-            }
-        }
-    }
+```json
+{
+    "componentId": "brand-color",
+    "colors": { "colors": [{ "label": "Midnight Blue", "hex": "#191970", "rgb": { "r": 25, "g": 25, "b": 112 } }] }
 }
 ```
 
@@ -362,203 +392,218 @@ See the [[content-model]] skill for when to use Colors rather than a Selection.
 
 ### Item Relations
 
-```graphql
-mutation UpdateItemRelations {
-    item {
-        updateComponent(
-            itemId: "item-id"
-            language: "en"
-            component: {
-                componentId: "related-products"
-                itemRelations: { itemIds: ["related-item-id-1", "related-item-id-2"] }
-            }
-        ) {
-            ... on Item {
-                id
-            }
-        }
-    }
-}
+Relate by item, by SKU, or both.
+
+```json
+{ "componentId": "related-products", "itemRelations": { "itemIds": ["<item id>"], "skus": ["<sku>"] } }
 ```
 
 ### Content Chunk (repeatable)
 
-```graphql
-mutation UpdateChunk {
-    item {
-        updateComponent(
-            itemId: "item-id"
-            language: "en"
-            component: {
-                componentId: "specifications"
-                contentChunk: {
-                    chunks: [
-                        [
-                            { componentId: "label", singleLine: { text: "Weight" } }
-                            { componentId: "value", singleLine: { text: "1.5 kg" } }
-                        ]
-                        [
-                            { componentId: "label", singleLine: { text: "Dimensions" } }
-                            { componentId: "value", singleLine: { text: "30x20x10 cm" } }
-                        ]
-                    ]
-                }
-            }
-        ) {
-            ... on Item {
-                id
-            }
-        }
+`chunks` is a list of lists: one inner list per repetition, holding that repetition's components.
+
+```json
+{
+    "componentId": "specifications",
+    "contentChunk": {
+        "chunks": [
+            [
+                { "componentId": "label", "singleLine": { "text": "Weight" } },
+                { "componentId": "value", "singleLine": { "text": "1.5 kg" } }
+            ],
+            [
+                { "componentId": "label", "singleLine": { "text": "Dimensions" } },
+                { "componentId": "value", "singleLine": { "text": "30x20x10 cm" } }
+            ]
+        ]
     }
 }
 ```
+
+The other content keys on `ComponentInput` follow the same pattern: `datetime`, `files`, `gridRelations`,
+`location`, `paragraphCollection`, `piece`, `propertiesTable`, `videos`, and the structural
+`componentChoice` / `componentMultipleChoice`, which nest a `NestableComponentInput`.
 
 ---
 
 ## Product Variants
 
-Variants represent purchasable SKUs on a product. Each variant has built-in fields: `sku`, `name`, `price`, `stock`, `images`, `attributes`.
+Variants are purchasable SKUs on a product. There is no `setVariants` on Core: variants are added, updated and
+deleted one at a time, and stock and price have their own mutations.
 
-### Set Variants on a Product
+| Task                  | Mutation                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| Add a variant         | `addProductVariant(productId:, language:, input: CreateProductVariantInput!)`             |
+| Change one variant    | `updateProductVariant(sku:, language:, input: UpdateSingleProductVariantInput!)`          |
+| Delete one            | `deleteProductVariant(sku:)` — refuses the default with `CannotDeleteDefaultVariantError` |
+| Replace the whole set | `updateProduct(id:, language:, input: { variants: [...] })`                               |
+| Stock                 | `modifyProductVariantStock(sku:, stockLocationIdentifier:, operation:, quantity:)`        |
+| Price                 | `modifyProductVariantPrice(sku:, priceVariantIdentifier:, price:, tiers:, tierType:)`     |
 
-This replaces all variants on the product. Include all variants you want to keep.
+### Add a Variant
 
 ```graphql
-mutation SetVariants {
-    product {
-        setVariants(
-            productId: "product-id"
-            language: "en"
-            variants: [
-                {
-                    sku: "sneaker-red-42"
-                    name: "Red - Size 42"
-                    isDefault: true
-                    price: 129.99
-                    stock: 50
-                    attributes: [{ attribute: "color", value: "Red" }, { attribute: "size", value: "42" }]
-                    images: [{ key: "uploaded-image-key", altText: "Red sneaker size 42" }]
-                }
-                {
-                    sku: "sneaker-blue-42"
-                    name: "Blue - Size 42"
-                    isDefault: false
-                    price: 129.99
-                    stock: 30
-                    attributes: [{ attribute: "color", value: "Blue" }, { attribute: "size", value: "42" }]
-                }
-            ]
-        ) {
-            ... on Product {
-                id
-                variants {
-                    sku
-                    name
-                    price
-                    stock
-                }
-            }
-            ... on BasicError {
-                errorName
-                message
-            }
+mutation AddVariant($productId: String!, $language: String!, $input: CreateProductVariantInput!) {
+    addProductVariant(productId: $productId, language: $language, input: $input) {
+        ... on ProductVariant {
+            sku
+            name
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
 
+```json
+{
+    "productId": "<product id>",
+    "language": "en",
+    "input": {
+        "sku": "sneaker-red-42",
+        "name": "Red - Size 42",
+        "isDefault": false,
+        "priceVariants": [{ "identifier": "default", "price": 129.99 }],
+        "attributes": [
+            { "attribute": "color", "value": "Red" },
+            { "attribute": "size", "value": "42" }
+        ],
+        "images": [{ "key": "<image key>", "altText": "Red sneaker size 42" }]
+    }
+}
+```
+
+`price` sets the default price variant; `priceVariants: [{ identifier, price }]` sets any of them, which is what
+you want on a multi-currency tenant. See [[pricing]].
+
 ### Update Stock
 
-Stock is managed per variant through `setVariants`. To update stock on a single variant without affecting others, query all current variants first, modify the stock value, and call `setVariants` with the full list.
+```graphql
+mutation SetStock {
+    modifyProductVariantStock(
+        sku: "sneaker-red-42"
+        stockLocationIdentifier: "oslo"
+        operation: overwrite
+        quantity: 50
+    ) {
+        ... on ProductStockLocation {
+            identifier
+            stock
+        }
+        ... on BasicError {
+            errorName
+            message
+        }
+    }
+}
+```
+
+`operation` is `increase`, `decrease` or `overwrite`, so a delta needs no read first. The stock location must
+exist — create it in the PIM API.
 
 ### Variant Attributes
 
-Attributes define the variant matrix (e.g., color + size). They appear as filterable properties in the storefront. Use consistent attribute names across products for proper filtering.
+Attributes define the variant matrix (e.g. colour + size) and appear as filterable properties in the storefront.
+Use consistent attribute names across products so the filters line up.
 
 ---
 
 ## Customer Mutations
 
-### Create Individual Customer
+One mutation creates both kinds of customer: `type` is `individual` or `organization`. There is no
+`createIndividual` or `createOrganization` on Core.
+
+### Create a Customer
 
 ```graphql
-mutation CreateIndividual {
-    customer {
-        createIndividual(
-            input: {
-                tenantId: "tenant-id"
-                firstName: "Jane"
-                lastName: "Smith"
-                email: "jane@example.com"
-                phone: "+1234567890"
-                addresses: [
-                    { type: "delivery", street: "123 Main St", city: "New York", postalCode: "10001", country: "US" }
-                ]
-            }
-        ) {
-            ... on Customer {
-                id
-                identifier
-            }
+mutation CreateCustomer($input: CreateCustomerInput!) {
+    createCustomer(input: $input) {
+        __typename
+        ... on Customer {
+            identifier
+            type
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
 
-### Create Organization
-
-```graphql
-mutation CreateOrganization {
-    customer {
-        createOrganization(
-            input: { tenantId: "tenant-id", name: "Acme Corp", email: "contact@acme.com", taxId: "XX123456789" }
-        ) {
-            ... on Customer {
-                id
-                identifier
+```json
+{
+    "input": {
+        "identifier": "jane@example.com",
+        "type": "individual",
+        "firstName": "Jane",
+        "lastName": "Smith",
+        "email": "jane@example.com",
+        "phone": "+1234567890",
+        "addresses": [
+            {
+                "type": "delivery",
+                "street": "123 Main St",
+                "city": "New York",
+                "postalCode": "10001",
+                "country": "US"
             }
-        }
+        ]
     }
 }
 ```
 
-### Update Customer
+`identifier` is the only required field and it is the customer's key everywhere else — carts, orders,
+subscription contracts and customer-targeted price lists all name it. An address `type` is the enum
+`billing`, `delivery` or `other`, not a string. A company uses `type: organization` with `companyName` and
+`taxNumber`.
+
+### Customer Hierarchies
+
+`parents` links a customer to a company or a group:
+
+```json
+{
+    "input": {
+        "identifier": "buyer@acme.example.com",
+        "type": "individual",
+        "parents": [{ "identifier": "acme", "type": "customer" }]
+    }
+}
+```
+
+`type` on a parent is `customer` or `customerGroup`, and a customer can have more than one — too many answers
+`TooManyCustomerParentsProvidedError`. This is how a B2B contact belongs to its company, which in turn decides
+whose orders it sees and which contract prices apply — see [[pricing]].
+
+### Update and Delete
 
 ```graphql
 mutation UpdateCustomer {
-    customer {
-        update(id: "customer-id", input: { firstName: "Jane", lastName: "Doe" }) {
-            ... on Customer {
-                id
-            }
+    updateCustomer(identifier: "jane@example.com", input: { lastName: "Doe" }) {
+        ... on Customer {
+            identifier
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
 
-### Delete Customer
-
-```graphql
-mutation DeleteCustomer {
-    customer {
-        delete(id: "customer-id") {
-            ... on Customer {
-                id
-            }
-            ... on BasicError {
-                errorName
-                message
-            }
-        }
-    }
-}
-```
+Both `updateCustomer` and `deleteCustomer` take the **identifier**, not an id.
+`deleteCustomer(identifier:, deleteSubscriptionContracts: true)` removes the customer and its contracts in one
+call; orders are deleted separately. As with items, a list you send replaces the stored one — sending `meta` or
+`addresses` drops whatever you left out.
 
 ---
 
 ## Order Mutations
 
-> **If a storefront lists these orders, change them on the Shop API instead.** Every `order { update }`
+> **If a storefront lists these orders, change them on the Shop API instead.** Every `updateOrder`
 > in Core adds **another copy** of the order to the Shop store: three updates on one order left three
 > Shop orders with new ids, the same `coreId` and different `updatedAt`, and a storefront summing that
 > list counted the money three times. `updateOrderPipelineStage` and `deleteOrder` in Core, by contrast,
@@ -569,17 +614,33 @@ mutation DeleteCustomer {
 ### Update Order
 
 ```graphql
-mutation UpdateOrder {
-    order {
-        update(id: "order-id", input: { meta: [{ key: "tracking_number", value: "1Z999AA10123456784" }] }) {
-            ... on Order {
-                id
-                updatedAt
-            }
+mutation UpdateOrder($id: ID!, $input: UpdateOrderInput!) {
+    updateOrder(id: $id, input: $input) {
+        __typename
+        ... on Order {
+            id
+            updatedAt
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
+
+```json
+{ "id": "<order id>", "input": { "meta": [{ "key": "tracking_number", "value": "1Z999AA10123456784" }] } }
+```
+
+`UpdateOrderInput` also carries `cart`, `customer`, `payment`, `paymentStatus`, `total`,
+`additionalInformation`, `relatedOrderIds` and `stockLocationIdentifier`. For a single key,
+`updateOrderMetadata(id:, key:, value:)` is narrower and does not touch the rest;
+`deleteOrderMetadata(id:, key:)` removes one.
+
+`registerOrder(input: RegisterOrderInput!)` writes an order that did not come from a cart — a renewal invoice, a
+POS sale, an import. Before using it, read what it does to an order a storefront lists, in
+[shop-api-order-mutations.md](shop-api-order-mutations.md).
 
 ---
 
@@ -606,25 +667,34 @@ import, and how to replace an image later.
 
 ## Flow Mutations
 
-Flows model item workflows (e.g., Draft > Review > Published). Items can be moved between stages.
-
-### Set Item Flow Stage
+Flows model item workflows (e.g. Draft > Review > Published). Items are added to a stage and removed from it;
+there is no `setFlowStage` on Core.
 
 ```graphql
-mutation SetFlowStage {
-    item {
-        setFlowStage(itemId: "item-id", stageId: "stage-id") {
-            ... on Item {
+mutation AddToStage($items: [ItemFlowStageAssociationInput!]!) {
+    addItemsToFlowStage(stageIdentifier: "review", items: $items) {
+        __typename
+        ... on FlowContentList {
+            content {
                 id
             }
-            ... on BasicError {
-                errorName
-                message
-            }
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
+
+```json
+{ "items": [{ "id": "<item id>", "language": "en", "version": "draft" }] }
+```
+
+An item is named by `{ id, language, version }`, where `version` is `current`, `draft` or `published`.
+`moveFromFlowIdentifier` moves items out of another flow in the same call, and
+`deleteItemsFromFlowStage(stageIdentifier:, items:)` takes them out again. Stage and flow identifiers are the
+ones you gave `createFlow` / `createFlowStage`.
 
 ---
 
@@ -697,42 +767,67 @@ has no effect and raises no error. Omitting `stacks: opensearch` likewise fails 
 rebuilds, but without vectors. Full guidance, including vocabulary design, positional weights and
 key validation, is in the [[vector-ranking]] skill.
 
+## Only in the legacy PIM API
+
+Some tenant configuration has no Core equivalent at all — it is neither readable nor writable there. For these,
+use `https://pim.crystallize.com/graphql`, which is namespaced (`subscriptionPlan { create(...) }`) and takes the
+tenant **id** as an argument rather than `@tenant` in the URL:
+
+| Concept                               | Why you need it                                                        |
+| ------------------------------------- | ---------------------------------------------------------------------- |
+| Subscription plans, periods, meters   | The template a subscription contract points at — see [[subscriptions]] |
+| Order pipelines and their stages      | Creating them; Core can move an order between existing stages          |
+| Stock locations                       | `modifyProductVariantStock` needs one to exist                         |
+| VAT types                             | `createProduct` requires a `vatTypeId`                                 |
+| Markets                               | Targeting price lists at a market — see [[pricing]]                    |
+| Tenant preferences (`setPreferences`) | Registering a custom admin view through `input: { frontends }`         |
+
+Price variants are **not** in this list: `createPriceVariant`, `updatePriceVariant`, `deletePriceVariant` and the
+`priceVariant` / `priceVariants` queries are all on Core.
+
+Anything created in the PIM API is read back through its own generated ids — plan period ids in particular —
+so capture them when you create them rather than re-deriving them later.
+
 ## Error Handling
 
 The Core API uses union return types. Always handle potential errors:
 
 ```graphql
-mutation {
-  item {
-    updateComponent(...) {
-      ... on Item {
-        id
-      }
-      ... on ItemNotFoundError {
-        errorName
-        message
-      }
-      ... on UnauthorizedError {
-        errorName
-        message
-      }
-      ... on BasicError {
-        errorName
-        message
-      }
+mutation UpdateComponent($itemId: ID!, $language: String!, $component: ComponentInput!) {
+    updateComponent(itemId: $itemId, language: $language, component: $component) {
+        __typename
+        ... on UpdatedComponent {
+            updatedComponentPath
+        }
+        ... on ComponentContentValidationFailedError {
+            errors {
+                componentId
+                message
+            }
+        }
+        ... on BasicError {
+            errorName
+            message
+        }
     }
-  }
 }
 ```
 
+A specific member first, then `BasicError` as the catch-all, is the pattern to copy: `errorName` tells you which
+one you actually got.
+
 Common error types:
 
-| Error                             | Cause                                            |
-| --------------------------------- | ------------------------------------------------ |
-| `BasicError`                      | General validation or input errors               |
-| `UnauthorizedError`               | Missing or insufficient access token permissions |
-| `ItemNotFoundError`               | Item ID doesn't exist or wrong tenant            |
-| `OrderDoesNotBelongToTenantError` | Order ID belongs to a different tenant           |
+| Error                                   | Cause                                                          |
+| --------------------------------------- | -------------------------------------------------------------- |
+| `UnauthorizedError`                     | Missing or insufficient access token permissions               |
+| `UnknownError`                          | Unclassified failure                                           |
+| `ExperimentalFeaturesNotAvailableError` | The feature is not enabled for this tenant                     |
+| `ItemNotFoundError`                     | Item ID doesn't exist                                          |
+| `ItemDoesNotBelongToTenantError`        | Item ID belongs to a different tenant                          |
+| `ComponentContentValidationFailedError` | Content does not match the shape; carries per-component errors |
+| `ProductVariantNotFoundError`           | No variant with that SKU                                       |
+| `OrderNotFoundError`                    | Order ID doesn't exist                                         |
 
 ## Related Links
 

@@ -175,7 +175,7 @@ own `meta` (the ordering person, the cost centre).
 Shop API orders and Core orders are the same orders in two stores, and they do **not** converge. Two
 build findings decide how a storefront should read them.
 
-**Orders edited in Core appear more than once here.** Three `order { update }` calls on one seeded order
+**Orders edited in Core appear more than once here.** Three `updateOrder` calls on one seeded order
 left **three** orders in `orders(customerIdentifier:)`: new Shop ids, the same `coreId`, different
 `updatedAt`. A storefront that sums an order list then counts the same money several times over — the Lab
 Universe build saw a department budget of NOK 1,249,299 instead of 411,775. Two defences, use both:
