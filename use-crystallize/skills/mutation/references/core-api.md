@@ -585,32 +585,22 @@ mutation UpdateOrder {
 
 ## Media & Images
 
-Images in Crystallize are uploaded to the tenant's media library, then referenced by key in components or variants.
+Media is registered in the tenant's library first, then referenced **by key** in components or on
+variants. Six mutations cover it:
 
-### Upload Image via URL
+| Mutation                                                                     | Notes                                                                                                                          |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `copyRemoteAsset(sourceUrl:, type: image, targetFilename:, requestHeaders:)` | Crystallize fetches the URL. A **bulk task**: it returns `targetKey` before the file lands, and it registers the image for you |
+| `generatePresignedUploadRequest(filename:, contentType:, type: MEDIA)`       | A target to POST your own bytes to — the only path for video                                                                   |
+| `registerImage(imageKey:)`                                                   | Registers an uploaded key. Not needed after `copyRemoteAsset`                                                                  |
+| `registerImageRevision(imageKey:, revisionKey:)`                             | Repoints the library entry — it does **not** reach published items                                                             |
+| `updateImage(key:, language:, input:)`                                       | `altText`, `caption`, `focalPoint`, `meta`, `topicIds`, `showcase` — per language                                              |
+| `deleteImage(key:, force:)`                                                  | Refuses while any item version references it; `force: true` overrides                                                          |
 
-```graphql
-mutation UploadImageFromURL {
-    fileUpload {
-        uploadFromUrl(
-            tenantId: "tenant-id"
-            url: "https://example.com/product-photo.jpg"
-            fileName: "product-photo.jpg"
-        ) {
-            ... on FileContent {
-                key
-                url
-            }
-            ... on BasicError {
-                errorName
-                message
-            }
-        }
-    }
-}
-```
-
-The returned `key` is used when assigning images to components or variants.
+An import that follows these six in the obvious order still breaks in four different ways — keys whose
+file never arrives, renditions that are not ready, revisions that never reach the storefront, and
+deletes that refuse. **See [Media & Images](media.md)** for the working pipeline, what to verify after an
+import, and how to replace an image later.
 
 ---
 
