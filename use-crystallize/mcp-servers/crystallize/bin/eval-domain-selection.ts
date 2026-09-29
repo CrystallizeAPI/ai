@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
-import type { JevClient, JevResponse } from "../src/contracts/jev";
-import { JEV_MODEL } from "../src/core/services/jev-client";
+import type { JevClient } from "../src/contracts/jev";
+import { createJevClient, type JevBinding } from "../src/core/services/jev-client";
 import { MAX_DOMAINS, pickDomains, scoreDomains } from "../src/core/services/core-domain-selector";
 import { createCoreSchemaDomainSplitter } from "../src/core/services/core-schema-domain-splitter";
 import { fetchIntrospection } from "../src/core/services/compact-schema-builder";
@@ -18,16 +18,29 @@ const env = (name: string) => {
 const accountId = env("CLOUDFLARE_ACCOUNT_ID");
 const apiToken = env("CLOUDFLARE_API_TOKEN");
 
-// Same request shape as the binding, over the REST API, so the eval runs outside a Worker.
+// A stand-in for the AI binding over the REST API, so the eval runs outside a Worker but still goes
+// through the production client (envelope unwrapping, validation). REST's `result` is what the binding returns.
+const restBinding: JevBinding = {
+    async run(model, input) {
+        const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model, input }),
+        });
+        const json = (await response.json()) as { success: boolean; result: unknown; errors?: unknown };
+        if (!json.success) throw new Error(`Workers AI error: ${JSON.stringify(json.errors)}`);
+        return json.result;
+    },
+};
+const productionClient = createJevClient({ ai: restBinding }, 30_000);
+const usage = { inputTokens: 0, calls: 0, ms: 0 };
 const jevClient: JevClient = async (request) => {
-    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: JEV_MODEL, input: request }),
-    });
-    const json = (await response.json()) as { success: boolean; result: JevResponse; errors?: unknown };
-    if (!json.success) throw new Error(`Workers AI error: ${JSON.stringify(json.errors)}`);
-    return json.result;
+    const started = Date.now();
+    const response = await productionClient(request);
+    usage.ms += Date.now() - started;
+    usage.calls++;
+    usage.inputTokens += response.usage?.input_tokens ?? 0;
+    return response;
 };
 
 const url = buildAtApiUrl("https://api.crystallize.com", env("CRYSTALLIZE_TENANT"), "");
@@ -68,3 +81,8 @@ console.log("\nthreshold  full-recall  avg-domains-returned");
 for (const [t, { fullRecall, returned }] of totals) {
     console.log(`${t.toFixed(2)}       ${fullRecall}/${cases.length}         ${(returned / cases.length).toFixed(2)}`);
 }
+
+console.log(
+    `\nper call: ${Math.round(usage.inputTokens / usage.calls)} input tokens, ` +
+        `${Math.round(usage.ms / usage.calls)}ms average latency (REST, from this machine)`,
+);

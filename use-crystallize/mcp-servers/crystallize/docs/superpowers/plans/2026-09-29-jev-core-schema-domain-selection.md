@@ -15,7 +15,7 @@
 - Package root for every path below: `use-crystallize/mcp-servers/crystallize/`. Run all commands from there.
 - Model id: `typesafe/jev` (Workers AI, 32,000-token context, $0.042 / 1M input tokens, output free).
 - Jev Noul answer shape: `{ "type": "noul", "noul": <0..1> }` under `response.answers[<questionId>]`.
-- Selection policy (initial, tuned in Task 6): keep domains with probability `>= 0.3`, sorted descending, at most `4`.
+- Selection policy (tuned in Task 6 on 12 live cases: 12/12 full recall at 0.2, 0.3 and 0.5): keep domains with probability `>= 0.5`, sorted descending, at most `4`.
 - `domain` input wins over `intent` when both are given (exact, no Jev call).
 - A Jev failure, a blank intent, or an empty selection must return the domain index, never an error.
 - No new npm dependencies.

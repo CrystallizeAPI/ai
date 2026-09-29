@@ -4,9 +4,10 @@ import type { JevClient, JevRequest } from "../../contracts/jev";
 
 /**
  * Missing a needed domain costs the agent another round-trip; an extra domain only costs output size.
- * So the threshold leans low and the cap bounds the output.
+ * Tuned with bin/eval-domain-selection.ts on the live schema: 0.5 kept 12/12 cases at full recall with
+ * 1.4 domains returned on average (0.3 returned 2.1). The cap bounds the output.
  */
-export const DOMAIN_THRESHOLD = 0.3;
+export const DOMAIN_THRESHOLD = 0.5;
 export const MAX_DOMAINS = 4;
 
 /**
