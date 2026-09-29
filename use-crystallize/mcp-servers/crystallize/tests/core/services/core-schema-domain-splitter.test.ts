@@ -142,4 +142,20 @@ describe("createCoreSchemaDomainSplitter", () => {
             expect(schema).not.toContain("# Mutations");
         });
     });
+
+    describe("getCompactedDomainsSchema", () => {
+        it("returns the union of the requested domains' root fields", () => {
+            const schema = splitter.getCompactedDomainsSchema(introspection, ["order", "subscription"], "both");
+
+            expect(schema).toContain("createOrder");
+            expect(schema).toContain("Subscription");
+            expect(schema).not.toContain("createCustomer");
+        });
+
+        it("names every unknown domain", () => {
+            const result = splitter.getCompactedDomainsSchema(introspection, ["order", "nope", "nada"], "both");
+            expect(result).toContain('Unknown domain "nope", "nada"');
+            expect(result).toContain("Available domains:");
+        });
+    });
 });

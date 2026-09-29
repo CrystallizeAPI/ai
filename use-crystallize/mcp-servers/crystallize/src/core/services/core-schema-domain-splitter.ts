@@ -125,19 +125,29 @@ export const createCoreSchemaDomainSplitter = (): CoreSchemaDomainSplitter => {
             domain: string,
             operations: "queries" | "mutations" | "both",
         ): string {
+            return this.getCompactedDomainsSchema(introspection, [domain], operations);
+        },
+
+        getCompactedDomainsSchema(
+            introspection: IntrospectionResult,
+            domains: string[],
+            operations: "queries" | "mutations" | "both",
+        ): string {
             const index = this.listDomains(introspection);
-            const domainInfo = index.domains.find((d) => d.name === domain);
-            if (!domainInfo) {
+            const unknown = domains.filter((name) => !index.domains.some((d) => d.name === name));
+            if (unknown.length > 0) {
                 const available = index.domains.map((d) => d.name).join(", ");
-                return `Unknown domain "${domain}". Available domains: ${available}`;
+                return `Unknown domain "${unknown.join('", "')}". Available domains: ${available}`;
             }
 
             const fieldNames = new Set<string>();
-            if (operations === "queries" || operations === "both") {
-                for (const f of domainInfo.queries) fieldNames.add(f);
-            }
-            if (operations === "mutations" || operations === "both") {
-                for (const f of domainInfo.mutations) fieldNames.add(f);
+            for (const domainInfo of index.domains.filter((d) => domains.includes(d.name))) {
+                if (operations === "queries" || operations === "both") {
+                    for (const f of domainInfo.queries) fieldNames.add(f);
+                }
+                if (operations === "mutations" || operations === "both") {
+                    for (const f of domainInfo.mutations) fieldNames.add(f);
+                }
             }
 
             return compactSchemaFromIntrospection(introspection, {

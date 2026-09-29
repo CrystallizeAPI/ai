@@ -17,4 +17,9 @@ export type CoreSchemaDomainSplitter = {
         domain: string,
         operations: "queries" | "mutations" | "both",
     ): string;
+    getCompactedDomainsSchema(
+        introspection: IntrospectionResult,
+        domains: string[],
+        operations: "queries" | "mutations" | "both",
+    ): string;
 };
