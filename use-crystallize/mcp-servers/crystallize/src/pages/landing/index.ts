@@ -14,7 +14,7 @@ const INSTALL_BASE_URL = "https://mcp.crystallize.com/mcp";
 const INSTALL_SUFFIX = ` --header "X-Crystallize-Access-Token-Id: YOUR_TOKEN_ID" --header "X-Crystallize-Access-Token-Secret: YOUR_TOKEN_SECRET"`;
 const installCommand = `${INSTALL_PREFIX}${INSTALL_BASE_URL}${INSTALL_SUFFIX}`;
 
-// Every release is tagged vX.Y.Z (see .github/workflows/release.yaml), so the tag always exists.
+// Every deploy publishes a GitHub Release for its vX.Y.Z tag (see .github/workflows/deploy-mcp.yaml).
 const version = `v${packageJson.version}`;
 
 // Wires the feature-card switches: flipping a card appends/removes its query
@@ -155,7 +155,7 @@ export function landingPage({ plausibleScriptUrl, plausibleEndpoint }: LandingPa
                         · Skills, MCP server & usage guide in the
                         <a href="https://crystallizeapi.github.io/ai" target="_blank" rel="noopener">Documentation</a>
                         ·
-                        <a href="https://github.com/crystallizeapi/ai/tree/${version}" target="_blank" rel="noopener"
+                        <a href="https://github.com/crystallizeapi/ai/releases/tag/${version}" target="_blank" rel="noopener"
                             >${version}</a
                         >
                     </p>

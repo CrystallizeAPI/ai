@@ -51,3 +51,24 @@ jobs:
               env:
                   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
               run: bun run deploy
+
+    # Only after a successful deploy, so a published Release always means "this is live".
+    # A separate job keeps the write-scoped token away from the one holding the Cloudflare secret.
+    release:
+        name: 📝 Publish the GitHub Release
+        needs: deploy
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - name: 📝 Create the release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TAG: ${{ inputs.ref || github.ref_name }}
+              run: |
+                  # Re-running a deploy for the same tag must not fail on an existing release.
+                  if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+                      echo "Release $TAG already exists"
+                  else
+                      gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --verify-tag
+                  fi
