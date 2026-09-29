@@ -23,6 +23,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { JEV_SELECTING_TOOLS } from "../src/core/analytics";
 
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -71,6 +72,21 @@ const buildGoals = (toolNames: string[]): Goal[] => [
         displayName: `tool: ${tool}`,
         answers: `calls to ${tool} across every tenant`,
     })),
+    // Jev selections: `picked-N` rows show up in Top Pages on their own; these goals give the ratios to watch.
+    ...JEV_SELECTING_TOOLS.flatMap((tool) => [
+        { path: `/jev/${tool}/*`, displayName: `jev: ${tool}`, answers: `${tool} calls where Jev picked (any outcome)` },
+        {
+            path: `/jev/${tool}/capped`,
+            displayName: `jev: ${tool} capped`,
+            answers: "the cap dropped a candidate that cleared 0.5",
+        },
+        { path: `/jev/${tool}/none`, displayName: `jev: ${tool} none`, answers: "Jev answered, nothing cleared 0.5" },
+        {
+            path: `/jev/${tool}/failed`,
+            displayName: `jev: ${tool} failed`,
+            answers: "timeout, error or unusable answer (fallback)",
+        },
+    ]),
 ];
 
 const filter = process.argv[2]?.toLowerCase();

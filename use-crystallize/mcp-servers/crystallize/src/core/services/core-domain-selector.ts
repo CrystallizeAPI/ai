@@ -69,7 +69,11 @@ export function pickDomains(
 
 export const createCoreDomainSelector = ({ jevClient }: { jevClient: JevClient }): CoreDomainSelector => ({
     async select(index, intent) {
-        if (!intent.trim()) return [];
-        return pickDomains(await scoreDomains(jevClient, index, intent));
+        if (!intent.trim()) return { picked: [], qualified: 0 };
+        const scored = await scoreDomains(jevClient, index, intent);
+        return {
+            picked: pickDomains(scored),
+            qualified: scored.filter((d) => d.probability >= DOMAIN_THRESHOLD).length,
+        };
     },
 });

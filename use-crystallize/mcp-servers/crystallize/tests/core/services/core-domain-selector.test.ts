@@ -87,17 +87,31 @@ describe("createCoreDomainSelector", () => {
         const jevClient: JevClient = async () => answers({ d0: 0.7, d1: 0.95, d2: 0.05 });
         const selector = createCoreDomainSelector({ jevClient });
 
-        expect(await selector.select(index, "create an order for a customer")).toEqual([
-            { name: "order", probability: 0.95 },
-            { name: "customer", probability: 0.7 },
-        ]);
+        expect(await selector.select(index, "create an order for a customer")).toEqual({
+            picked: [
+                { name: "order", probability: 0.95 },
+                { name: "customer", probability: 0.7 },
+            ],
+            qualified: 2,
+        });
+    });
+
+    it("counts every domain that cleared the threshold, even beyond the cap", async () => {
+        const many: DomainIndex = {
+            domains: Array.from({ length: 6 }, (_, i) => ({ name: `d${i}`, queries: [], mutations: [] })),
+        };
+        const jevClient: JevClient = async () => answers({ d0: 0.9, d1: 0.9, d2: 0.9, d3: 0.9, d4: 0.9, d5: 0.1 });
+        const result = await createCoreDomainSelector({ jevClient }).select(many, "everything");
+
+        expect(result.picked).toHaveLength(4);
+        expect(result.qualified).toBe(5);
     });
 
     it("does not call Jev for a blank intent", async () => {
         const jevClient = mock(async () => answers({}));
         const selector = createCoreDomainSelector({ jevClient });
 
-        expect(await selector.select(index, "   ")).toEqual([]);
+        expect(await selector.select(index, "   ")).toEqual({ picked: [], qualified: 0 });
         expect(jevClient).not.toHaveBeenCalled();
     });
 });

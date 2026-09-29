@@ -43,6 +43,7 @@ src/
 ├── core/
 │   ├── analytics.ts                              # Pure analytics event builders (tenant/tool + session paths)
 │   ├── expose-flags.ts                           # Shared exposeWrite/exposeUi/exposeSkills query-param parsing
+│   ├── jev-selection-report.ts                   # Jev selection → Plausible event + one JSON log line
 │   ├── mcp-request.ts                            # Detect the JSON-RPC `initialize` handshake (body-clone peek)
 │   ├── container.ts                              # Awilix DI container + services + tool registration
 │   ├── mass-operation.ts                         # Shared mass-operation validation (validateMassOperations)
@@ -323,6 +324,26 @@ whole reporting model — do not change it without re-reading this section.
 All three come from this one event. Plausible compiles a goal's `*` to `.*` anchored `^…$`, evaluates it at query
 time (**so pageview goals are retroactive**, unlike custom-event goals), matches **every** goal a pageview satisfies,
 and does not count goals toward the event quota.
+
+**Jev selections** — one extra `pageview` whenever `fetch-core-graphql-schema` (`intent`) or `skills` (`task`) asked
+Jev to pick:
+
+```
+/jev/{tool}/{outcome}       outcome: picked-N | capped | none | failed
+```
+
+- `capped` means more candidates cleared 0.5 than the cap (4 domains / 3 references) allowed: the signal for tuning
+  the caps. `failed` is a timeout, an error or an unusable answer (the tool fell back); `none` means Jev answered but
+  nothing cleared 0.5.
+- Goals: `/jev/{tool}/*`, `/jev/{tool}/capped`, `/jev/{tool}/none`, `/jev/{tool}/failed` (`bun run goals jev`).
+  `picked-N` rows are read straight from Top Pages.
+- No tenant segment: the question is how the selection behaves, not who called.
+- Tool wrappers are singletons while the tracker is request-scoped, so the tools cannot hold the tracker. They return
+  `events` next to `content` (`ToolWrapperResult`), and the `servicesProvider` handler sends them and strips the field
+  from the MCP reply.
+- The detail Plausible cannot hold goes to Workers Logs as one JSON line per selection
+  (`src/core/jev-selection-report.ts`): `{ event: "jev_selection", tool, outcome, candidates, qualified, picked:
+  [{ name, probability }], ms }`. The intent/task text is never logged.
 
 **MCP session handshakes** — one `pageview` per JSON-RPC `initialize`, fired from `src/app.ts`:
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, spyOn } from "bun:test";
 import { createSkillsToolWrapper } from "../../../../src/core/mcp/tools/skills";
 import type { SkillEntry } from "../../../../src/contracts/skills";
 import type { SkillReferenceSelector } from "../../../../src/contracts/skill-reference-selector";
@@ -23,18 +23,13 @@ describe("skills tool", () => {
     let select: ReturnType<typeof mock>;
     let tool: ReturnType<typeof createSkillsToolWrapper>;
 
-    const run = async (input: {
-        skills: string[];
-        references?: string[];
-        includeAllReferences?: boolean;
-        task?: string;
-    }) => {
-        const result = await tool.handler({ ...input, authContext: testAuthContext });
-        return result.content[0].text;
-    };
+    type Input = { skills: string[]; references?: string[]; includeAllReferences?: boolean; task?: string };
+    const call = (input: Input) => tool.handler({ ...input, authContext: testAuthContext });
+    const run = async (input: Input) => (await call(input)).content[0].text;
+    const eventPaths = async (input: Input) => ((await call(input)).events ?? []).map((e) => e.path);
 
     beforeEach(() => {
-        select = mock(async () => []);
+        select = mock(async () => ({ picked: [], qualified: 0 }));
         tool = createSkillsToolWrapper({
             skillsCatalog: catalog,
             skillReferenceSelector: { select } as unknown as SkillReferenceSelector,
@@ -55,7 +50,10 @@ describe("skills tool", () => {
     });
 
     it("with a task, includes the references the selector picks and lists the others", async () => {
-        select.mockImplementation(async () => [{ skill: "payments", slug: "klarna", probability: 0.96 }]);
+        select.mockImplementation(async () => ({
+            picked: [{ skill: "payments", slug: "klarna", probability: 0.96 }],
+            qualified: 1,
+        }));
         const text = await run({ skills: ["payments", "query"], task: "add Klarna to my checkout" });
 
         expect(select.mock.calls[0][0].map((c: { slug: string }) => c.slug)).toEqual(["klarna", "stripe", "vipps"]);
@@ -94,6 +92,57 @@ describe("skills tool", () => {
         const text = await run({ skills: ["payments"], task: "add Klarna" });
         expect(text).toContain("PAYMENTS MAIN DOC");
         expect(text).toContain("Available references for payments: klarna, stripe, vipps");
+    });
+
+    describe("selection telemetry", () => {
+        it("reports picked, capped, none and failed", async () => {
+            select.mockImplementation(async () => ({
+                picked: [{ skill: "payments", slug: "klarna", probability: 0.9 }],
+                qualified: 1,
+            }));
+            expect(await eventPaths({ skills: ["payments"], task: "add Klarna" })).toEqual(["/jev/skills/picked-1"]);
+
+            select.mockImplementation(async () => ({
+                picked: [{ skill: "payments", slug: "klarna", probability: 0.9 }],
+                qualified: 4,
+            }));
+            expect(await eventPaths({ skills: ["payments"], task: "every provider" })).toEqual(["/jev/skills/capped"]);
+
+            select.mockImplementation(async () => ({ picked: [], qualified: 0 }));
+            expect(await eventPaths({ skills: ["payments"], task: "bake a cake" })).toEqual(["/jev/skills/none"]);
+
+            select.mockImplementation(async () => {
+                throw new Error("down");
+            });
+            expect(await eventPaths({ skills: ["payments"], task: "add Klarna" })).toEqual(["/jev/skills/failed"]);
+        });
+
+        it("sends nothing when Jev was not asked", async () => {
+            expect(await eventPaths({ skills: ["payments"] })).toEqual([]);
+            expect(await eventPaths({ skills: ["payments"], references: ["stripe"], task: "x" })).toEqual([]);
+            expect(await eventPaths({ skills: ["nope"], task: "add Klarna" })).toEqual([]);
+        });
+
+        it("logs the picks and scores as one JSON line, without the task text", async () => {
+            const log = spyOn(console, "log").mockImplementation(() => {});
+            select.mockImplementation(async () => ({
+                picked: [{ skill: "payments", slug: "klarna", probability: 0.96 }],
+                qualified: 1,
+            }));
+            await run({ skills: ["payments"], task: "secret launch plan" });
+            const line = JSON.parse(log.mock.calls.at(-1)![0] as string);
+            log.mockRestore();
+
+            expect(line).toMatchObject({
+                event: "jev_selection",
+                tool: "skills",
+                outcome: "picked-1",
+                candidates: 3,
+                qualified: 1,
+                picked: [{ name: "payments/klarna", probability: 0.96 }],
+            });
+            expect(JSON.stringify(line)).not.toContain("secret");
+        });
     });
 
     it("still reports an unknown skill", async () => {

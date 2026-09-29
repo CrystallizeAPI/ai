@@ -1,7 +1,9 @@
 import { describe, it, expect } from "bun:test";
 import {
+    buildSelectionEvent,
     buildSessionEvent,
     buildToolCallEvent,
+    selectionOutcome,
     MULTIPLE_TENANTS,
     resolveTenant,
     UNKNOWN_TENANT,
@@ -237,5 +239,50 @@ describe("readExposeFlags", () => {
     it("only disables ui and skills on the exact opt-out value", () => {
         expect(flagsFrom("exposeUi=false&exposeSkills=false")).toMatchObject({ ui: false, skills: false });
         expect(flagsFrom("exposeUi=0&exposeSkills=no")).toMatchObject({ ui: true, skills: true });
+    });
+});
+
+describe("selectionOutcome", () => {
+    it("reports how many parts were picked", () => {
+        expect(selectionOutcome({ picked: 1, qualified: 1 })).toBe("picked-1");
+        expect(selectionOutcome({ picked: 3, qualified: 3 })).toBe("picked-3");
+    });
+
+    it("reports capped when more candidates cleared the threshold than the cap allowed", () => {
+        expect(selectionOutcome({ picked: 3, qualified: 5 })).toBe("capped");
+    });
+
+    it("reports none when Jev answered but nothing cleared the threshold", () => {
+        expect(selectionOutcome({ picked: 0, qualified: 0 })).toBe("none");
+    });
+
+    it("reports failed when the selection threw", () => {
+        expect(selectionOutcome("failed")).toBe("failed");
+    });
+});
+
+describe("buildSelectionEvent", () => {
+    // Mirrors how Plausible compiles a pageview goal: escape, "*" -> ".*", anchor.
+    const goalMatches = (goalPath: string, path: string) =>
+        new RegExp(`^${goalPath.replace(/[.+?^${}()[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`).test(path);
+
+    it("puts the tool then the outcome in the path, with no properties", () => {
+        expect(buildSelectionEvent("skills", "capped")).toEqual({ name: "pageview", path: "/jev/skills/capped" });
+        expect(buildSelectionEvent("fetch-core-graphql-schema", "picked-2").path).toBe(
+            "/jev/fetch-core-graphql-schema/picked-2",
+        );
+    });
+
+    it("keeps selection events out of the tool-call and session totals", () => {
+        const path = buildSelectionEvent("skills", "picked-1").path;
+        expect(goalMatches("/t/*", path)).toBe(false);
+        expect(goalMatches("/mcp/session/*", path)).toBe(false);
+    });
+
+    it("lets per-tool goals tell the two tools apart", () => {
+        expect(goalMatches("/jev/skills/*", buildSelectionEvent("skills", "none").path)).toBe(true);
+        expect(goalMatches("/jev/skills/*", buildSelectionEvent("fetch-core-graphql-schema", "none").path)).toBe(false);
+        expect(goalMatches("/jev/*/capped", buildSelectionEvent("skills", "capped").path)).toBe(true);
+        expect(goalMatches("/jev/*/capped", buildSelectionEvent("skills", "picked-3").path)).toBe(false);
     });
 });

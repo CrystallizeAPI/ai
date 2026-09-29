@@ -65,7 +65,10 @@ export const servicesProvider = createMiddleware<AppContext>(async (c, next) => 
             // Tracking is fire-and-forget: analyticsTracker returns void and hands
             // delivery to waitUntil, so it cannot delay or fail the tool call.
             analyticsTracker(buildToolCallEvent(toolName, input, props));
-            return await wrapper.handler({ ...input, authContext: props });
+            // Tools may hand back extra events (a Jev selection outcome); send them and keep them out of the reply.
+            const { events, ...result } = await wrapper.handler({ ...input, authContext: props });
+            events?.forEach(analyticsTracker);
+            return result;
         };
 
         if (wrapper.ui) {

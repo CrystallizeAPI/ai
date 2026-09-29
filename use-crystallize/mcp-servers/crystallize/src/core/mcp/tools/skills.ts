@@ -3,6 +3,8 @@ import { defineToolWrapper } from "../../../contracts/tool";
 import type { SkillEntry } from "../../../contracts/skills";
 import type { SelectedReference, SkillReferenceSelector } from "../../../contracts/skill-reference-selector";
 import { sanitizeErrorMessage } from "../../security";
+import { reportSelection } from "../../jev-selection-report";
+import type { AnalyticsEvent } from "../../../contracts/analytics-tracker";
 
 type Deps = {
     skillsCatalog: SkillEntry[];
@@ -56,17 +58,30 @@ export const createSkillsToolWrapper = ({ skillsCatalog: skills, skillReferenceS
             const requested = requestedSlugs.map((slug) => ({ slug, skill: skills.find((s) => s.slug === slug) }));
 
             let picked: SelectedReference[] = [];
+            const events: AnalyticsEvent[] = [];
             const selecting = !references && !includeAllReferences && !!task?.trim();
             if (selecting) {
                 const candidates = requested.flatMap(({ skill }) =>
                     skill ? skill.references.map((r) => ({ skill: skill.slug, slug: r.slug, content: r.content })) : [],
                 );
                 if (candidates.length > 0) {
+                    const started = Date.now();
                     try {
-                        picked = await skillReferenceSelector.select(candidates, task!);
+                        const selection = await skillReferenceSelector.select(candidates, task!);
+                        picked = selection.picked;
+                        const named = picked.map((p) => ({ name: `${p.skill}/${p.slug}`, probability: p.probability }));
+                        events.push(
+                            reportSelection(
+                                "skills",
+                                { picked: named, qualified: selection.qualified },
+                                candidates.length,
+                                Date.now() - started,
+                            ),
+                        );
                     } catch (error) {
                         // Selection is an optimization: when Jev is unavailable, listing the references still works.
                         console.warn(`Skill reference selection failed: ${sanitizeErrorMessage(error)}`);
+                        events.push(reportSelection("skills", "failed", candidates.length, Date.now() - started));
                     }
                 }
             }
@@ -112,6 +127,7 @@ export const createSkillsToolWrapper = ({ skillsCatalog: skills, skillReferenceS
                         text: parts.join("\n\n---\n\n"),
                     },
                 ],
+                ...(events.length > 0 ? { events } : {}),
             };
         },
     });

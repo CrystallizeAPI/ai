@@ -102,7 +102,11 @@ export function pickReferences(
 
 export const createSkillReferenceSelector = ({ jevClient }: { jevClient: JevClient }): SkillReferenceSelector => ({
     async select(candidates, task) {
-        if (!task.trim() || candidates.length === 0) return [];
-        return pickReferences(await scoreReferences(jevClient, candidates, task));
+        if (!task.trim() || candidates.length === 0) return { picked: [], qualified: 0 };
+        const scored = await scoreReferences(jevClient, candidates, task);
+        return {
+            picked: pickReferences(scored),
+            qualified: scored.filter((r) => r.probability >= REFERENCE_THRESHOLD).length,
+        };
     },
 });

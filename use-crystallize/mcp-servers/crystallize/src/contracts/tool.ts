@@ -2,12 +2,16 @@ import z from "zod";
 import { AuthContext } from "./app-context";
 import { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { McpUiResourceMeta } from "@modelcontextprotocol/ext-apps";
+import type { AnalyticsEvent } from "./analytics-tracker";
 
 type ToolWrapperResult = {
     content: Array<{
         text: string;
         type: "text";
     }>;
+    // Extra analytics events for this call (e.g. a Jev selection). Tool wrappers are singletons and the tracker is
+    // request-scoped, so tools hand events back and the servicesProvider handler sends them, then strips this field.
+    events?: AnalyticsEvent[];
 };
 
 export type ToolUi = {

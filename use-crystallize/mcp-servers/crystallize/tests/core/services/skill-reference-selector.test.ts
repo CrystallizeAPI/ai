@@ -108,17 +108,27 @@ describe("createSkillReferenceSelector", () => {
         const jevClient: JevClient = async () => answers({ r0: 0.96, r1: 0.1, r2: 0.05 });
         const selector = createSkillReferenceSelector({ jevClient });
 
-        expect(await selector.select(candidates, "add Klarna to my checkout")).toEqual([
-            { skill: "payments", slug: "klarna", probability: 0.96 },
-        ]);
+        expect(await selector.select(candidates, "add Klarna to my checkout")).toEqual({
+            picked: [{ skill: "payments", slug: "klarna", probability: 0.96 }],
+            qualified: 1,
+        });
+    });
+
+    it("counts every reference that cleared the threshold, even beyond the cap", async () => {
+        const four = [...candidates, { skill: "payments", slug: "adyen", content: "# Adyen\n\nAdyen." }];
+        const jevClient: JevClient = async () => answers({ r0: 0.9, r1: 0.8, r2: 0.7, r3: 0.6 });
+        const result = await createSkillReferenceSelector({ jevClient }).select(four, "every provider");
+
+        expect(result.picked.map((r) => r.slug)).toEqual(["klarna", "stripe", "vipps"]);
+        expect(result.qualified).toBe(4);
     });
 
     it("does not call Jev for a blank task or when there is nothing to choose from", async () => {
         const jevClient = mock(async () => answers({}));
         const selector = createSkillReferenceSelector({ jevClient });
 
-        expect(await selector.select(candidates, "  ")).toEqual([]);
-        expect(await selector.select([], "add Klarna")).toEqual([]);
+        expect(await selector.select(candidates, "  ")).toEqual({ picked: [], qualified: 0 });
+        expect(await selector.select([], "add Klarna")).toEqual({ picked: [], qualified: 0 });
         expect(jevClient).not.toHaveBeenCalled();
     });
 });

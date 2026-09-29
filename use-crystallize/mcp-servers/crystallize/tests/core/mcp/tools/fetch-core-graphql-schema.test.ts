@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, spyOn } from "bun:test";
 
 // Module-level, like the other schema tests: Bun's mock.module is process-wide, so stubbing
 // globalThis.fetch would be bypassed whenever another file's module mock is still in place.
@@ -34,14 +34,15 @@ describe("fetch-core-graphql-schema", () => {
     let select: ReturnType<typeof mock>;
     let tool: ReturnType<typeof createFetchCoreGraphqlSchemaToolWrapper>;
 
-    const run = async (input: { domain?: string; intent?: string }) => {
-        const result = await tool.handler({ tenant: "shop", ...input, authContext: testAuthContext });
-        return result.content[0].text;
-    };
+    const call = (input: { domain?: string; intent?: string }) =>
+        tool.handler({ tenant: "shop", ...input, authContext: testAuthContext });
+    const run = async (input: { domain?: string; intent?: string }) => (await call(input)).content[0].text;
+    const eventPaths = async (input: { domain?: string; intent?: string }) =>
+        ((await call(input)).events ?? []).map((e) => e.path);
 
     beforeEach(() => {
         mockFetchIntrospection.mockImplementation(async () => buildIntrospectionFromSDL(SDL));
-        select = mock(async () => []);
+        select = mock(async () => ({ picked: [], qualified: 0 }));
         tool = createFetchCoreGraphqlSchemaToolWrapper({
             coreSchemaDomainSplitter: createCoreSchemaDomainSplitter(),
             coreDomainSelector: { select } as unknown as CoreDomainSelector,
@@ -57,10 +58,13 @@ describe("fetch-core-graphql-schema", () => {
     });
 
     it("returns the schema of every domain the selector picks for an intent", async () => {
-        select.mockImplementation(async () => [
-            { name: "order", probability: 0.97 },
-            { name: "customer", probability: 0.81 },
-        ]);
+        select.mockImplementation(async () => ({
+            picked: [
+                { name: "order", probability: 0.97 },
+                { name: "customer", probability: 0.81 },
+            ],
+            qualified: 2,
+        }));
         const text = await run({ intent: "create an order for a customer" });
 
         expect(select.mock.calls[0][1]).toBe("create an order for a customer");
@@ -90,6 +94,50 @@ describe("fetch-core-graphql-schema", () => {
         expect(text).toContain("# Core API Schema Domains");
         expect(text).not.toContain("Could not pick domains");
         expect(select).not.toHaveBeenCalled();
+    });
+
+    describe("selection telemetry", () => {
+        it("reports how many domains were picked", async () => {
+            select.mockImplementation(async () => ({ picked: [{ name: "order", probability: 0.9 }], qualified: 1 }));
+            expect(await eventPaths({ intent: "list orders" })).toEqual(["/jev/fetch-core-graphql-schema/picked-1"]);
+        });
+
+        it("reports capped when the cap dropped a qualifying domain", async () => {
+            select.mockImplementation(async () => ({ picked: [{ name: "order", probability: 0.9 }], qualified: 5 }));
+            expect(await eventPaths({ intent: "everything" })).toEqual(["/jev/fetch-core-graphql-schema/capped"]);
+        });
+
+        it("reports none and failed", async () => {
+            expect(await eventPaths({ intent: "bake a cake" })).toEqual(["/jev/fetch-core-graphql-schema/none"]);
+            select.mockImplementation(async () => {
+                throw new Error("down");
+            });
+            expect(await eventPaths({ intent: "list orders" })).toEqual(["/jev/fetch-core-graphql-schema/failed"]);
+        });
+
+        it("sends nothing when Jev was not asked", async () => {
+            expect(await eventPaths({})).toEqual([]);
+            expect(await eventPaths({ domain: "order", intent: "list orders" })).toEqual([]);
+        });
+
+        it("logs the picks and scores as one JSON line, without the intent text", async () => {
+            const log = spyOn(console, "log").mockImplementation(() => {});
+            select.mockImplementation(async () => ({ picked: [{ name: "order", probability: 0.97 }], qualified: 1 }));
+            await run({ intent: "secret customer plan" });
+            const line = JSON.parse(log.mock.calls.at(-1)![0] as string);
+            log.mockRestore();
+
+            expect(line).toMatchObject({
+                event: "jev_selection",
+                tool: "fetch-core-graphql-schema",
+                outcome: "picked-1",
+                candidates: 3,
+                qualified: 1,
+                picked: [{ name: "order", probability: 0.97 }],
+            });
+            expect(typeof line.ms).toBe("number");
+            expect(JSON.stringify(line)).not.toContain("secret");
+        });
     });
 
     it("prefers an exact domain over an intent", async () => {

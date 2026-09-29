@@ -112,3 +112,31 @@ export const buildSessionEvent = (
     name: "pageview",
     path: `/mcp/session/${resolveTenant({}, authContext)}/write-${onOff(write)}/ui-${onOff(ui)}/skills-${onOff(skills)}`,
 });
+
+/** The tools that can hand part of their answer's selection to Jev. */
+export const JEV_SELECTING_TOOLS = ["fetch-core-graphql-schema", "skills"] as const;
+export type JevSelectingTool = (typeof JEV_SELECTING_TOOLS)[number];
+
+export type SelectionOutcome = `picked-${number}` | "capped" | "none" | "failed";
+
+/**
+ * What happened when a tool asked Jev to pick. `qualified` is how many candidates cleared the threshold before the
+ * cap: more of them than were picked means the cap dropped one, which is exactly the signal for tuning the cap.
+ */
+export const selectionOutcome = (result: { picked: number; qualified: number } | "failed"): SelectionOutcome => {
+    if (result === "failed") return "failed";
+    if (result.qualified > result.picked) return "capped";
+    return result.picked === 0 ? "none" : `picked-${result.picked}`;
+};
+
+/**
+ * One Jev selection, next to the tool call's own `/t/{tenant}/{tool}` event.
+ *
+ * Its own `/jev/` prefix keeps it out of the tool-call and session totals, and the outcome sits last so
+ * `/jev/{tool}/*`, `/jev/{tool}/capped` and `/jev/*​/failed` are plain wildcard goals. No tenant: the question is
+ * how the selection behaves, and every outcome value is a fixed token, so the path shape cannot break.
+ */
+export const buildSelectionEvent = (tool: JevSelectingTool, outcome: SelectionOutcome): AnalyticsEvent => ({
+    name: "pageview",
+    path: `/jev/${tool}/${outcome}`,
+});
