@@ -62,7 +62,9 @@ export const createFetchCoreGraphqlSchemaToolWrapper = ({
             "description of what you want to do (e.g. 'create an order for an existing customer'); the server " +
             "then returns the schema of every domain that task needs, in one call. " +
             "Pass `domain` instead when you already know the exact domain. " +
-            "Common domains: order, customer, subscription, subscriptionPlan, pricelist, pipeline, flow, app, user, webhook, stockLocation, invite. " +
+            "Domains are fine-grained (verbs outside create/update/delete get their own domain). Common ones: order, " +
+            "registerOrder, customer, subscriptionContract, priceList, orderPipeline, orderPipelineStage, flow, " +
+            "webhook, role, userRole, inviteToken, pluginInstallation. " +
             "Call with neither to get the full list of domains. " +
             "The Core API is the admin API — use it for orders, customers, price lists, users, subscriptions, " +
             "subscription plans, pipelines, flows, apps, and other back-office/admin resources. " +
