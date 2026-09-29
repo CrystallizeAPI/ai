@@ -34,10 +34,15 @@ export function createRestJevClient() {
     // A stand-in for the AI binding, so the eval still goes through the production client (envelope unwrapping,
     // validation). REST's `result` is what the binding returns.
     const restBinding: JevBinding = {
-        async run(model, input) {
+        async run(model, input, options) {
             const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run`, {
                 method: "POST",
-                headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
+                headers: {
+                    Authorization: `Bearer ${apiToken}`,
+                    "Content-Type": "application/json",
+                    // The REST form of the binding's `collectLog: false`: keep eval prompts out of the gateway log.
+                    "cf-aig-collect-log": String(options.gateway.collectLog),
+                },
                 body: JSON.stringify({ model, input }),
             });
             const json = (await response.json()) as { success: boolean; result: unknown; errors?: unknown };

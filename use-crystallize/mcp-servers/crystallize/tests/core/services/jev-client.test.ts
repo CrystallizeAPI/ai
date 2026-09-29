@@ -14,7 +14,8 @@ describe("createJevClient", () => {
         const client = createJevClient({ ai: { run } as JevBinding });
 
         expect(await client(request)).toEqual(response);
-        expect(run).toHaveBeenCalledWith(JEV_MODEL, request);
+        // No AI Gateway log: the request carries the caller's task text.
+        expect(run).toHaveBeenCalledWith(JEV_MODEL, request, { gateway: { id: "default", collectLog: false } });
     });
 
     it("unwraps the AI Gateway envelope that third-party models come back in", async () => {

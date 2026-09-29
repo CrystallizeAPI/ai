@@ -3,7 +3,7 @@ import { defineToolWrapper } from "../../../contracts/tool";
 import type { SkillEntry } from "../../../contracts/skills";
 import type { SelectedReference, SkillReferenceSelector } from "../../../contracts/skill-reference-selector";
 import { sanitizeErrorMessage } from "../../security";
-import { reportSelection } from "../../jev-selection-report";
+import { buildSelectionEvent, selectionOutcome } from "../../analytics";
 import type { AnalyticsEvent } from "../../../contracts/analytics-tracker";
 
 type Deps = {
@@ -65,23 +65,19 @@ export const createSkillsToolWrapper = ({ skillsCatalog: skills, skillReferenceS
                     skill ? skill.references.map((r) => ({ skill: skill.slug, slug: r.slug, content: r.content })) : [],
                 );
                 if (candidates.length > 0) {
-                    const started = Date.now();
                     try {
                         const selection = await skillReferenceSelector.select(candidates, task!);
                         picked = selection.picked;
-                        const named = picked.map((p) => ({ name: `${p.skill}/${p.slug}`, probability: p.probability }));
                         events.push(
-                            reportSelection(
+                            buildSelectionEvent(
                                 "skills",
-                                { picked: named, qualified: selection.qualified },
-                                candidates.length,
-                                Date.now() - started,
+                                selectionOutcome({ picked: picked.length, qualified: selection.qualified }),
                             ),
                         );
                     } catch (error) {
                         // Selection is an optimization: when Jev is unavailable, listing the references still works.
                         console.warn(`Skill reference selection failed: ${sanitizeErrorMessage(error)}`);
-                        events.push(reportSelection("skills", "failed", candidates.length, Date.now() - started));
+                        events.push(buildSelectionEvent("skills", selectionOutcome("failed")));
                     }
                 }
             }

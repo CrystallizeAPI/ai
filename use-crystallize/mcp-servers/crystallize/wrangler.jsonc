@@ -33,11 +33,13 @@
         // Override to point at a self-hosted Plausible or a first-party proxy.
         "PLAUSIBLE_API_ENDPOINT": "https://plausible.io/api/event",
     },
+    // Off on purpose: no Worker logs or traces are kept. Leave `logs.enabled` false too — a deploy applies this file
+    // and would otherwise switch persisted logs back on, whatever the dashboard says.
     "observability": {
         "enabled": false,
         "head_sampling_rate": 1,
         "logs": {
-            "enabled": true,
+            "enabled": false,
             "head_sampling_rate": 1,
             "persist": true,
             "invocation_logs": true,

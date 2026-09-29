@@ -43,7 +43,6 @@ src/
 ├── core/
 │   ├── analytics.ts                              # Pure analytics event builders (tenant/tool + session paths)
 │   ├── expose-flags.ts                           # Shared exposeWrite/exposeUi/exposeSkills query-param parsing
-│   ├── jev-selection-report.ts                   # Jev selection → Plausible event + one JSON log line
 │   ├── mcp-request.ts                            # Detect the JSON-RPC `initialize` handshake (body-clone peek)
 │   ├── container.ts                              # Awilix DI container + services + tool registration
 │   ├── mass-operation.ts                         # Shared mass-operation validation (validateMassOperations)
@@ -341,9 +340,9 @@ Jev to pick:
 - Tool wrappers are singletons while the tracker is request-scoped, so the tools cannot hold the tracker. They return
   `events` next to `content` (`ToolWrapperResult`), and the `servicesProvider` handler sends them and strips the field
   from the MCP reply.
-- The detail Plausible cannot hold goes to Workers Logs as one JSON line per selection
-  (`src/core/jev-selection-report.ts`): `{ event: "jev_selection", tool, outcome, candidates, qualified, picked:
-  [{ name, probability }], ms }`. The intent/task text is never logged.
+- Nothing else about a selection is kept: Worker observability (logs and traces) is off in `wrangler.jsonc`, and
+  every Jev call opts out of the AI Gateway log (`collectLog: false`, see `JEV_GATEWAY_OPTIONS` in
+  `jev-client.ts`) because the request carries the caller's intent/task text. Jev is zero-data-retention at TypeSafe.
 
 **MCP session handshakes** — one `pageview` per JSON-RPC `initialize`, fired from `src/app.ts`:
 

@@ -123,25 +123,16 @@ describe("skills tool", () => {
             expect(await eventPaths({ skills: ["nope"], task: "add Klarna" })).toEqual([]);
         });
 
-        it("logs the picks and scores as one JSON line, without the task text", async () => {
+        it("keeps no log of the selection", async () => {
             const log = spyOn(console, "log").mockImplementation(() => {});
             select.mockImplementation(async () => ({
                 picked: [{ skill: "payments", slug: "klarna", probability: 0.96 }],
                 qualified: 1,
             }));
             await run({ skills: ["payments"], task: "secret launch plan" });
-            const line = JSON.parse(log.mock.calls.at(-1)![0] as string);
+            const calls = log.mock.calls.length;
             log.mockRestore();
-
-            expect(line).toMatchObject({
-                event: "jev_selection",
-                tool: "skills",
-                outcome: "picked-1",
-                candidates: 3,
-                qualified: 1,
-                picked: [{ name: "payments/klarna", probability: 0.96 }],
-            });
-            expect(JSON.stringify(line)).not.toContain("secret");
+            expect(calls).toBe(0);
         });
     });
 

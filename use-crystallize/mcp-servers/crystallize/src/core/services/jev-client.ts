@@ -5,9 +5,13 @@ export const JEV_MODEL = "typesafe/jev";
 // A slow Workers AI must not hold the tool call: failing fast lets the caller fall back.
 export const JEV_TIMEOUT_MS = 8000;
 
+// Jev runs through AI Gateway, which logs prompts and responses by default. The request carries the caller's
+// intent/task text, so every call opts out of the gateway log (Jev itself is zero-data-retention at TypeSafe).
+export const JEV_GATEWAY_OPTIONS = { gateway: { id: "default", collectLog: false } } as const;
+
 // The generated `Ai` types predate typesafe/jev, so the binding is narrowed to the one call we make.
 export type JevBinding = {
-    run(model: typeof JEV_MODEL, input: JevRequest): Promise<unknown>;
+    run(model: typeof JEV_MODEL, input: JevRequest, options: typeof JEV_GATEWAY_OPTIONS): Promise<unknown>;
 };
 
 /**
@@ -29,7 +33,7 @@ export const createJevClient =
             timer = setTimeout(() => reject(new Error(`Jev timed out after ${timeoutMs}ms`)), timeoutMs);
         });
         try {
-            const response = unwrapGatewayEnvelope(await Promise.race([ai.run(JEV_MODEL, request), timeout]));
+            const response = unwrapGatewayEnvelope(await Promise.race([ai.run(JEV_MODEL, request, JEV_GATEWAY_OPTIONS), timeout]));
             if (!response || typeof response !== "object" || !response.answers) {
                 throw new Error("Jev returned no answers");
             }

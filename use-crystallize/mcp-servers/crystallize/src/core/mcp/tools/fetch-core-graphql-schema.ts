@@ -6,7 +6,7 @@ import { CoreSchemaDomainSplitter, DomainIndex } from "../../../contracts/core-s
 import type { CoreDomainSelector, SelectedDomain } from "../../../contracts/core-domain-selector";
 import { fetchIntrospection } from "../../services/compact-schema-builder";
 import { tenantSchema, sanitizeErrorMessage, buildAtApiUrl } from "../../security";
-import { reportSelection } from "../../jev-selection-report";
+import { buildSelectionEvent, selectionOutcome } from "../../analytics";
 import type { AnalyticsEvent } from "../../../contracts/analytics-tracker";
 
 type Deps = {
@@ -114,25 +114,17 @@ export const createFetchCoreGraphqlSchemaToolWrapper = ({
                 if (intent?.trim()) {
                     let selected: SelectedDomain[] = [];
                     let event: AnalyticsEvent;
-                    const started = Date.now();
                     try {
                         const selection = await coreDomainSelector.select(index, intent);
                         selected = selection.picked;
-                        event = reportSelection(
+                        event = buildSelectionEvent(
                             "fetch-core-graphql-schema",
-                            selection,
-                            index.domains.length,
-                            Date.now() - started,
+                            selectionOutcome({ picked: selection.picked.length, qualified: selection.qualified }),
                         );
                     } catch (error) {
                         // Selection is an optimization: when Jev is unavailable, the index still works.
                         console.warn(`Core domain selection failed: ${sanitizeErrorMessage(error)}`);
-                        event = reportSelection(
-                            "fetch-core-graphql-schema",
-                            "failed",
-                            index.domains.length,
-                            Date.now() - started,
-                        );
+                        event = buildSelectionEvent("fetch-core-graphql-schema", selectionOutcome("failed"));
                     }
                     if (selected.length === 0) {
                         return { ...text(NO_SELECTION_NOTE + formatDomainIndex(index)), events: [event] };

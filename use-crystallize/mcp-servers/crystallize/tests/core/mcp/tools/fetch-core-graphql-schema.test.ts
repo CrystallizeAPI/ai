@@ -120,23 +120,13 @@ describe("fetch-core-graphql-schema", () => {
             expect(await eventPaths({ domain: "order", intent: "list orders" })).toEqual([]);
         });
 
-        it("logs the picks and scores as one JSON line, without the intent text", async () => {
+        it("keeps no log of the selection", async () => {
             const log = spyOn(console, "log").mockImplementation(() => {});
             select.mockImplementation(async () => ({ picked: [{ name: "order", probability: 0.97 }], qualified: 1 }));
             await run({ intent: "secret customer plan" });
-            const line = JSON.parse(log.mock.calls.at(-1)![0] as string);
+            const calls = log.mock.calls.length;
             log.mockRestore();
-
-            expect(line).toMatchObject({
-                event: "jev_selection",
-                tool: "fetch-core-graphql-schema",
-                outcome: "picked-1",
-                candidates: 3,
-                qualified: 1,
-                picked: [{ name: "order", probability: 0.97 }],
-            });
-            expect(typeof line.ms).toBe("number");
-            expect(JSON.stringify(line)).not.toContain("secret");
+            expect(calls).toBe(0);
         });
     });
 
