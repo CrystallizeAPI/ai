@@ -20,7 +20,16 @@ const pinnedAccountId = readFileSync(new URL("../wrangler.jsonc", import.meta.ur
     /"account_id"\s*:\s*"([0-9a-f]+)"/,
 )?.[1];
 const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || pinnedAccountId || env("CLOUDFLARE_ACCOUNT_ID");
-const apiToken = env("CLOUDFLARE_API_TOKEN");
+// Defaults to the current `wrangler login`, so a logged-in developer needs no token at all.
+const wranglerToken = () => {
+    const out = Bun.spawnSync(["bunx", "wrangler", "auth", "token", "--json"], { stderr: "ignore" });
+    try {
+        return (JSON.parse(out.stdout.toString()) as { token?: string }).token;
+    } catch {
+        return undefined;
+    }
+};
+const apiToken = process.env.CLOUDFLARE_API_TOKEN || wranglerToken() || env("CLOUDFLARE_API_TOKEN");
 
 // A stand-in for the AI binding over the REST API, so the eval runs outside a Worker but still goes
 // through the production client (envelope unwrapping, validation). REST's `result` is what the binding returns.
@@ -47,7 +56,7 @@ const jevClient: JevClient = async (request) => {
     return response;
 };
 
-const url = buildAtApiUrl("https://api.crystallize.com", env("CRYSTALLIZE_TENANT"), "");
+const url = buildAtApiUrl("https://api.crystallize.com", process.env.CRYSTALLIZE_TENANT || "furnitut", "");
 const introspection = await fetchIntrospection(url, {
     "X-Crystallize-Access-Token-Id": env("CRYSTALLIZE_TOKEN_ID"),
     "X-Crystallize-Access-Token-Secret": env("CRYSTALLIZE_TOKEN_SECRET"),
