@@ -27,16 +27,15 @@ Before writing mutations, understand the context. Ask clarifying questions:
 What do you need to do?
 │
 ├─ Create/update catalogue items (products, documents, folders)
-│  ├─ Create new item → Core API: product/document/folder.create
-│  ├─ Update a field on an item → Core API: item.updateComponent
-│  ├─ Add/update product variants → Core API: product.setVariants
-│  ├─ Publish/unpublish → Core API: item.publish / item.unpublish
-│  └─ Delete an item → Core API: item.delete
+│  ├─ Create new item → Core API: createProduct / createDocument / createFolder
+│  ├─ Update a field on an item → Core API: updateComponent
+│  ├─ Add/update product variants → Core API: addProductVariant / updateProductVariant
+│  ├─ Publish/unpublish → Core API: publishItem / unpublishItem
+│  └─ Delete an item → Core API: deleteItem
 │
 ├─ Manage customers
-│  ├─ Create individual → Core API: customer.createIndividual
-│  ├─ Create organization → Core API: customer.createOrganization
-│  └─ Update customer → Core API: customer.update
+│  ├─ Create a person or a company → Core API: createCustomer (type: individual | organization)
+│  └─ Update customer → Core API: updateCustomer(identifier:)
 │
 ├─ Manage orders
 │  ├─ Create order from cart → Shop API /order: createFromCart
@@ -72,7 +71,7 @@ What do you need to do?
 
 **Core is not a storefront API.** It is heavily rate limited and not meant for storefront traffic: carts, orders, customers and subscription contracts belong on the Shop API, which is edge-distributed and syncs to Core asynchronously. Keep Core for the back office — imports, seeding, scheduled jobs and admin tools, behind your own server.
 
-**Write an order in one store.** The sync runs one way, Shop → Core, and editing an order in Core adds **another copy** of it to the Shop store: three `order { update }` calls left three Shop orders with the same `coreId`, so a storefront that sums an order list counts the money several times. If a storefront reads orders, create and change them on the Shop API (`create`, `createFromCart`, `setMeta`, `addToStage`). Details in [Shop API Order Mutations](references/shop-api-order-mutations.md).
+**Write an order in one store.** The sync runs one way, Shop → Core, and editing an order in Core adds **another copy** of it to the Shop store: three `updateOrder` calls left three Shop orders with the same `coreId`, so a storefront that sums an order list counts the money several times. If a storefront reads orders, create and change them on the Shop API (`create`, `createFromCart`, `setMeta`, `addToStage`). Details in [Shop API Order Mutations](references/shop-api-order-mutations.md).
 
 ## API Endpoints & Authentication
 
@@ -123,7 +122,7 @@ See [Core API Reference](references/core-api.md) for each mutation.
 ### Update content on an existing item
 
 1. **Query the item** to confirm its ID and current state (use the query skill)
-2. **Call `item.updateComponent`** for each field you need to change
+2. **Call `updateComponent`** for each field you need to change
 3. **Publish** if the item should go live immediately
 
 Each `updateComponent` call targets a single component by `componentId`. You can update multiple components by sending multiple mutations.

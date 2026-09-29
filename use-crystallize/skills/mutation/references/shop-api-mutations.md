@@ -483,7 +483,7 @@ mutation {
 The full checkout flow spans the Core API, `/cart` endpoint, and `/order` endpoint:
 
 ```
-0. (Optional) Create Customer → Core API  — createIndividual or createOrganization
+0. (Optional) Create Customer → Core API  — createCustomer
 1. Hydrate Cart               → POST /cart   — Create cart with items, customer, context
 2. (Optional edits)           → POST /cart   — addSkuItem, setCustomer, setAddresses, etc.
 3. Place Cart                 → POST /cart   — Lock cart for payment
@@ -497,7 +497,7 @@ separate fulfill step.
 
 Customers can be created **before** checkout via the [Core API](core-api.md) or **inline** during hydration:
 
-- **Core API** (persistent customer records): Use `customer.createIndividual` or `customer.createOrganization` to create a customer in the PIM. The customer's `identifier` (typically email) can then be passed to `hydrate`.
+- **Core API** (persistent customer records): Use `createCustomer` with `type: individual` or `type: organization`. The customer's `identifier` (typically email) can then be passed to `hydrate`.
 - **Inline during hydrate** (recommended for checkout): Pass `customer: { identifier, firstName, lastName, isGuest }` directly in the hydrate input. This associates the customer with the cart without requiring a separate API call.
 
 For guest checkout, set `isGuest: true` in the hydrate customer input.
@@ -573,6 +573,6 @@ mutation {
 ## Related Links
 
 - [Shop API Order Mutations](shop-api-order-mutations.md) - Order creation, payments, pipelines (`/order` endpoint)
-- [Core API Mutations](core-api.md) - Customer creation (`createIndividual`, `createOrganization`), order updates
+- [Core API Mutations](core-api.md) - Customer creation (`createCustomer`), order updates
 - [Crystallize Shop API Documentation](https://crystallize.com/docs/developer/apis/shop-api)
 - [Checkout Flow Tutorial](https://crystallize.com/docs/developer/apis/shop-api/checkout-flow-tutorial)

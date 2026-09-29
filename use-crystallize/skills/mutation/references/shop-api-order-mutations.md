@@ -564,7 +564,7 @@ sometimes, carrying the pipelines they had at creation, and a later `updateOrder
 `deleteOrder` in Core never reached the Shop store at all (watched for minutes). **Seed demo orders with
 the Shop API, not with `registerOrder`**, if a storefront is going to list them.
 
-**Worse: editing an order in Core adds another copy of it to the Shop store.** Three `order { update }`
+**Worse: editing an order in Core adds another copy of it to the Shop store.** Three `updateOrder`
 calls on one seeded order left three orders in `orders(customerIdentifier:)` — new Shop ids, the same
 `coreId`, different `updatedAt`. A storefront that sums that list counts the same money several times
 over; the Lab Universe build read a department budget of NOK 1,249,299 instead of 411,775. So:
