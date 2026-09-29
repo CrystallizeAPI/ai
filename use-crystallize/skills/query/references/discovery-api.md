@@ -48,8 +48,18 @@ schema at all.
 | -------------- | ----------------------------------------------------------------------------------- |
 | `search`       | Full-text search across **all** shapes; polymorphic hits                            |
 | `browse`       | Shape-typed access — each shape becomes its own query with all its component fields |
-| `autocomplete` | Type-ahead; hardcoded on `name`                                                     |
+| `autocomplete` | Type-ahead on `name` — it **restricts**, it does not rank (see below)               |
 | `topics`       | Children of a topic in the topic map                                                |
+
+> **Never send an explicit `null` for an optional argument.** `pagination: { after: null }` is rejected
+> with `invalid_type: after Invalid input: expected string, received null`, and the same goes for `term`
+> and `context`. Leave the key out on the first page instead — with GraphQL variables that means building
+> the argument object conditionally, not passing `null`.
+
+> **A hit type keeps the shape identifier's case.** A shape called `tool` gives the Discovery type `tool`
+> (lower case) while its inputs are `ToolFilter`, `ToolFacet` and `ToolSort`. `__type(name: "Tool")`
+> answers `null`, so a script that introspects the schema should read the hit type from the shape query's
+> `hits` rather than capitalise the identifier itself.
 
 `search`, `autocomplete` and every field under `browse` take the same argument set:
 
@@ -158,9 +168,17 @@ Search is **exact by default**. Opt into typo tolerance through `options.fuzzy`:
 | `fuzziness`     | `NONE`  | Max single-character edits: `NONE`, `SINGLE`, `DOUBLE`        |
 | `prefixLength`  | `0`     | Leading characters that must match exactly before edits apply |
 | `maxExpensions` | `50`    | Max term variations generated                                 |
+| `maxExpansions` | `50`    | The same option, spelled correctly — both exist on the input  |
+
+Two spelling traps, both confirmed by introspection: `FuzzySearchOptions` carries **`maxExpensions` and
+`maxExpansions`**, and the enum type is **`Fuziness`**, not `Fuzziness` — a typed variable
+(`$f: Fuzziness!`) fails schema validation.
 
 Raising `fuzziness` widens the candidate set and costs latency — prefer `SINGLE` before `DOUBLE`, and
-use `prefixLength` to keep short, common terms precise.
+use `prefixLength` to keep short, common terms precise. `DOUBLE` is very loose on short tokens: on a
+540-document tenant a multi-word query matched almost everything, which makes counts and facets
+meaningless. Keep a results page at `SINGLE`, and use `DOUBLE` only as a last-chance fallback when
+`SINGLE` found nothing.
 
 ## Autocomplete
 
@@ -177,6 +195,31 @@ use `prefixLength` to keep short, common terms precise.
 
 `autocomplete` matches on `name` and otherwise takes the same arguments as `search` — including filters
 and ranking.
+
+### Autocomplete restricts; it does not rank
+
+This is the trap. Measured on a 540-document tenant:
+
+| Query                                                                | `totalHits` | Scores      |
+| -------------------------------------------------------------------- | ----------- | ----------- |
+| `autocomplete(term: "milwaukee")`                                    | **540**     | mixed       |
+| `autocomplete(term: "zzzzqq")` — matches nothing                     | **540**     | all `0`     |
+| `search(filters: { name: { autocomplete: { term: "milwaukee" } } })` | 146         | all `0`     |
+| the same filter **plus** `term` and `sorting: { score: desc }`       | 146         | 25.9 … 11.6 |
+
+Two things follow:
+
+- **The top-level `autocomplete` query answers with the whole index**, padding the tail with score-0
+  hits, whatever the term. Drop hits with `score: 0`, or add the name filter, or you will show a
+  type-ahead list of everything you sell.
+- **`name: { autocomplete: { term } }` is a filter on `StringFilterWithAutocomplete`** — only `name` has
+  it — and on its own every hit comes back scored `0`, in no useful order. Pass the same text as `term`
+  as well and sort by `score: desc`: the term scores the matches, the filter restricts the set.
+
+Autocomplete is prefix matching per token, so it does not fix a typo **inside** a word ("nikkon",
+"hitli"), and it does not match inside a compound word ("kjernebor" does not come up for
+"diamantkjernebor"). Full-text `search(term:, options: { fuzzy: … })` does both. The pattern that works:
+prefix autocomplete first, and full-text fuzzy as the fallback when it finds nothing.
 
 ## Browse Queries
 
