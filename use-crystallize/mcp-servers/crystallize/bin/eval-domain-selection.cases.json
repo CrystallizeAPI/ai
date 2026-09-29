@@ -1,0 +1,14 @@
+[
+    { "intent": "list the last 10 orders", "expected": ["order"] },
+    { "intent": "create an order for an existing customer", "expected": ["order", "customer"] },
+    { "intent": "find a customer by email and show their subscriptions", "expected": ["customer", "subscription"] },
+    { "intent": "create a monthly subscription plan with a 14 day trial", "expected": ["subscriptionPlan"] },
+    { "intent": "add a price list with 20% off for B2B customers", "expected": ["pricelist"] },
+    { "intent": "move an order to the shipped stage of the fulfilment pipeline", "expected": ["pipeline", "order"] },
+    { "intent": "set up a webhook that fires when an order is created", "expected": ["webhook"] },
+    { "intent": "invite a new colleague to the tenant as an admin", "expected": ["invite"] },
+    { "intent": "list all users and their roles", "expected": ["user"] },
+    { "intent": "create a new warehouse for stock", "expected": ["stockLocation"] },
+    { "intent": "cancel a customer's subscription", "expected": ["subscription"] },
+    { "intent": "install an app on the tenant", "expected": ["app"] }
+]
