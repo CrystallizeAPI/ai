@@ -166,3 +166,31 @@ Use the Discovery API for these capabilities.
 ## Related Links
 
 - [Crystallize Catalogue API Documentation](https://crystallize.com/docs/developer/apis/catalogue-api)
+
+## Prices for one customer
+
+The Catalogue API is the only storefront API that resolves a price list for a **customer**. Discovery knows
+markets only, so this is where a B2B storefront reads an account's agreed prices — server-side, cached per
+organisation:
+
+```graphql
+query ContractPrice($skus: [String!]!, $customers: [String!]) {
+    productVariants(skus: $skus, language: "en") {
+        sku
+        priceVariant(identifier: "nok") {
+            price # the list price
+            priceFor(count: 10, customerIdentifiers: $customers) {
+                price # what this customer pays at this quantity
+                identifier # the price list that applied
+                modifier
+                modifierType
+            }
+        }
+    }
+}
+```
+
+`customerIdentifiers` is a list, and `priceFor` also takes `customerGroupIdentifiers` and
+`marketIdentifiers`. A percentage list applies on top of the variant's volume tiers, and a list aimed at an
+organisation resolves for its child customers too — see [[pricing]] for the measurements and the caveats
+(`productVariants(skus:)` caps at 150 SKUs, and `priceFor` is slow enough to need caching).
