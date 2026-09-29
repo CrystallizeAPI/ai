@@ -51,6 +51,12 @@ What do you need to do?
 │  ├─ Set customer & addresses → Shop API: setCustomer / setAddresses
 │  └─ Convert cart to order → Shop API: cartAsOrderIntent
 │
+├─ Media (images, video)
+│  ├─ Import from a supplier URL → Core API: copyRemoteAsset (images only)
+│  ├─ Upload your own bytes, or any video → Core API: generatePresignedUploadRequest → registerImage
+│  ├─ Alt text, topics, hotspots → Core API: updateImage (per language)
+│  └─ Replace an image → upload a new one; registerImageRevision does not reach published items
+│
 └─ Bulk operations
    └─ Use mass operation JSON via the content-model skill's output format
 ```
@@ -189,6 +195,7 @@ If the user is working in a JS/TS project, prefer generating code using `@crysta
 ## References
 
 - [Core API Mutations](references/core-api.md) - Item CRUD, variants, components, customers, publish/unpublish, delete, media uploads
+- [Media & Images](references/media.md) - Importing and uploading images and video, renditions, showcases, replacing and deleting
 - [Shop API Cart Mutations](references/shop-api-mutations.md) - Cart hydration, item management, checkout flow, cart lifecycle
 - [Shop API Order Mutations](references/shop-api-order-mutations.md) - Order creation (from cart or direct), payments, pipelines, metadata
 
