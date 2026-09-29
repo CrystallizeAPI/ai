@@ -43,7 +43,7 @@ What do you need to do?
 │  ├─ Create order directly (POS, import) → Shop API /order: create
 │  ├─ Add/update payments → Shop API /order: addPayments / setPayments
 │  ├─ Track order through pipeline → Shop API /order: addToStage
-│  └─ Update order metadata → Shop API /order: setMeta (or Core API: order.update)
+│  └─ Update order metadata → Shop API /order: setMeta (not Core order.update — it duplicates)
 │
 ├─ Cart & checkout (storefront)
 │  ├─ Create/hydrate a cart → Shop API: hydrate
@@ -63,6 +63,10 @@ What do you need to do?
 | Cart management, checkout                 | **Shop API `/cart`**             | Edge-distributed cart lifecycle     |
 | Order creation, payments, pipelines       | **Shop API `/order`**            | Full order CRUD after checkout      |
 | Bulk shape + item creation                | **Core API** via mass operations | Ordered multi-step creation         |
+
+**Core is not a storefront API.** It is heavily rate limited and not meant for storefront traffic: carts, orders, customers and subscription contracts belong on the Shop API, which is edge-distributed and syncs to Core asynchronously. Keep Core for the back office — imports, seeding, scheduled jobs and admin tools, behind your own server.
+
+**Write an order in one store.** The sync runs one way, Shop → Core, and editing an order in Core adds **another copy** of it to the Shop store: three `order { update }` calls left three Shop orders with the same `coreId`, so a storefront that sums an order list counts the money several times. If a storefront reads orders, create and change them on the Shop API (`create`, `createFromCart`, `setMeta`, `addToStage`). Details in [Shop API Order Mutations](references/shop-api-order-mutations.md).
 
 ## API Endpoints & Authentication
 

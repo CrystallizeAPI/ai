@@ -15,9 +15,12 @@ Query product data, content, and commerce information from Crystallize using Gra
 Before writing queries, understand the context. Ask clarifying questions:
 
 1. **What data do you need?** Products, orders, customers, content, shapes?
-2. **Is this for a storefront or admin interface?** Discovery/Catalogue for storefronts, Core for admin.
+2. **Is this for a storefront or admin interface?** Discovery/Catalogue for storefronts, Shop API for carts and orders, Core for admin only — Core is rate limited and must not serve storefront traffic.
 3. **Do you need search/filtering or exact path reads?** Discovery for search and faceted navigation, Catalogue for deterministic reads by path.
 4. **Do you have authentication configured?** Core API requires access tokens. Discovery/Catalogue can be open but should be secured in production.
+   A public Discovery endpoint serves **every price variant it exposes** to anyone who knows the field name
+   (`nokPrice`, `wholesalePrice`, …), so confidential terms — negotiated B2B prices in particular — belong
+   in a price list read from the Catalogue API server-side, not in a price variant. See [[pricing]].
 5. **What volume of results?** Pagination strategy matters — cursor-based is recommended for all APIs.
 
 ## Choosing the Right API
@@ -28,6 +31,12 @@ Before writing queries, understand the context. Ask clarifying questions:
 - Cart/checkout operations? → **Shop API**
 - Need results _ordered_ by relevance rules, personalization, or similarity? → **Discovery API** with
   `rankBy` / `context` / `nearestTo` — see [[vector-ranking]]
+
+### Core Is Not a Storefront API
+
+**Core is heavily rate limited and is not meant for storefront traffic** — not even server-side with a short cache, and never once per page view. A storefront reads the catalogue from Discovery (and Catalogue for deterministic path reads), and does carts, orders, customers and subscription contracts on the Shop API. Core is for the back office: imports, seeding, scheduled jobs and admin tools, behind your own server.
+
+This costs nothing in capability. The Shop API is edge-distributed and scales near the shopper, and it syncs with Core asynchronously, so an order placed through the Shop API is in Core a few seconds later for the back office to work on.
 
 ## How It Works
 
@@ -231,6 +240,9 @@ query {
 6. **Protect APIs in production** - Configure authentication for sensitive data
 7. **Use Core API for complex filters** - Only Core API supports filtering orders by customer, SKU, payment provider
 8. **Detect the Discovery schema, don't hardcode it** - Filter/sort/facet fields and the ranking arguments are tenant-generated; introspect before building a query
+9. **Keep Core out of the storefront** - Storefront reads are Discovery/Catalogue, and carts, orders, customers and subscription contracts are the Shop API
+10. **Scope `customerIdentifier` on the server** - The Shop API token is per tenant, not per shopper: `orders(customerIdentifier:)` answers for any identifier it is given, so take it from the session and never from the client
+11. **Read an order list through one store** - Orders edited in Core appear more than once in the Shop API's list; group by `coreId` and keep the newest copy (see the [Shop API Order Queries Reference](references/shop-api-order-queries.md))
 
 ## References
 

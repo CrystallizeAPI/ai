@@ -520,6 +520,14 @@ mutation DeleteCustomer {
 
 ## Order Mutations
 
+> **If a storefront lists these orders, change them on the Shop API instead.** Every `order { update }`
+> in Core adds **another copy** of the order to the Shop store: three updates on one order left three
+> Shop orders with new ids, the same `coreId` and different `updatedAt`, and a storefront summing that
+> list counted the money three times. `updateOrderPipelineStage` and `deleteOrder` in Core, by contrast,
+> never reach the Shop store at all. Use Shop `/order` `setMeta` and `addToStage` for anything a
+> storefront reads, and keep Core order writes for back-office work on orders nobody lists from the edge.
+> See [Shop API Order Mutations](shop-api-order-mutations.md).
+
 ### Update Order
 
 ```graphql
