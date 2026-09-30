@@ -65,7 +65,7 @@ export const resolveTenant = (input: Record<string, unknown>, authContext: AuthC
  * once — so all of the above come from this single event, at no extra cost.
  *
  * Tenant first, tool last: the tenant prefix makes the ad-hoc filter a simple
- * `contains`, and anchoring the tool at the end stops `/t/*​/query-core` from
+ * `contains`, and anchoring the tool at the end stops `/t/{*}/query-core` from
  * bleeding into a longer tool name.
  */
 export const buildToolCallEvent = (
@@ -134,7 +134,7 @@ export const selectionOutcome = (result: { picked: number; qualified: number } |
  * One Jev selection, next to the tool call's own `/t/{tenant}/{tool}` event.
  *
  * Its own `/jev/` prefix keeps it out of the tool-call and session totals, and the outcome sits last so
- * `/jev/{tool}/*`, `/jev/{tool}/capped` and `/jev/*​/failed` are plain wildcard goals. No tenant: the question is
+ * `/jev/{tool}/*`, `/jev/{tool}/capped` and `/jev/{*}/failed` are plain wildcard goals. No tenant: the question is
  * how the selection behaves, and every outcome value is a fixed token, so the path shape cannot break.
  */
 export const buildSelectionEvent = (tool: JevSelectingTool, outcome: SelectionOutcome): AnalyticsEvent => ({
