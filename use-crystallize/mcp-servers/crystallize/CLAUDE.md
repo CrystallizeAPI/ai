@@ -512,7 +512,7 @@ Use `c.set()` / `c.get()` in middleware/handlers. Extend `Variables` when adding
 | `zod` (v4)                  | Schema validation for tool inputs             |
 | `graphql`                   | Introspection, validation, AST manipulation   |
 | `fastest-levenshtein`       | Fuzzy matching for query auto-correction      |
-| `vite` (v7)                 | Build tooling                                 |
+| `vite` (v8)                 | Build tooling                                 |
 
 ## Platform
 
