@@ -80,7 +80,7 @@ export const buildToolCallEvent = (
 const onOff = (value: boolean): string => (value ? "on" : "off");
 
 /**
- * One MCP session handshake: who connected, and with what configuration.
+ * One MCP session start: who connected, and with what configuration.
  *
  * Tenant first, mirroring `/t/{tenant}/{tool}`, so `Page contains /mcp/session/{tenant}/`
  * is the same shape of drill-down in both reports.
@@ -102,8 +102,9 @@ const onOff = (value: boolean): string => (value ? "on" : "off");
  * The flags cannot ride in a query string: Plausible strips those from the page
  * path, which would collapse every row into one.
  *
- * This counts `initialize` calls, not people — a client that reconnects
- * re-initialises and counts again. Read it as connection handshakes.
+ * This counts session starts, not people: a 2025 client's `initialize` or a
+ * 2026-07-28 client's `server/discover`. A client that reconnects counts again.
+ * Read it as connections.
  */
 export const buildSessionEvent = (
     { write, ui, skills }: ExposeFlags,

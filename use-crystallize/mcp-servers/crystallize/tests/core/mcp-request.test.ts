@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { isInitializeRequest } from "../../src/core/mcp-request";
+import { isInitializeRequest, isSessionStartRequest } from "../../src/core/mcp-request";
 
 const post = (body: string, headers: Record<string, string> = {}) =>
     new Request("https://mcp.crystallize.com/mcp", {
@@ -73,5 +73,37 @@ describe("isInitializeRequest", () => {
         const request = post("{not json");
         await isInitializeRequest(request);
         expect(await request.text()).toBe("{not json");
+    });
+});
+
+const DISCOVER = JSON.stringify({ jsonrpc: "2.0", id: 0, method: "server/discover", params: {} });
+
+describe("isSessionStartRequest", () => {
+    it("counts a 2025 client's initialize handshake", async () => {
+        expect(await isSessionStartRequest(post(INITIALIZE))).toBe(true);
+    });
+
+    // 2026-07-28 clients have no handshake; the SDK client opens with a server/discover probe instead.
+    it("counts a 2026-07-28 client's server/discover", async () => {
+        expect(await isSessionStartRequest(post(DISCOVER, { "Mcp-Method": "server/discover" }))).toBe(true);
+    });
+
+    it("reads the Mcp-Method header, so a large or streamed discover still counts", async () => {
+        expect(
+            await isSessionStartRequest(post(DISCOVER, { "Mcp-Method": "server/discover", "Content-Length": "99999" })),
+        ).toBe(true);
+    });
+
+    it("ignores every other modern request without touching the body", async () => {
+        const toolCall = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "skills" } });
+        const request = post(toolCall, { "Mcp-Method": "tools/call" });
+        expect(await isSessionStartRequest(request)).toBe(false);
+        expect(request.bodyUsed).toBe(false);
+    });
+
+    it("ignores tools/list, which clients re-send on every cache expiry", async () => {
+        const list = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+        expect(await isSessionStartRequest(post(list, { "Mcp-Method": "tools/list" }))).toBe(false);
+        expect(await isSessionStartRequest(post(list))).toBe(false);
     });
 });

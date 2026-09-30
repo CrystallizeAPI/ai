@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import { asFunction, asValue, createContainer, InferCradleFromContainer, InjectionMode } from "awilix";
 import packageJson from "../../package.json";
 import { createFetchCatalogGraphqlSchemaToolWrapper } from "./mcp/tools/fetch-catalog-graphql-schema";

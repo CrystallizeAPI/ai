@@ -1,6 +1,6 @@
 import z from "zod";
 import { AuthContext } from "./app-context";
-import { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
+import type { ToolAnnotations } from "@modelcontextprotocol/server";
 import type { McpUiResourceMeta } from "@modelcontextprotocol/ext-apps";
 import type { AnalyticsEvent } from "./analytics-tracker";
 

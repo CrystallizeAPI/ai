@@ -35,3 +35,21 @@ export const isInitializeRequest = async (request: Request): Promise<boolean> =>
         return false;
     }
 };
+
+/**
+ * True when this request opens an MCP session, in either protocol era.
+ *
+ * - **2025** clients open with the `initialize` handshake, read off the body.
+ * - **2026-07-28** clients have no handshake at all: the protocol is stateless and every request carries its own
+ *   version. The SDK client opens with a `server/discover` probe instead, and every modern POST names its method in
+ *   the required `Mcp-Method` header, so no body peek is needed. A client may skip discovery and go straight to
+ *   `tools/list`, which then goes uncounted: `tools/list` is not a substitute, since clients re-send it on every
+ *   cache expiry.
+ */
+export const isSessionStartRequest = async (request: Request): Promise<boolean> => {
+    const method = request.headers.get("Mcp-Method");
+    if (method !== null) {
+        return method === "server/discover";
+    }
+    return isInitializeRequest(request);
+};
