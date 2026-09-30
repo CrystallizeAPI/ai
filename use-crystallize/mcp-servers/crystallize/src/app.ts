@@ -2,11 +2,11 @@ import { Hono } from "hono";
 import type { AppContext } from "./contracts/app-context";
 import { servicesProvider } from "./middlewares/services-provider";
 import { authMiddleware } from "./middlewares/auth";
-import { createMcpHandler } from "agents/mcp";
+import { createMcpHandler } from "agents/mcp/server";
 import { landingPage } from "./pages/landing";
 import { buildSessionEvent } from "./core/analytics";
 import { readExposeFlags } from "./core/expose-flags";
-import { isInitializeRequest } from "./core/mcp-request";
+import { isSessionStartRequest } from "./core/mcp-request";
 import { PLAUSIBLE_EVENTS_ENDPOINT } from "./core/services/plausible-analytics-tracker";
 
 export const createApp = () => {
@@ -27,16 +27,20 @@ export const createApp = () => {
         // and the transport rejects bad Accept/Content-Type. A client looping
         // against a trailing-slash URL would otherwise inflate the session count
         // with handshakes that only ever got a 404.
-        const isHandshake = await isInitializeRequest(c.req.raw);
-        const handler = createMcpHandler(c.get("services").mcpServer, {
+        const isSessionStart = await isSessionStartRequest(c.req.raw);
+        // One endpoint, both protocol eras: 2026-07-28 clients are served natively, and 2025 clients (the
+        // `initialize` handshake) fall back to stateless serving (`legacy: "stateless"`, the default).
+        // The server is already built per request by `servicesProvider`, so the factory just hands it over.
+        const mcpServer = c.get("services").mcpServer;
+        const handler = createMcpHandler(() => mcpServer, {
             route: "/mcp",
             authContext: {
                 props: c.get("authContext"),
             },
-            enableJsonResponse: true,
+            responseMode: "json",
         });
         const response = await handler(c.req.raw, c.env, c.executionCtx);
-        if (isHandshake && response.ok) {
+        if (isSessionStart && response.ok) {
             c.get("services").analyticsTracker(
                 buildSessionEvent(readExposeFlags((key) => c.req.query(key)), c.get("authContext")),
             );

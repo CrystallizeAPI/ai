@@ -43,7 +43,7 @@ src/
 ├── core/
 │   ├── analytics.ts                              # Pure analytics event builders (tenant/tool + session paths)
 │   ├── expose-flags.ts                           # Shared exposeWrite/exposeUi/exposeSkills query-param parsing
-│   ├── mcp-request.ts                            # Detect the JSON-RPC `initialize` handshake (body-clone peek)
+│   ├── mcp-request.ts                            # Detect a session start: `initialize` (2025) / `server/discover` (2026)
 │   ├── container.ts                              # Awilix DI container + services + tool registration
 │   ├── mass-operation.ts                         # Shared mass-operation validation (validateMassOperations)
 │   ├── security.ts                               # Shared input schemas (tenant/query/variables) + error sanitization
@@ -217,7 +217,7 @@ Goals panel has fewer `tool:` rows than that list, the difference is what to cre
 | `mutate-shop-cart` _(write)_     | `mutateShopCartToolWrapper`              | Execute Shop Cart mutations              |
 | `run-mass-operation` _(write)_   | `runMassOperationToolWrapper`            | Run a mass operation (one-shot)          |
 
-Auth context is injected automatically via `getMcpAuthContext()` from `agents/mcp`.
+Auth context is injected automatically via `getMcpAuthContext()` from `agents/mcp/server`.
 
 #### Write tools & the `exposeWrite` gate
 
@@ -344,7 +344,8 @@ Jev to pick:
   every Jev call opts out of the AI Gateway log (`collectLog: false`, see `JEV_GATEWAY_OPTIONS` in
   `jev-client.ts`) because the request carries the caller's intent/task text. Jev is zero-data-retention at TypeSafe.
 
-**MCP session handshakes** — one `pageview` per JSON-RPC `initialize`, fired from `src/app.ts`:
+**MCP session starts** — one `pageview` per session start, fired from `src/app.ts`: a JSON-RPC `initialize` from a
+2025 client, or a `server/discover` from a 2026-07-28 client (see "MCP protocol versions" below):
 
 ```
 /mcp/session/{tenant}/write-{on|off}/ui-{on|off}/skills-{on|off}
@@ -368,10 +369,14 @@ The event is emitted **after** the MCP handler answers and only when `response.o
 wider than the handler's own `route`, and the transport rejects bad `Accept`/`Content-Type`, so a client looping
 against a trailing-slash URL would otherwise inflate the count with handshakes that only ever got a 404.
 
-This counts handshakes, not people: a client that reconnects re-initialises and counts again.
+This counts connections, not people: a client that reconnects re-initialises (or re-discovers) and counts again.
+A 2026-07-28 client that skips `server/discover` and goes straight to `tools/list` is not counted — `tools/list` is
+no substitute, since clients re-send it whenever their cached list expires. The SDK client always discovers first.
 
-`isInitializeRequest` (`src/core/mcp-request.ts`) peeks at a **clone** of the body (so the original still reaches the MCP
-handler) and only for bodies under 8 KB, so a large tool-call payload is never buffered just to be discarded.
+`isSessionStartRequest` (`src/core/mcp-request.ts`) reads the `Mcp-Method` header that every 2026-07-28 POST must
+carry, so modern requests never touch the body. For 2025 requests it falls back to `isInitializeRequest`, which peeks
+at a **clone** of the body (so the original still reaches the MCP handler) and only for bodies under 8 KB, so a large
+tool-call payload is never buffered just to be discarded.
 
 Goals must be created with **no custom property** attached. `custom_props` is one of exactly two things that trip
 Plausible's plan gate on goal creation (`maybe_check_feature_access` in `lib/plausible/goals/goals.ex`; the other
@@ -454,6 +459,23 @@ retroactive, so create that goal before shipping.
 - `PLAUSIBLE_API_ENDPOINT` drives **both** sides: the server-side POST target, and the landing page's `data-api`
   plus its script origin. Point it at a self-hosted Plausible and the browser follows.
 
+### MCP protocol versions
+
+The endpoint speaks **both** protocol eras on the same `/mcp` URL, through `createMcpHandler` from `agents/mcp/server`:
+
+- **2026-07-28** (stateless): no handshake and no `Mcp-Session-Id`; every request carries its protocol version and
+  client capabilities in `_meta`, and names its method in the `Mcp-Method` header.
+- **2025** (`initialize` handshake): served by the SDK's stateless fallback (`legacy: "stateless"`, the default).
+  Keep it: Cursor and MCP Inspector still only speak 2025, and Claude's 2026-07-28 support was still rolling out when
+  this landed (Sept 2026). Setting `legacy: "reject"` would cut them off.
+
+The handler takes a **factory**, not a server instance. `servicesProvider` already builds a fresh `McpServer` per
+request, so the factory just returns it. `responseMode: "json"` keeps the replies plain JSON (no SSE).
+
+The MCP packages (`@modelcontextprotocol/server`, `client`, `core`) are **pinned exact** to the version `agents`
+declares as its peer — bump them together with `agents`, never on their own. `agents` also keeps a peer on SDK v1
+(`@modelcontextprotocol/sdk`) for its legacy lane; nothing here imports it, and `agents/mcp/server` does not pull it in.
+
 ### AppContext Type
 
 ```ts
@@ -484,13 +506,13 @@ Use `c.set()` / `c.get()` in middleware/handlers. Extend `Variables` when adding
 | Package                     | Purpose                                       |
 | --------------------------- | --------------------------------------------- |
 | `hono`                      | Web framework (routing, middleware)           |
-| `@modelcontextprotocol/sdk` | MCP server protocol                           |
+| `@modelcontextprotocol/server` | MCP server protocol (SDK v2, pinned exact) |
 | `agents`                    | Cloudflare Agents (MCP handler, auth context) |
 | `awilix`                    | Dependency injection container                |
 | `zod` (v4)                  | Schema validation for tool inputs             |
 | `graphql`                   | Introspection, validation, AST manipulation   |
 | `fastest-levenshtein`       | Fuzzy matching for query auto-correction      |
-| `vite` (v7)                 | Build tooling                                 |
+| `vite` (v8)                 | Build tooling                                 |
 
 ## Platform
 

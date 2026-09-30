@@ -1,4 +1,4 @@
-import { getMcpAuthContext } from "agents/mcp";
+import { getMcpAuthContext } from "agents/mcp/server";
 import { createMiddleware } from "hono/factory";
 import z from "zod";
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
@@ -105,11 +105,6 @@ export const servicesProvider = createMiddleware<AppContext>(async (c, next) => 
                 toolName,
                 {
                     description: wrapper.description,
-                    // @ts-expect-error — wrapper.inputSchema is a zod-v4 ZodObject from the project's
-                    // zod (4.4.3), but the SDK's registerTool types inputSchema against `AnySchema`
-                    // from its own nested zod (4.3.6); the two $ZodType identities don't match
-                    // nominally. Runtime is correct — getZodSchemaObject() accepts the ZodObject as-is.
-                    // Removing the duplicate zod (single version tree-wide) makes this directive unused.
                     inputSchema: wrapper.inputSchema,
                     annotations: wrapper.annotations ?? { readOnlyHint: true },
                 },

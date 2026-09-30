@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 /// <reference types="vite/client" />
 import { App } from "@modelcontextprotocol/ext-apps";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/client";
 import { mountLayout } from "../_shared/layout";
 import "./mcp-app.css";
 

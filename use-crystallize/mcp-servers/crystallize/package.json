@@ -18,26 +18,28 @@
     "dependencies": {
         "@crystallize/js-api-client": "^7.4.0",
         "@crystallize/schema": "^6.14.0",
-        "@modelcontextprotocol/ext-apps": "1.7.1",
-        "@modelcontextprotocol/sdk": "1.28.0",
-        "agents": "^0.8.7",
-        "awilix": "^13.0.3",
+        "@modelcontextprotocol/client": "2.0.0",
+        "@modelcontextprotocol/core": "2.0.0",
+        "@modelcontextprotocol/ext-apps": "2.0.3",
+        "@modelcontextprotocol/server": "2.0.0",
+        "agents": "0.24.0",
+        "awilix": "^13.0.5",
         "fastest-levenshtein": "^1.0.16",
-        "graphql": "^16.14.0",
-        "hono": "^4.12.18",
-        "jose": "^6.2.3",
-        "zod": "^4.4.3"
+        "graphql": "^17.0.2",
+        "hono": "^4.13.11",
+        "jose": "^6.2.12",
+        "zod": "^4.6.5"
     },
     "devDependencies": {
-        "@cloudflare/vite-plugin": "^1.37.0",
-        "@types/bun": "^1.4.0",
-        "@types/node": "^25.8.0",
-        "oxlint": "^1.64.0",
-        "tailwindcss": "^4.3.0",
-        "typescript": "6.0.2",
-        "vite": "^8.0.13",
+        "@cloudflare/vite-plugin": "^1.62.2",
+        "@types/bun": "^1.4.2",
+        "@types/node": "^26.6.3",
+        "oxlint": "^1.86.0",
+        "tailwindcss": "^4.3.3",
+        "typescript": "^7.0.2",
+        "vite": "^8.3.1",
         "vite-plugin-singlefile": "^2.3.3",
-        "wrangler": "^4.91.0"
+        "wrangler": "^4.144.0"
     },
     "overrides": {
         "@modelcontextprotocol/sdk": "1.28.0"
