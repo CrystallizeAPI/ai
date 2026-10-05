@@ -35,14 +35,10 @@ A node is either a **leaf** (has `textContent`) or a **branch** (has `children`)
 | `"quote"`         | `<blockquote>`  | Block quote |
 | `"code"`          | `<code>`        | Code block |
 | `"preformatted"`  | `<pre>`         | Preformatted text |
-| `"table"`         | `<table>`       | Contains `table-head`, `table-body`, `table-footer` |
-| `"table-head"`    | `<thead>`       | Contains `table-row` |
-| `"table-body"`    | `<tbody>`       | Contains `table-row` |
-| `"table-footer"`  | `<tfoot>`       | Contains `table-row` |
+| `"table"`         | `<table>`       | Contains `table-row` directly |
 | `"table-row"`     | `<tr>`          | Contains `table-cell` or `table-head-cell` |
-| `"table-cell"`    | `<td>`          | |
-| `"table-head-cell"` | `<th>`       | |
-| `"table-caption"` | `<caption>`     | |
+| `"table-cell"`    | `<td>`          | Contains block content (`paragraph`) |
+| `"table-head-cell"` | `<th>`       | Contains block content (`paragraph`) |
 | `"horizontal-line"` | `<hr>`       | Self-closing, no children/textContent needed |
 | `"image"`         | `<img>`         | Self-closing, use metadata for src, alt etc. |
 | `"container"`     | `<div>`         | Generic block container |
@@ -85,7 +81,8 @@ A node is either a **leaf** (has `textContent`) or a **branch** (has `children`)
 1. **Text lives in leaf nodes only.** A paragraph contains inline children; those inline children hold the `textContent`.
 2. **Plain text** uses inline nodes with `type: null`: `{ "kind": "inline", "type": null, "textContent": "Hello" }`.
 3. **Lists** must follow: `unordered-list`/`ordered-list` → `list-item` → inline/block content.
-4. **Tables** must follow: `table` → `table-head`/`table-body`/`table-footer` → `table-row` → `table-cell`/`table-head-cell` → content.
+4. **Tables** must follow: `table` → `table-row` → `table-cell`/`table-head-cell` → `paragraph` → inline content. Cells use `kind: "block"`. A header is a first row of `table-head-cell`.
+   - Never emit `table-head`, `table-body`, `table-footer` or `table-caption`: the Crystallize App editor drops them along with every row inside. When converting HTML, put the rows of `<thead>`/`<tbody>`/`<tfoot>` directly under `table`, and turn a `<caption>` into a paragraph before the table.
 5. **Nested formatting** is done via `children`: e.g. bold + italic = `strong` node containing an `emphasized` child.
 6. **Top-level output** is always an array of block nodes.
 
@@ -104,6 +101,7 @@ These rules are **mandatory** — every generated or modified node must comply. 
 3. **No empty block nodes.** Every block node must have either `children` (with at least one child) or `textContent`. Do not emit blocks like `{ "kind": "block", "type": "paragraph" }` with neither.
 
 4. **Preserve existing structure.** When the input already contains Crystallize JSON, preserve its formatting and structure. Do not restructure, re-wrap, or flatten nodes that are already valid.
+   - Tables saved by the Crystallize App editor have `kind: "inline"` cells. Leave them as they are, but give new cells `kind: "block"`: only block cells render as `<td>`/`<th>` in the API's HTML output.
 
 5. **`code` blocks inside `preformatted`** use `kind: "block"` and may hold `textContent` directly (they are leaf blocks). This is the one exception where a typed block node carries `textContent`.
 
@@ -181,6 +179,83 @@ These rules are **mandatory** — every generated or modified node must comply. 
         "type": "list-item",
         "children": [
           { "kind": "inline", "type": null, "textContent": "Second item" }
+        ]
+      }
+    ]
+  }
+]
+```
+
+### Table with a header row
+
+```json
+[
+  {
+    "kind": "block",
+    "type": "table",
+    "children": [
+      {
+        "kind": "block",
+        "type": "table-row",
+        "children": [
+          {
+            "kind": "block",
+            "type": "table-head-cell",
+            "children": [
+              {
+                "kind": "block",
+                "type": "paragraph",
+                "children": [
+                  { "kind": "inline", "type": null, "textContent": "Name" }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "block",
+            "type": "table-head-cell",
+            "children": [
+              {
+                "kind": "block",
+                "type": "paragraph",
+                "children": [
+                  { "kind": "inline", "type": null, "textContent": "Price" }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "block",
+        "type": "table-row",
+        "children": [
+          {
+            "kind": "block",
+            "type": "table-cell",
+            "children": [
+              {
+                "kind": "block",
+                "type": "paragraph",
+                "children": [
+                  { "kind": "inline", "type": null, "textContent": "Shoe" }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "block",
+            "type": "table-cell",
+            "children": [
+              {
+                "kind": "block",
+                "type": "paragraph",
+                "children": [
+                  { "kind": "inline", "type": null, "textContent": "42" }
+                ]
+              }
+            ]
+          }
         ]
       }
     ]
