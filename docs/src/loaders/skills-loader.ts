@@ -1,6 +1,6 @@
 import type { Loader } from "astro/loaders";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join, relative, resolve, sep } from "node:path";
 
 const SKILLS_DIR = join(new URL(".", import.meta.url).pathname, "../../../use-crystallize/skills");
 
@@ -40,6 +40,31 @@ function parseFrontmatter(content: string) {
     };
 }
 
+function referenceAnchor(file: string) {
+    return `ref-${file.replace(/\.md$/, "")}`;
+}
+
+// A skill page inlines SKILL.md and every references/*.md into one document, so the
+// relative .md links between those files (`references/x.md`, `../SKILL.md#y`,
+// `../mutation/SKILL.md`) resolve to URLs that were never built. Point each link that
+// lands on a skill file at where that file ended up: a reference is the anchor above
+// its section, a SKILL.md is the top of its skill page.
+function rewriteSkillLinks(markdown: string, fromDir: string, currentSkill: string): string {
+    return markdown.replace(/\]\(([^)\s#]+\.md)(#[^)\s]*)?\)/g, (link, path: string, hash = "") => {
+        if (/^([a-z]+:|\/)/i.test(path)) return link;
+
+        const [skill, ...rest] = relative(SKILLS_DIR, resolve(fromDir, path)).split(sep);
+        const page = skill === currentSkill ? "" : `/ai/skills/${skill}/`;
+        if (rest.length === 1 && rest[0] === "SKILL.md") {
+            return `](${page}${hash || (page ? "" : "#_top")})`;
+        }
+        if (rest.length === 2 && rest[0] === "references") {
+            return `](${page}${hash || `#${referenceAnchor(rest[1])}`})`;
+        }
+        return link;
+    });
+}
+
 async function readReferences(skillDir: string): Promise<string> {
     const refsDir = join(skillDir, "references");
     try {
@@ -49,7 +74,8 @@ async function readReferences(skillDir: string): Promise<string> {
             if (!file.endsWith(".md")) continue;
             const content = await readFile(join(refsDir, file), "utf-8");
             const { body } = parseFrontmatter(content);
-            parts.push(body.trim());
+            const linked = rewriteSkillLinks(body.trim(), refsDir, basename(skillDir));
+            parts.push(`<div id="${referenceAnchor(file)}"></div>\n\n${linked}`);
         }
         if (parts.length > 0) {
             return "\n\n---\n\n## Reference Details\n\n" + parts.join("\n\n");
@@ -86,7 +112,7 @@ export function skillsLoader(): Loader {
 
                 const { name, description, body } = parseFrontmatter(content);
                 const references = await readReferences(join(SKILLS_DIR, dir));
-                const fullBody = body.trim() + references;
+                const fullBody = rewriteSkillLinks(body.trim(), join(SKILLS_DIR, dir), dir) + references;
                 const rendered = await renderMarkdown(fullBody);
 
                 store.set({
