@@ -181,9 +181,16 @@ const api = createClient({
     accessTokenSecret: "...",
 });
 
-// Use pimApi for Core API mutations
-const result = await api.pimApi(mutationString, variables);
+// Core API mutations (api.crystallize.com/@tenant)
+const result = await api.nextPimApi(mutationString, variables);
+
+// Shop API mutations: one caller per endpoint, the Shop API token is fetched for you
+await api.shopCartApi(cartMutation, variables); // /cart
+await api.shopOrderApi(orderMutation, variables); // /order (js-api-client 7.5+)
 ```
+
+For checkout, prefer the helpers: `createCartManager` (`hydrate`, `place`) and `createShopOrderManager`
+(`createFromCart`, `addPayments`, `setPayments`, `addToStage`).
 
 ## Output Format
 
