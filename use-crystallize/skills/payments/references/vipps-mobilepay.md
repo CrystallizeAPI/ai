@@ -246,7 +246,7 @@ export async function POST(req: Request) {
         } else if (event.name === "CAPTURED" || event.name === "CANCELLED") {
             await syncVippsRecord(cartId); // also catches captures and cancels made in the business portal
         } else if (event.name === "REFUNDED") {
-            await recordPayment(cartId, vippsRefund(event)); // takes the cart lock itself
+            await recordPayment(cartId, vippsRefund(event)); // skips a refund already on the order
         } // ABORTED, EXPIRED, TERMINATED: no order
         return new Response("ok");
     } catch (error) {

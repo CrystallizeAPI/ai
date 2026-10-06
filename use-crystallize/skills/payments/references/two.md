@@ -26,7 +26,7 @@ page, and create the Crystallize order from the signed `order.verified.v1` webho
 | Capture              | On fulfilment, async (`order.fulfilled.v1`). Credit guaranteed 21 days, then `/renew`         |
 | Authorization window | `payment_url` valid 24 h once opened; `UNVERIFIED` orders auto-cancel after 48 h              |
 | Cart id              | `merchant_order_id` (string, no documented limit; the cart UUID fits), in every order webhook |
-| One session per cart | No create idempotency: under `withCartLock`, `GET /v1/order/merchant-order-id/{cartId}` first |
+| One session per cart | No create idempotency: `GET /v1/order/merchant-order-id/{cartId}` first, reuse the live order |
 | Notification check   | Svix HMAC-SHA256 over `svix-id`, `svix-timestamp`, raw body; fresh timestamp; re-GET order    |
 
 ## Credentials and setup
@@ -58,13 +58,13 @@ TWO_WEBHOOK_SECRET=whsec_…                # Svix portal → endpoint → signi
 Before `place` the storefront stored the company, the representative and the intent's `tracking_id` on the cart
 ([Provider specifics](#provider-specifics)). SKILL.md's [Pay route](../SKILL.md#lock-the-cart-before-you-charge) calls
 `createTwoOrder(placed, origin)` and redirects to `redirectUrl`; on `declined` it offers another method for the same
-placed cart; on `RetryLater` (another tab holds the lock) it answers 409.
+placed cart.
 
 ```ts
 // lib/two.ts
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { carts, createOrderOnce, PLACED_CART, readCart, recordPayment } from "@/lib/crystallize-payments";
-import { updatePayment, withCartLock, withMeta, type Payment, type PlacedCart } from "@/lib/crystallize-payments";
+import { updatePayment, withMeta, type Payment, type PlacedCart } from "@/lib/crystallize-payments";
 
 export async function two<T>(path: string, init: RequestInit = {}): Promise<T> {
     const res = await fetch(process.env.TWO_API_URL + path, {
@@ -129,42 +129,41 @@ export const findTwoOrders = (cartId: string) =>
 
 export async function createTwoOrder(placed: PlacedCart, origin: string) {
     const returnUrl = `${origin}/checkout/two/return?cart=${placed.id}`;
-    // No idempotency key on create: look the cart up first, under the lock (two tabs, double clicks).
-    return withCartLock(placed.id, async () => {
-        const live = (await findTwoOrders(placed.id)).find((o) => o.state !== "CANCELLED");
-        if (live && live.status !== "APPROVED" && live.status !== "PARTIAL") return { declined: live.decline_reason };
-        if (live?.state === "UNVERIFIED") return { redirectUrl: (await getTwoOrder(live.id)).payment_url }; // fresh URL
-        if (live) return { redirectUrl: returnUrl }; // verified already
-        const { meta, customer } = placed;
-        const billing = customer?.addresses?.find((a) => a.type === "billing");
-        if (!meta?.twoCompanyId || !customer?.companyName || !customer.phone || !customer.email || !billing) {
-            throw new Error(`cart ${placed.id} was placed without a Two company or representative`);
-        }
-        const order = await two<TwoOrder>("/v1/order", {
-            method: "POST",
-            body: JSON.stringify({
-                merchant_order_id: placed.id,
-                ...amounts(placed),
-                // canonical id alone: that form forbids other company fields. All four representative fields required.
-                buyer: { company: { company_canonical_id: meta.twoCompanyId }, representative: rep(customer) },
-                billing_address: {
-                    organization_name: customer.companyName,
-                    street_address: billing.street, // the registered address, from the Company API
-                    postal_code: billing.postalCode,
-                    city: billing.city,
-                    country: billing.country,
-                },
-                buyer_purchase_order_number: meta.poNumber || undefined, // printed on the invoice
-                tracking_id: meta.twoTrackingId || undefined, // links the order intent
-                merchant_urls: {
-                    merchant_confirmation_url: returnUrl,
-                    merchant_cancel_order_url: `${origin}/checkout/two/cancel?cart=${placed.id}`,
-                },
-            }),
-        });
-        if (order.status !== "APPROVED") return { declined: order.decline_reason };
-        return { redirectUrl: order.state === "UNVERIFIED" ? order.payment_url : returnUrl };
+    // No idempotency key on create: look the cart up first (two tabs, double clicks). A click in the same instant
+    // can still create a second Two order; the duplicate-payment flag in createOrderOnce covers it.
+    const live = (await findTwoOrders(placed.id)).find((o) => o.state !== "CANCELLED");
+    if (live && live.status !== "APPROVED" && live.status !== "PARTIAL") return { declined: live.decline_reason };
+    if (live?.state === "UNVERIFIED") return { redirectUrl: (await getTwoOrder(live.id)).payment_url }; // fresh URL
+    if (live) return { redirectUrl: returnUrl }; // verified already
+    const { meta, customer } = placed;
+    const billing = customer?.addresses?.find((a) => a.type === "billing");
+    if (!meta?.twoCompanyId || !customer?.companyName || !customer.phone || !customer.email || !billing) {
+        throw new Error(`cart ${placed.id} was placed without a Two company or representative`);
+    }
+    const order = await two<TwoOrder>("/v1/order", {
+        method: "POST",
+        body: JSON.stringify({
+            merchant_order_id: placed.id,
+            ...amounts(placed),
+            // canonical id alone: that form forbids other company fields. All four representative fields required.
+            buyer: { company: { company_canonical_id: meta.twoCompanyId }, representative: rep(customer) },
+            billing_address: {
+                organization_name: customer.companyName,
+                street_address: billing.street, // the registered address, from the Company API
+                postal_code: billing.postalCode,
+                city: billing.city,
+                country: billing.country,
+            },
+            buyer_purchase_order_number: meta.poNumber || undefined, // printed on the invoice
+            tracking_id: meta.twoTrackingId || undefined, // links the order intent
+            merchant_urls: {
+                merchant_confirmation_url: returnUrl,
+                merchant_cancel_order_url: `${origin}/checkout/two/cancel?cart=${placed.id}`,
+            },
+        }),
     });
+    if (order.status !== "APPROVED") return { declined: order.decline_reason };
+    return { redirectUrl: order.state === "UNVERIFIED" ? order.payment_url : returnUrl };
 }
 ```
 

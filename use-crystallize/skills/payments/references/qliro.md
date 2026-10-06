@@ -25,7 +25,7 @@ outcome asynchronously on a separate order-management push.
 | Amount units              | Decimal **major** units, 0–2 decimals, **per item**; no order total is sent: Qliro sums the items          |
 | Capture + auth lifetime   | Manual: `MarkItemsAsShipped`, result on the OM push. Session 90 min, order 48 h; reservation (unconfirmed) |
 | Cart id field             | `MerchantReference` (≤ 25, `[A-Za-z0-9_\|-]`): first 25 chars of the cart id; full id in metadata          |
-| One session per cart      | Deterministic `MerchantReference`; `GET …/orders?merchantReference=` before creating, under the lock       |
+| One session per cart      | Deterministic `MerchantReference`; `GET …/orders?merchantReference=` before creating                       |
 | Notification verification | None by design: an HMAC token in each push URL, then `GetOrder` / `GetPaymentTransaction`                  |
 
 ## Credentials and setup
@@ -78,7 +78,6 @@ import {
     recordPayment,
     RetryLater,
     updatePayment,
-    withCartLock,
     withMeta,
 } from "@/lib/crystallize-payments";
 import type { Payment, PlacedCart } from "@/lib/crystallize-payments";
@@ -167,50 +166,48 @@ export type QliroMarket = { country: string; language: string }; // from the Cry
 
 export const merchantReference = (cartId: string) => cartId.slice(0, 25); // Qliro's maximum length
 
-export function createQliroCheckout(placed: PlacedCart, market: QliroMarket) {
+export async function createQliroCheckout(placed: PlacedCart, market: QliroMarket) {
     const ref = merchantReference(placed.id);
-    return withCartLock(placed.id, async () => {
-        // a second tab waits, then finds the first tab's order
-        const found = await qliro<QliroOrder | null>(`merchantapi/orders?merchantReference=${ref}`);
-        if (found) return found;
-        const c = placed.customer;
-        const a = c?.addresses?.find((x) => x.type === "billing") ?? c?.addresses?.[0];
-        const company = c?.type === "organization";
-        const { OrderId } = await qliro<{ OrderId: number; PaymentLink: string }>("merchantapi/orders", {
-            MerchantReference: ref,
-            MerchantProvidedMetadata: [{ Key: "cartId", Value: placed.id }], // the full id (Value ≤ 250)
-            Country: market.country,
-            Currency: placed.total.currency.toUpperCase(),
-            Language: market.language,
-            MerchantTermsUrl: `${process.env.PUBLIC_URL}/terms`,
-            MerchantConfirmationUrl: `${process.env.PUBLIC_URL}/checkout/confirmation?cart=${placed.id}`,
-            MerchantCheckoutStatusPushUrl: pushUrl("checkout", placed.id),
-            MerchantOrderManagementStatusPushUrl: pushUrl("om", placed.id),
-            OrderItems: orderItems(placed),
-            CustomerInformation: {
-                // prefill: the shopper does not type it again
-                Email: c?.email,
-                MobileNumber: c?.phone,
-                JuridicalType: company ? "Company" : "Physical",
-                Address: a && {
-                    FirstName: a.firstName,
-                    LastName: a.lastName,
-                    CompanyName: c?.companyName,
-                    Street: [a.street, a.streetNumber].filter(Boolean).join(" "),
-                    PostalCode: a.postalCode,
-                    City: a.city,
-                },
+    // a second tab finds the first tab's order; a click in the same instant can still create a second one,
+    // and the duplicate-payment flag in createOrderOnce covers it
+    const found = await qliro<QliroOrder | null>(`merchantapi/orders?merchantReference=${ref}`);
+    if (found) return found;
+    const c = placed.customer;
+    const a = c?.addresses?.find((x) => x.type === "billing") ?? c?.addresses?.[0];
+    const company = c?.type === "organization";
+    const { OrderId } = await qliro<{ OrderId: number; PaymentLink: string }>("merchantapi/orders", {
+        MerchantReference: ref,
+        MerchantProvidedMetadata: [{ Key: "cartId", Value: placed.id }], // the full id (Value ≤ 250)
+        Country: market.country,
+        Currency: placed.total.currency.toUpperCase(),
+        Language: market.language,
+        MerchantTermsUrl: `${process.env.PUBLIC_URL}/terms`,
+        MerchantConfirmationUrl: `${process.env.PUBLIC_URL}/checkout/confirmation?cart=${placed.id}`,
+        MerchantCheckoutStatusPushUrl: pushUrl("checkout", placed.id),
+        MerchantOrderManagementStatusPushUrl: pushUrl("om", placed.id),
+        OrderItems: orderItems(placed),
+        CustomerInformation: {
+            // prefill: the shopper does not type it again
+            Email: c?.email,
+            MobileNumber: c?.phone,
+            JuridicalType: company ? "Company" : "Physical",
+            Address: a && {
+                FirstName: a.firstName,
+                LastName: a.lastName,
+                CompanyName: c?.companyName,
+                Street: [a.street, a.streetNumber].filter(Boolean).join(" "),
+                PostalCode: a.postalCode,
+                City: a.city,
             },
-            ...(company && { EnforcedJuridicalType: "Company" }), // B2B chosen in the storefront, before place
-        });
-        return qliro<QliroOrder>(`merchantapi/orders/${OrderId}`); // GetOrder carries the HTML snippet
+        },
+        ...(company && { EnforcedJuridicalType: "Company" }), // B2B chosen in the storefront, before place
     });
+    return qliro<QliroOrder>(`merchantapi/orders/${OrderId}`); // GetOrder carries the HTML snippet
 }
 ```
 
 The pay route returns `OrderHtmlSnippet` when the order is `InProcess`. A found order that is `Completed` or `OnHold`
 is already submitted: send the shopper to the confirmation page. `Refused` cannot be paid again: start a new cart.
-`withCartLock` throws `RetryLater` while the other tab holds the lock; answer `503` and let the page retry.
 
 - **Lifetimes:** a checkout session lasts 90 minutes and a Qliro order 48 hours. When the session expires Qliro shows
   a dialog and reloads the page; to resume an older `InProcess` order, renew it with `UpdateOrder`

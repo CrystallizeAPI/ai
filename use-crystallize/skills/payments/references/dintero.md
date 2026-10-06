@@ -24,7 +24,7 @@ authorized at checkout and captured when the goods ship (manual capture by defau
 | Amount units         | Integer **minor** units (`29990` = 299.90 NOK); `items[].amount` = line total incl. VAT |
 | Capture              | Manual (default). Authorization: cards ~7 days, Vipps 5–30, Klarna 28+, Walley 90 days  |
 | Cart id              | `order.merchant_reference`, on every transaction and callback (≤ 35 chars with Kravia)  |
-| One session per cart | No idempotency key: under the cart lock, find the cart's open session and reuse it      |
+| One session per cart | No idempotency key: find the cart's open session and reuse it                           |
 | Verification         | Signed **GET** `callback_url` (`Dintero-Signature`, HMAC-SHA256 of the URL) + re-fetch  |
 
 ## Credentials and setup
@@ -60,12 +60,13 @@ Call it from the Pay route right after `place` ([SKILL.md](../SKILL.md#lock-the-
 lasts 4 hours: cache it. With `Dintero-Feature-Toggles: strict-session-amounts`, Dintero refuses a session whose lines
 do not add up to `order.amount` instead of failing at capture. A session yields at most one transaction, so reusing the
 cart's open session keeps two tabs on one payment. Only the older base lists sessions (`search` matches
-`merchant_reference`); how soon a new session becomes searchable is unconfirmed, so keep the cart lock around it.
+`merchant_reference`); how soon a new session becomes searchable is unconfirmed, so two clicks in the same instant can still open two
+sessions; the duplicate-payment flag in `createOrderOnce` covers that.
 
 ```ts
 // lib/dintero.ts
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { recordPayment, updatePayment, withCartLock, withMeta } from "@/lib/crystallize-payments";
+import { recordPayment, updatePayment, withMeta } from "@/lib/crystallize-payments";
 import type { Payment, PlacedCart } from "@/lib/crystallize-payments";
 
 const AID = process.env.DINTERO_ACCOUNT_ID!;
@@ -130,36 +131,39 @@ function dinteroOrder(placed: PlacedCart) {
     return { amount, vat_amount, currency: placed.total.currency.toUpperCase(), items };
 }
 
-export async function createDinteroSession(placed: PlacedCart, origin: string) {
-    return withCartLock(placed.id, async (): Promise<{ sid: string } | { paid: true }> => {
-        const order = dinteroOrder(placed);
-        const search = `https://checkout.dintero.com/v1/sessions?search=${encodeURIComponent(placed.id)}&limit=10`;
-        for (const s of await dintero<Session[]>(search)) {
-            if (s.order.merchant_reference !== placed.id || s.cancelled_at) continue;
-            if (s.transaction_id) {
-                const tx = await dintero<DinteroTx>(`/transactions/${s.transaction_id}`);
-                if (PAID.includes(tx.status)) return { paid: true }; // send the shopper to the return page
-            } else if (s.order.amount === order.amount && Date.parse(s.expires_at ?? "") > Date.now() + 120_000) {
-                return { sid: s.id }; // the same session for every tab
-            }
+export async function createDinteroSession(
+    placed: PlacedCart,
+    origin: string,
+): Promise<{ sid: string } | { paid: true }> {
+    // No idempotency key on create: reuse the cart's live session (two tabs, double clicks). A click in the
+    // same instant can still open a second session; the duplicate-payment flag in createOrderOnce covers it.
+    const order = dinteroOrder(placed);
+    const search = `https://checkout.dintero.com/v1/sessions?search=${encodeURIComponent(placed.id)}&limit=10`;
+    for (const s of await dintero<Session[]>(search)) {
+        if (s.order.merchant_reference !== placed.id || s.cancelled_at) continue;
+        if (s.transaction_id) {
+            const tx = await dintero<DinteroTx>(`/transactions/${s.transaction_id}`);
+            if (PAID.includes(tx.status)) return { paid: true }; // send the shopper to the return page
+        } else if (s.order.amount === order.amount && Date.parse(s.expires_at ?? "") > Date.now() + 120_000) {
+            return { sid: s.id }; // the same session for every tab
         }
-        const parties = dinteroParties(placed); // customer, billing address, B2B or B2C: Provider specifics
-        const session = await dintero<{ id: string; url: string }>(
-            "/sessions-profile",
-            {
-                profile_id: process.env.DINTERO_PROFILE_ID ?? "default",
-                url: {
-                    return_url: `${origin}/checkout/dintero/return?cart=${placed.id}`, // works in another browser
-                    callback_url: `${process.env.PUBLIC_URL}/api/payments/dintero/webhook`, // called with GET
-                },
-                customer: parties.customer,
-                order: { ...order, billing_address: parties.billing, merchant_reference: placed.id },
-                configuration: { default_customer_type: parties.type },
+    }
+    const parties = dinteroParties(placed); // customer, billing address, B2B or B2C: Provider specifics
+    const session = await dintero<{ id: string; url: string }>(
+        "/sessions-profile",
+        {
+            profile_id: process.env.DINTERO_PROFILE_ID ?? "default",
+            url: {
+                return_url: `${origin}/checkout/dintero/return?cart=${placed.id}`, // works in another browser
+                callback_url: `${process.env.PUBLIC_URL}/api/payments/dintero/webhook`, // called with GET
             },
-            { "Dintero-Feature-Toggles": "strict-session-amounts" },
-        );
-        return { sid: session.id };
-    }); // a concurrent click gets RetryLater: answer 409 and let the button retry
+            customer: parties.customer,
+            order: { ...order, billing_address: parties.billing, merchant_reference: placed.id },
+            configuration: { default_customer_type: parties.type },
+        },
+        { "Dintero-Feature-Toggles": "strict-session-amounts" },
+    );
+    return { sid: session.id };
 }
 ```
 

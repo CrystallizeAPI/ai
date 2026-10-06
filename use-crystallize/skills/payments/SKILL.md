@@ -53,7 +53,7 @@ Storefront    hydrate → set customer, shipping, selections     everything the 
 Shop /cart    place                                            cart frozen; place's total = what you charge
 Server        create provider session / intent                 amount from place, cart id as the reference
 Browser       pay                                              provider's hosted page or embedded component
-Provider ───► your webhook                                     verify → lock → customer → createFromCart once
+Provider ───► your webhook                                     verify → customer → createFromCart once
 Browser       return page                                      read-only: wait until the cart is `ordered`
               … later …
 Crystallize   order enters the "Shipped" stage ───► your hook  provider capture → setPayments
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
 
 ## One payment per cart
 
-The lock stops the cart from changing; it does not stop two tabs from both paying for the **same**
+Placing stops the cart from changing; it does not stop two tabs from both paying for the **same**
 placed cart. Make the provider session idempotent per cart, so both tabs get the same session — every
 reference names its provider's mechanism (an idempotency key derived from the cart id, a reference the
 provider refuses twice, or looking the payment up by cart id before creating one), or says there is none
@@ -135,8 +135,9 @@ The same skeleton for every provider:
    unless it is protected by a signed token.
 3. **Decide by the provider's status** (paid, authorized, pending, failed — the reference has the table).
    Pending and failed create nothing.
-4. **`createOrderOnce`**: takes the Shop API lock for the cart, creates the Core customer if needed, calls
-   `createFromCart` once, and waits until the cart shows `ordered`.
+4. **`createOrderOnce`**: reads the cart, creates the Core customer if needed, and calls `createFromCart` once.
+   Deliveries that collide in the same instant are a trade-off: see
+   [Serialising order writes](#serialising-order-writes-optional).
 5. **Answer fast.** 2xx when done or deliberately ignored; **5xx when it failed on your side**, so the
    provider retries. Never answer 2xx to a bad signature (answer 401/400) and never 3xx (a redirect from
    auth or i18n middleware counts as delivered or failed, depending on the provider). The one exception:
@@ -170,8 +171,9 @@ and reading Klarna's HPP session are optional. The reference says so; the page s
 ## `lib/crystallize-payments.ts`
 
 The provider references import these helpers. Cart reads and `place` use the official
-`@crystallize/js-api-client`; the Shop API `/order` and `/lock` endpoints have no helper there, so
-`shop()` calls them with a Shop API token that has the `cart`, `order` and `lock` scopes.
+`@crystallize/js-api-client`. Its Shop API caller (`shopCartApi`) only reaches the `/cart` endpoint, while
+`createFromCart`, `addPayments` and `setPayments` live on `/order`, so `shop()` calls that endpoint itself with a
+Shop API token that has the `cart` and `order` scopes.
 
 ```ts
 // lib/crystallize-payments.ts
@@ -274,7 +276,7 @@ async function shopToken() {
             "X-Crystallize-Access-Token-Id": accessTokenId,
             "X-Crystallize-Access-Token-Secret": accessTokenSecret,
         },
-        body: JSON.stringify({ scopes: ["cart", "order", "lock"], expiresIn: 3600 }),
+        body: JSON.stringify({ scopes: ["cart", "order"], expiresIn: 3600 }), // + "lock" if you serialise
     });
     const json = (await res.json()) as { success: boolean; token?: string; error?: string };
     if (!json.success || !json.token) throw new Error(`Shop API token: ${json.error}`);
@@ -343,22 +345,6 @@ export async function readOrder(id: string) {
     return order;
 }
 
-/** Serialise everything that writes one cart's order: concurrent webhooks, capture vs refund. */
-export async function withCartLock<T>(cartId: string, work: () => Promise<T>): Promise<T> {
-    const key = `order:${cartId}`;
-    const { acquire } = await shop<{ acquire: boolean | null }>(
-        "lock",
-        `mutation($key: String!) { acquire(key: $key, ttl: 60) }`,
-        { key },
-    );
-    if (!acquire) throw new RetryLater(`cart ${cartId} is being processed`);
-    try {
-        return await work();
-    } finally {
-        await shop("lock", `mutation($key: String!) { release(key: $key) }`, { key }).catch(() => {});
-    }
-}
-
 /** The order id is the cart id. Creates it once; a later, different payment is recorded and flagged. */
 export async function createOrderOnce(
     cartId: string,
@@ -366,23 +352,15 @@ export async function createOrderOnce(
     payment: Payment,
     pipelines?: { identifier: string; stage?: string }[], // e.g. [{ identifier: "fulfilment", stage: "new" }]
 ) {
-    return withCartLock(cartId, async () => {
-        const cart = await readCart(cartId);
-        if (cart?.state === "ordered") return addRecord(cartId, payment, true);
-        if (cart?.state !== "placed") throw new Error(`cart ${cartId} is ${cart?.state ?? "missing"}`); // alert a human
-        await ensureCustomer(cart.customer);
-        await shop(
-            "order",
-            `mutation($id: UUID!, $input: OrderFromCartInput) { createFromCart(id: $id, input: $input) { id } }`,
-            { id: cartId, input: { type: "standard", paymentStatus, payments: [payment], pipelines } },
-        );
-        // createFromCart answers before it moves the cart to `ordered`: keep the lock until it has.
-        for (let i = 0; i < 10; i++) {
-            if ((await readCart(cartId))?.state === "ordered") return;
-            await new Promise((r) => setTimeout(r, 500));
-        }
-        throw new RetryLater(`order ${cartId} created, cart not ordered yet`);
-    });
+    const cart = await readCart(cartId);
+    if (cart?.state === "ordered") return addRecord(cartId, payment, true);
+    if (cart?.state !== "placed") throw new Error(`cart ${cartId} is ${cart?.state ?? "missing"}`); // alert a human
+    await ensureCustomer(cart.customer);
+    await shop(
+        "order",
+        `mutation($id: UUID!, $input: OrderFromCartInput) { createFromCart(id: $id, input: $input) { id } }`,
+        { id: cartId, input: { type: "standard", paymentStatus, payments: [payment], pipelines } },
+    );
 }
 
 const toInput = (p: NonNullable<OrderRead["payments"]>[number]): Payment => ({
@@ -395,8 +373,7 @@ const toInput = (p: NonNullable<OrderRead["payments"]>[number]): Payment => ({
 });
 
 /** Refunds: append a record unless this transactionId is already on the order. */
-export const recordPayment = (orderId: string, payment: Payment) =>
-    withCartLock(orderId, () => addRecord(orderId, payment, false));
+export const recordPayment = (orderId: string, payment: Payment) => addRecord(orderId, payment, false);
 
 async function addRecord(orderId: string, payment: Payment, isAnotherCharge: boolean) {
     const order = await readOrder(orderId);
@@ -416,16 +393,14 @@ async function addRecord(orderId: string, payment: Payment, isAnotherCharge: boo
 
 /** Capture, cancel: change one record and write the whole list back (setPayments replaces all). */
 export async function updatePayment(orderId: string, transactionId: string, change: (p: Payment) => Payment) {
-    return withCartLock(orderId, async () => {
-        const order = await readOrder(orderId);
-        if (!order?.payments) throw new RetryLater(`order ${orderId} not readable yet`);
-        const payments = order.payments.map(toInput).map((p) => (p.transactionId === transactionId ? change(p) : p));
-        await shop(
-            "order",
-            `mutation($id: UUID!, $p: [OrderPaymentInput!]!) { setPayments(id: $id, payments: $p) { id } }`,
-            { id: orderId, p: payments },
-        );
-    });
+    const order = await readOrder(orderId);
+    if (!order?.payments) throw new RetryLater(`order ${orderId} not readable yet`);
+    const payments = order.payments.map(toInput).map((p) => (p.transactionId === transactionId ? change(p) : p));
+    await shop(
+        "order",
+        `mutation($id: UUID!, $p: [OrderPaymentInput!]!) { setPayments(id: $id, payments: $p) { id } }`,
+        { id: orderId, p: payments },
+    );
 }
 
 export const withMeta = (p: Payment, values: Record<string, string>, amount = p.amount): Payment => ({
@@ -512,6 +487,63 @@ try {
     console.error(error);
     return new Response("retry", { status: 500 }); // RetryLater and real failures alike
 }
+```
+
+## Serialising order writes (optional)
+
+`createOrderOnce` reads the cart's state, then calls `createFromCart`. That is enough for most shops and adds
+nothing to the webhook's latency. What it leaves open is two deliveries for the same cart arriving at the same
+moment: `createFromCart` answers before it moves the cart to `ordered`, so both can see `placed` and both create
+the order. Crystallize still keeps one order (its id is the cart id); the second call rewrites it with its own
+payment list:
+
+- **The same payment twice** (a provider redelivering): nothing is lost.
+- **Two different payments for one cart, in the same second** (two tabs both paid): the first payment's record
+  disappears from the order. The money was taken, and nothing flags it for a refund.
+- **A capture and a refund handled at the same instant**: `updatePayment` reads, changes and writes the whole
+  list, so one of the two changes is lost.
+
+The Shop API's `/lock` endpoint closes those gaps, at a cost on every webhook: two more round trips, the request
+held until the cart shows `ordered` (up to a few seconds), and a 5xx (so a provider retry) whenever two deliveries
+collide. It is a trade-off for the merchant: opt in for expensive or made-to-order goods, for a provider with no
+per-cart idempotency that delivers concurrently, or for orders with frequent after-sales operations. Never put it
+in the shopper's path (the Pay route).
+
+To opt in, add `"lock"` to the scopes in `shopToken()` and wrap the writes:
+
+```ts
+// lib/crystallize-payments.ts — opt-in serialisation through the Shop API lock
+export async function withCartLock<T>(cartId: string, work: () => Promise<T>): Promise<T> {
+    const key = `order:${cartId}`;
+    const { acquire } = await shop<{ acquire: boolean | null }>(
+        "lock",
+        `mutation($key: String!) { acquire(key: $key, ttl: 60) }`,
+        { key },
+    );
+    if (!acquire) throw new RetryLater(`cart ${cartId} is being processed`); // → 5xx, the provider retries
+    try {
+        return await work();
+    } finally {
+        await shop("lock", `mutation($key: String!) { release(key: $key) }`, { key }).catch(() => {});
+    }
+}
+
+/** createFromCart answers before it moves the cart to `ordered`: hold the lock until it has. */
+export async function waitUntilOrdered(cartId: string) {
+    for (let i = 0; i < 10; i++) {
+        if ((await readCart(cartId))?.state === "ordered") return;
+        await new Promise((r) => setTimeout(r, 500));
+    }
+    throw new RetryLater(`order ${cartId} created, cart not ordered yet`);
+}
+
+// In a webhook:
+//   await withCartLock(cartId, async () => {
+//       await createOrderOnce(cartId, "paid", payment);
+//       await waitUntilOrdered(cartId);
+//   });
+// Capture vs refund:
+//   await withCartLock(cartId, () => updatePayment(cartId, transactionId, change));
 ```
 
 ## Mapping to Crystallize
