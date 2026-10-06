@@ -1,20 +1,16 @@
 ---
 name: payments
 description: >
-    Take payment for a Crystallize order with a payment provider — Stripe, Adyen, Klarna, Qliro, Dintero,
-    Vipps MobilePay, Mollie, Montonio, QuickPay, Two or Razorpay. Covers the whole payment step of a Shop
-    API checkout: locking (placing) the cart before charging, creating the provider session or payment
-    intent from the placed cart, redirect or embedded checkout, verifying webhooks and callbacks, creating
-    exactly one order per cart, recording payments, and capture, refund and cancellation driven by
-    fulfilment pipelines. Use when the user wants to add a payment provider or payment method to a
-    Crystallize storefront, build or fix checkout payment, handle a payment webhook, stop duplicate or
-    unpaid orders, prevent a shopper from changing the cart after paying (two tabs, back button), capture
-    on shipment, or refund an order. Trigger on "payment", "payment provider", "payment gateway", "PSP",
-    "checkout payment", "webhook", "callback", "capture", "refund", "authorize", "payment intent",
-    "place cart", "lock the cart", "double payment", "duplicate order", "paymentStatus", "addPayments",
-    "setPayments", "createFromCart", "Stripe", "Adyen", "Klarna", "Qliro", "Dintero", "Vipps", "MobilePay",
-    "Mollie", "Montonio", "QuickPay", "Two", "Tillit", "Razorpay", "Checkout Session", "PaymentIntent",
-    "Drop-in", "Hosted Payment Page", "ePayment", "pickup point", "B2B invoice".
+    Take payment for a Crystallize Shop API checkout with Stripe, Adyen, Klarna, Qliro, Dintero, Vipps MobilePay,
+    Mollie, Montonio, QuickPay, Two or Razorpay: placing (locking) the cart before charging, creating the provider
+    session from the placed cart, verifying webhooks, creating exactly one order per cart, recording payments, and
+    capture, refund and cancellation from fulfilment pipelines. Use when adding a payment provider or method to a
+    Crystallize storefront, building or fixing checkout payment or a payment webhook, stopping duplicate or unpaid
+    orders, a cart changed after paying (two tabs, back button), capturing on shipment or refunding. Trigger on
+    "payment", "payment gateway", "webhook", "capture", "refund", "place cart", "lock the cart", "duplicate order",
+    "paymentStatus", "addPayments", "setPayments", "createFromCart", "createShopOrderManager", "Stripe", "Adyen",
+    "Klarna", "Qliro", "Dintero", "Vipps", "MobilePay", "Mollie", "Montonio", "QuickPay", "Two", "Razorpay",
+    "B2B invoice".
 metadata:
     author: Crystallize
     version: "2.0"
