@@ -6,6 +6,16 @@
         "expected": ["payments/vipps-mobilepay", "payments/stripe"]
     },
     {
+        "task": "accept iDEAL and Bancontact through Mollie in our Crystallize checkout",
+        "skills": ["payments"],
+        "expected": ["payments/mollie"]
+    },
+    {
+        "task": "let business customers pay by invoice with Two, including a company lookup at checkout",
+        "skills": ["payments"],
+        "expected": ["payments/two"]
+    },
+    {
         "task": "create a product shape through the API with a paragraph collection and a grid relation",
         "skills": ["content-model"],
         "expected": ["content-model/create-shape-api", "content-model/components"]
