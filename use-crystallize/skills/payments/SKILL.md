@@ -170,21 +170,31 @@ and reading Klarna's HPP session are optional. The reference says so; the page s
 
 ## `lib/crystallize-payments.ts`
 
-The provider references import these helpers. Cart reads and `place` use the official
-`@crystallize/js-api-client`. Its Shop API caller (`shopCartApi`) only reaches the `/cart` endpoint, while
-`createFromCart`, `addPayments` and `setPayments` live on `/order`, so `shop()` calls that endpoint itself with a
-Shop API token that has the `cart` and `order` scopes.
+The provider references import these helpers. Everything goes through `@crystallize/js-api-client` (7.5 or later):
+`createCartManager` for the Shop API `/cart`, `createShopOrderManager` for `/order` (`createFromCart`,
+`addPayments`, `setPayments`) and `createShopCustomerManager` for `/customer`. The client fetches one Shop API
+token for all of them.
 
 ```ts
 // lib/crystallize-payments.ts
-import { createCartManager, createClient } from "@crystallize/js-api-client";
+import {
+    createCartManager,
+    createClient,
+    createShopCustomerManager,
+    createShopOrderManager,
+} from "@crystallize/js-api-client";
 
-const tenant = process.env.CRYSTALLIZE_TENANT_IDENTIFIER!;
-const accessTokenId = process.env.CRYSTALLIZE_ACCESS_TOKEN_ID!;
-const accessTokenSecret = process.env.CRYSTALLIZE_ACCESS_TOKEN_SECRET!;
-
-export const api = createClient({ tenantIdentifier: tenant, accessTokenId, accessTokenSecret });
+export const api = createClient(
+    {
+        tenantIdentifier: process.env.CRYSTALLIZE_TENANT_IDENTIFIER!,
+        accessTokenId: process.env.CRYSTALLIZE_ACCESS_TOKEN_ID!,
+        accessTokenSecret: process.env.CRYSTALLIZE_ACCESS_TOKEN_SECRET!,
+    },
+    { shopApiToken: { scopes: ["cart", "order", "customer"] } }, // one token for every endpoint used here
+);
 export const carts = createCartManager(api);
+export const orders = createShopOrderManager(api);
+const customers = createShopCustomerManager(api);
 
 // What a provider session needs from the placed cart. `price` is the line total, `variant.price` the unit.
 // `type` tells product lines from external ones (`shipping`, `fee`, `promotion`, …).
@@ -202,6 +212,18 @@ const ADDRESS = {
     phone: true,
     email: true,
 };
+const CUSTOMER = {
+    identifier: true,
+    isGuest: true,
+    type: true,
+    email: true,
+    firstName: true,
+    lastName: true,
+    phone: true,
+    companyName: true,
+    taxNumber: true,
+    addresses: ADDRESS,
+};
 export const PLACED_CART = {
     total: { gross: true, net: true, taxAmount: true, currency: true },
     items: {
@@ -212,22 +234,24 @@ export const PLACED_CART = {
         variant: { sku: true, price: { gross: true, net: true, taxPercent: true } },
         price: { gross: true, net: true, taxAmount: true, taxPercent: true },
     },
-    customer: {
-        identifier: true,
-        type: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        companyName: true,
-        taxNumber: true,
-        addresses: ADDRESS,
-    },
+    customer: CUSTOMER,
     meta: true,
 };
 type Address = { type: "delivery" | "billing" | "other" } & Partial<
     Record<Exclude<keyof typeof ADDRESS, "type">, string | null>
 >;
+type CartCustomer = {
+    identifier?: string | null;
+    isGuest?: boolean;
+    type?: "individual" | "organization" | null;
+    email?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    phone?: string | null;
+    companyName?: string | null;
+    taxNumber?: string | null;
+    addresses?: Address[] | null;
+};
 export type PlacedCart = {
     id: string;
     total: { gross: number; net: number; taxAmount: number; currency: string };
@@ -266,61 +290,9 @@ export type Payment = {
 /** Thrown when the provider should retry: answer 5xx. */
 export class RetryLater extends Error {}
 
-let token: { value: string; expiresAt: number } | undefined;
-async function shopToken() {
-    if (token && token.expiresAt - Date.now() > 5 * 60_000) return token.value;
-    const res = await fetch(`https://shop-api.crystallize.com/@${tenant}/auth/token`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-Crystallize-Access-Token-Id": accessTokenId,
-            "X-Crystallize-Access-Token-Secret": accessTokenSecret,
-        },
-        body: JSON.stringify({ scopes: ["cart", "order"], expiresIn: 3600 }), // + "lock" if you serialise
-    });
-    const json = (await res.json()) as { success: boolean; token?: string; error?: string };
-    if (!json.success || !json.token) throw new Error(`Shop API token: ${json.error}`);
-    token = { value: json.token, expiresAt: Date.now() + 3600_000 };
-    return token.value;
-}
-
-export async function shop<T>(endpoint: "cart" | "order" | "lock", query: string, variables = {}): Promise<T> {
-    const res = await fetch(`https://shop-api.crystallize.com/@${tenant}/${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await shopToken()}` },
-        body: JSON.stringify({ query, variables }),
-    });
-    const json = (await res.json()) as { data?: T; errors?: { message: string }[] };
-    if (!res.ok || json.errors?.length || !json.data) {
-        throw new Error(`Shop API /${endpoint}: ${JSON.stringify(json.errors ?? res.status)}`);
-    }
-    return json.data;
-}
-
-type CartCustomer = {
-    identifier: string | null;
-    isGuest: boolean;
-    type: "individual" | "organization" | null;
-    firstName: string | null;
-    lastName: string | null;
-    email: string | null;
-    phone: string | null;
-    companyName: string | null;
-    taxNumber: string | null;
-    addresses: Record<string, string | null>[] | null;
-};
 type CartState = { id: string; state: "cart" | "placed" | "ordered" | "abandoned"; customer: CartCustomer | null };
-
-export async function readCart(id: string) {
-    const { cart } = await shop<{ cart: CartState | null }>(
-        "cart",
-        `query($id: UUID) { cart(id: $id) { id state customer { identifier isGuest type firstName lastName email
-         phone companyName taxNumber addresses { type firstName lastName street street2 streetNumber postalCode
-         city state country phone email } } } }`,
-        { id },
-    );
-    return cart;
-}
+export const readCart = async (id: string) =>
+    (await carts.fetch(id, { state: true, customer: CUSTOMER })) as unknown as CartState | null;
 
 type OrderRead = {
     id: string;
@@ -332,18 +304,16 @@ type OrderRead = {
               transactionId: string | null;
               amount: number | null;
               createdAt: string | null;
-              meta: Record<string, string> | null;
+              meta: Record<string, string> | null; // written as [{ key, value }], read back as an object
           }[]
         | null;
 };
-export async function readOrder(id: string) {
-    const { order } = await shop<{ order: OrderRead | null }>(
-        "order",
-        `query($id: UUID!) { order(id: $id) { id coreId payments { provider method transactionId amount createdAt meta } } }`,
-        { id },
-    ).catch(() => ({ order: null })); // not readable yet right after createFromCart
-    return order;
-}
+const ORDER = {
+    coreId: true,
+    payments: { provider: true, method: true, transactionId: true, amount: true, createdAt: true, meta: true },
+};
+/** null while the order is not readable yet: createFromCart and payment writes persist just after answering. */
+export const readOrder = (id: string) => orders.fetch<OrderRead>(id, ORDER).catch(() => null);
 
 /** The order id is the cart id. Creates it once; a later, different payment is recorded and flagged. */
 export async function createOrderOnce(
@@ -356,11 +326,7 @@ export async function createOrderOnce(
     if (cart?.state === "ordered") return addRecord(cartId, payment, true);
     if (cart?.state !== "placed") throw new Error(`cart ${cartId} is ${cart?.state ?? "missing"}`); // alert a human
     await ensureCustomer(cart.customer);
-    await shop(
-        "order",
-        `mutation($id: UUID!, $input: OrderFromCartInput) { createFromCart(id: $id, input: $input) { id } }`,
-        { id: cartId, input: { type: "standard", paymentStatus, payments: [payment], pipelines } },
-    );
+    await orders.createFromCart(cartId, { type: "standard", paymentStatus, payments: [payment], pipelines });
 }
 
 const toInput = (p: NonNullable<OrderRead["payments"]>[number]): Payment => ({
@@ -384,11 +350,7 @@ async function addRecord(orderId: string, payment: Payment, isAnotherCharge: boo
     const record = flagged
         ? { ...payment, meta: [...(payment.meta ?? []), { key: "attention", value: "duplicate-payment" }] }
         : payment;
-    await shop(
-        "order",
-        `mutation($id: UUID!, $p: [OrderPaymentInput!]!) { addPayments(id: $id, payments: $p) { id } }`,
-        { id: orderId, p: [record] },
-    );
+    await orders.addPayments(orderId, [record]);
 }
 
 /** Capture, cancel: change one record and write the whole list back (setPayments replaces all). */
@@ -396,11 +358,7 @@ export async function updatePayment(orderId: string, transactionId: string, chan
     const order = await readOrder(orderId);
     if (!order?.payments) throw new RetryLater(`order ${orderId} not readable yet`);
     const payments = order.payments.map(toInput).map((p) => (p.transactionId === transactionId ? change(p) : p));
-    await shop(
-        "order",
-        `mutation($id: UUID!, $p: [OrderPaymentInput!]!) { setPayments(id: $id, payments: $p) { id } }`,
-        { id: orderId, p: payments },
-    );
+    await orders.setPayments(orderId, payments);
 }
 
 export const withMeta = (p: Payment, values: Record<string, string>, amount = p.amount): Payment => ({
@@ -412,67 +370,27 @@ export const withMeta = (p: Payment, values: Record<string, string>, amount = p.
     ],
 });
 
+/** The Shop API rejects null where a field is optional: send only what the cart has. */
+const defined = <T extends object>(o: T) =>
+    Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined)) as {
+        [K in keyof T]?: NonNullable<T[K]>;
+    };
+
 /** The docs' "create the customer in Crystallize if it does not exist yet". Guests are skipped. */
 async function ensureCustomer(customer: CartCustomer | null) {
     if (!customer?.identifier || customer.isGuest) return;
-    const lookup = `query($identifier: String!) { customer(identifier: $identifier) { ... on Customer { identifier } } }`;
-    const found = await api.nextPimApi<{ customer: { identifier?: string } | null }>(lookup, {
-        identifier: customer.identifier,
-    });
-    if (found.customer?.identifier) return;
-    const { createCustomer } = await api.nextPimApi<{
-        createCustomer: { identifier?: string; errorName?: string; message?: string };
-    }>(
-        `mutation($input: CreateCustomerInput!) { createCustomer(input: $input) {
-            ... on Customer { identifier } ... on BasicError { errorName message } } }`,
-        {
-            input: {
-                identifier: customer.identifier,
-                type: customer.type ?? (customer.companyName ? "organization" : "individual"),
-                firstName: customer.firstName,
-                lastName: customer.lastName,
-                email: customer.email ?? customer.identifier,
-                phone: customer.phone,
-                companyName: customer.companyName,
-                taxNumber: customer.taxNumber,
-                addresses: customer.addresses?.map(
-                    ({
-                        type,
-                        firstName,
-                        lastName,
-                        street,
-                        street2,
-                        streetNumber,
-                        postalCode,
-                        city,
-                        state,
-                        country,
-                        phone,
-                        email,
-                    }) => ({
-                        type,
-                        firstName,
-                        lastName,
-                        street,
-                        street2,
-                        streetNumber,
-                        postalCode,
-                        city,
-                        state,
-                        country,
-                        phone,
-                        email,
-                    }),
-                ),
-            },
-        },
+    const exists = await customers.fetch(customer.identifier).then(
+        () => true,
+        () => false, // fetch rejects when the customer does not exist
     );
-    if (createCustomer.errorName) {
-        const again = await api.nextPimApi<{ customer: { identifier?: string } | null }>(lookup, {
-            identifier: customer.identifier,
-        });
-        if (!again.customer?.identifier) throw new Error(`createCustomer: ${createCustomer.message}`); // a race is fine
-    }
+    if (exists) return; // never overwrite a known customer with checkout data
+    const { isGuest, addresses, ...fields } = customer;
+    await customers.upsert({
+        ...defined(fields),
+        identifier: customer.identifier,
+        type: customer.type ?? (customer.companyName ? "organization" : "individual"),
+        addresses: addresses?.map((address) => ({ ...defined(address), type: address.type })),
+    });
 }
 ```
 
@@ -509,22 +427,21 @@ collide. It is a trade-off for the merchant: opt in for expensive or made-to-ord
 per-cart idempotency that delivers concurrently, or for orders with frequent after-sales operations. Never put it
 in the shopper's path (the Pay route).
 
-To opt in, add `"lock"` to the scopes in `shopToken()` and wrap the writes:
+To opt in, add `"lock"` to the `shopApiToken` scopes and wrap the writes:
 
 ```ts
 // lib/crystallize-payments.ts — opt-in serialisation through the Shop API lock
+import { createShopLock } from "@crystallize/js-api-client";
+
+const lock = createShopLock(api);
+
 export async function withCartLock<T>(cartId: string, work: () => Promise<T>): Promise<T> {
     const key = `order:${cartId}`;
-    const { acquire } = await shop<{ acquire: boolean | null }>(
-        "lock",
-        `mutation($key: String!) { acquire(key: $key, ttl: 60) }`,
-        { key },
-    );
-    if (!acquire) throw new RetryLater(`cart ${cartId} is being processed`); // → 5xx, the provider retries
+    if (!(await lock.acquire(key, 60))) throw new RetryLater(`cart ${cartId} is being processed`); // → 5xx, retry
     try {
         return await work();
     } finally {
-        await shop("lock", `mutation($key: String!) { release(key: $key) }`, { key }).catch(() => {});
+        await lock.release(key).catch(() => {});
     }
 }
 
