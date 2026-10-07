@@ -5,6 +5,9 @@ on:
         workflows: ["CI"]
         types:
             - completed
+    # A lost push event (or a release commit pushed with GITHUB_TOKEN) never runs CI,
+    # so nothing above fires. Run this by hand on main to deploy anyway.
+    workflow_dispatch:
 
 permissions:
     contents: read
@@ -14,7 +17,7 @@ permissions:
 jobs:
     build:
         name: 🦾 Build the doc artefact
-        if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+        if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
         runs-on: ubuntu-latest
         steps:
             - name: ⬇️ Checkout repo
@@ -34,7 +37,7 @@ jobs:
 
     deploy:
         name: 🚀 Deploy to GitHub Pages
-        if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+        if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
         needs: build
         runs-on: ubuntu-latest
         environment:
