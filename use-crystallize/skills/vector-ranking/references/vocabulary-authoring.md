@@ -247,6 +247,10 @@ it just has no relation to taste. The check in step 6 is the only thing that cat
 `igniteDiscoApi` rebuilds the tenant's Discovery index and materializes the vectors. Run it after **any**
 change to vocabularies or taste entries, not only the first time.
 
+**Ignite last.** Run it once the shapes exist, each with at least one component, and the content is
+published, not as an early setup step. A tenant with no shapes that Discovery can index is refused: the
+task ends in `error`.
+
 **Pass `stacks: opensearch`.** The argument is optional in the schema but it selects which index stack
 is built, and vector ranking is only served from the `opensearch` stack — an ignition without it
 produces a working Discovery index with no vectors in it, and no error.
@@ -284,11 +288,23 @@ query Task($id: ID!) {
     bulkTask(id: $id) {
         ... on BulkTask {
             id
-            status
-        } # pending, started, complete, error
+            status # pending, started, complete, error
+            info # on error, info.traces says why
+        }
     }
 }
 ```
+
+**`error` is blocking.** Read `info.traces`, fix what it names and only then ignite again. Re-running an
+ignition that failed, unchanged, fails the same way. Before reporting success, probe Discovery itself:
+
+```graphql
+{
+    __typename
+}
+```
+
+Anything but `{"data":{"__typename":"Query"}}` means the tenant is not serving, whatever the task said.
 
 From then on the tenant's Discovery schema includes `context`, `rankBy` and `nearestTo`, and every
 vocabulary you created becomes a value of the `TenantVocabularyIdentifier` enum. **A vocabulary is only

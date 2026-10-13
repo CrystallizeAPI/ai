@@ -36,7 +36,9 @@ the tenant is re-indexed:
 
 **Introspect, do not assume.** An un-ignited tenant answers
 `{"success": false, "message": "There is no ignited Tenant for <tenant>."}` rather than serving a
-schema at all.
+schema at all. A tenant with no shapes has no `browse` field. A tenant whose schema cannot be built
+answers HTTP 500 with `extensions.code: "TENANT_SCHEMA_UNAVAILABLE"`. Retrying will not help, so report
+it with the tenant identifier. `{ __typename }` is the cheapest check that a tenant is serving.
 
 > **Note**: The Discovery API uses **lowercase** type names in inline fragments (`... on product`,
 > `... on category`) because types are derived from your shape identifiers. Interface fragments keep
