@@ -763,7 +763,9 @@ is not proof that the items are published yet — index right after it and the i
 versions.
 
 **Re-run `igniteDiscoApi` after every change to vocabularies or taste entries** — an unindexed change
-has no effect and raises no error. Omitting `stacks: opensearch` likewise fails silently: the index
+has no effect and raises no error. Run it **last**, once shapes and published content exist. A task
+that ends in `error` is blocking: `bulkTask(id:) { ... on BulkTask { status info } }` carries the reason
+in `info.traces`. Probe Discovery with `{ __typename }` before reporting success. Omitting `stacks: opensearch` likewise fails silently: the index
 rebuilds, but without vectors. Full guidance, including vocabulary design, positional weights and
 key validation, is in the [[vector-ranking]] skill.
 

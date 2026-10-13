@@ -125,7 +125,8 @@ Two properties fall out of this and drive every design decision:
 Core        upsertVocabulary                    once per vocabulary — FULL REPLACE, not a patch
 Core        setItemTaste                        once per item, per vocabulary — writes the DRAFT
 Core        publishItem                         per item and language — the step that is easy to miss
-Core        igniteDiscoApi(stacks: opensearch)  poll bulkTask until "complete", then let it propagate
+Core        igniteDiscoApi(stacks: opensearch)  LAST; poll bulkTask until "complete" ("error" is blocking)
+Discovery   { __typename }                      probe before reporting success
 Discovery   search(rankBy:)                     your rules: margin, stock, velocity, recency
 Discovery   search(context:)                    ranked for this shopper
 Discovery   search(rankBy: + context:)          your rules, plus this shopper
@@ -173,6 +174,8 @@ Four of these produce **no error at all** — they are the reason this skill exi
 | Order unrelated to taste, no errors     | Taste is on the draft only                                  | `publishItem`, index again, retest                                                                                      |
 | Order unchanged after editing taste     | No index run since the change                               | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                               |
 | Index rebuilt, still no vectors         | `igniteDiscoApi` run without `stacks: opensearch`           | Re-run with `stacks: opensearch`                                                                                        |
+| Ignition task ends in `error`           | e.g. ignited before any shape existed                       | Read `bulkTask.info.traces`, fix what it names, then ignite again. Never re-run it unchanged                            |
+| `{ __typename }` fails after `complete` | Discovery cannot build the tenant's schema                  | Do not re-ignite in a loop. Report it with the tenant identifier and the response body                                  |
 | Rankings subtly wrong, no errors        | `magnitude` miscomputed client-side                         | Assert `sqrt(Σ w²)` against a known case                                                                                |
 | `rankScore` comes back `null`           | No rerank ran — no `rankBy`, or every term had `weight: 0`  | Give at least one term a non-zero weight                                                                                |
 | Vocabulary "does not exist in enum"     | No index run since it was created                           | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                               |

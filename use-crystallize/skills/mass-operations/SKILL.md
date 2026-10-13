@@ -171,6 +171,11 @@ A schema violation or unparseable JSON marks the task `error` before any operati
 `bulkTask.info.error` reads only `Invalid Operation File` — the per-field issues go to the worker's own
 logs, not to you. Validate locally to see them.
 
+**Seeding a tenant that Discovery will serve:** run `igniteDiscoApi` after the operations that create
+the shapes and content have completed with clean `operationLogs`, never before or alongside them. Poll
+the ignition task like any other bulk task, treat `error` as blocking, and probe Discovery with
+`{ __typename }` before reporting success. See [[vector-ranking]] for the full ignition steps.
+
 ## Rules that prevent most failures
 
 - **An item `upsert` with neither `itemId` nor `resourceIdentifier` always CREATES** — on every run.
