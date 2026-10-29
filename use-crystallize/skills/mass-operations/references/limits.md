@@ -207,7 +207,7 @@ Minimums and shape rules, not maximums.
 - `componentChoice` requires **≥ 2** choices; `componentMultipleChoice` **≥ 1**; `contentChunk` **≥ 1**
   component.
 - `contentChunk` with `repeatable: false` accepts exactly **1** chunk.
-- `selection` needs ≥ 1 option, keys unique.
+- `selection` needs ≥ 1 option, keys unique. `label` is optional, but set it on every option as good practice (the App UI displays it), normally the same as its `value`.
 - `product/*` requires a **non-empty `variants`** array; `pricelist/*` a non-empty `priceVariants`;
   `item/flow/stage/addItems` a non-empty `items`.
 - Component identifiers must be **unique within a component list**.

@@ -249,9 +249,9 @@ Parent Product
                             "config": {
                                 "selection": {
                                     "options": [
-                                        { "key": "g", "value": "grams" },
-                                        { "key": "ml", "value": "milliliters" },
-                                        { "key": "pcs", "value": "pieces" }
+                                        { "key": "g", "value": "grams", "label": "grams" },
+                                        { "key": "ml", "value": "milliliters", "label": "milliliters" },
+                                        { "key": "pcs", "value": "pieces", "label": "pieces" }
                                     ]
                                 }
                             }
@@ -450,10 +450,10 @@ The classification (role/meaning) can be a **Selection** (simple label) or an **
                             "config": {
                                 "selection": {
                                     "options": [
-                                        { "key": "writer", "value": "Writer" },
-                                        { "key": "illustrator", "value": "Illustrator" },
-                                        { "key": "editor", "value": "Editor" },
-                                        { "key": "translator", "value": "Translator" }
+                                        { "key": "writer", "value": "Writer", "label": "Writer" },
+                                        { "key": "illustrator", "value": "Illustrator", "label": "Illustrator" },
+                                        { "key": "editor", "value": "Editor", "label": "Editor" },
+                                        { "key": "translator", "value": "Translator", "label": "Translator" }
                                     ]
                                 }
                             }
