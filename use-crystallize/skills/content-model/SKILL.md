@@ -116,7 +116,7 @@ See [Shapes Reference](references/shapes.md) and [Content Modelling Guide](refer
 
 ### "I need controlled options"
 
-- **Selection** → Dropdown/checkboxes with predefined options
+- **Selection** → Dropdown/checkboxes with predefined options. Every option needs `key` and `value`; also set `label` (optional, but good practice — the App UI displays it; default: same text as `value`)
 - **Switch** → Boolean flag
 - **Datetime** → Date/timestamp (type: `datetime`)
 - **Location** → Geographic coordinates
@@ -484,8 +484,8 @@ Shape: Vase (product)
             "config": {
                 "selection": {
                     "options": [
-                        { "key": "plant", "value": "Plant" },
-                        { "key": "vase", "value": "Vase" }
+                        { "key": "plant", "value": "Plant", "label": "Plant" },
+                        { "key": "vase", "value": "Vase", "label": "Vase" }
                     ]
                 }
             }
@@ -555,10 +555,10 @@ Shape: Vase (product)
             "config": {
                 "selection": {
                     "options": [
-                        { "key": "low", "value": "Low Light" },
-                        { "key": "medium", "value": "Medium Light" },
-                        { "key": "bright", "value": "Bright Light" },
-                        { "key": "direct", "value": "Direct Sunlight" }
+                        { "key": "low", "value": "Low Light", "label": "Low Light" },
+                        { "key": "medium", "value": "Medium Light", "label": "Medium Light" },
+                        { "key": "bright", "value": "Bright Light", "label": "Bright Light" },
+                        { "key": "direct", "value": "Direct Sunlight", "label": "Direct Sunlight" }
                     ]
                 }
             }
@@ -570,10 +570,10 @@ Shape: Vase (product)
             "config": {
                 "selection": {
                     "options": [
-                        { "key": "small", "value": "Small (under 12\")" },
-                        { "key": "medium", "value": "Medium (12-24\")" },
-                        { "key": "large", "value": "Large (24-48\")" },
-                        { "key": "xl", "value": "Extra Large (48\"+)" }
+                        { "key": "small", "value": "Small (under 12\")", "label": "Small (under 12\")" },
+                        { "key": "medium", "value": "Medium (12-24\")", "label": "Medium (12-24\")" },
+                        { "key": "large", "value": "Large (24-48\")", "label": "Large (24-48\")" },
+                        { "key": "xl", "value": "Extra Large (48\"+)", "label": "Extra Large (48\"+)" }
                     ]
                 }
             }
@@ -920,8 +920,8 @@ Components can reference pieces (via `type: "piece"`) and shapes (via `itemRelat
                     "config": {
                         "selection": {
                             "options": [
-                                { "key": "black", "value": "Black" },
-                                { "key": "white", "value": "White" }
+                                { "key": "black", "value": "Black", "label": "Black" },
+                                { "key": "white", "value": "White", "label": "White" }
                             ]
                         }
                     }

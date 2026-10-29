@@ -252,7 +252,8 @@ config: {
   selection: {
     options: {            // REQUIRED — at least one option
       key: String!        // REQUIRED — API value (e.g. "red")
-      value: String!      // REQUIRED — display label (e.g. "Red")
+      value: String!      // REQUIRED — option value (e.g. "Red")
+      label: String       // optional, but set it — the text the App UI shows for the option (e.g. "Red")
       isPreselected?: Boolean
     }[]
     required?: Boolean
@@ -264,7 +265,7 @@ config: {
 }
 ```
 
-**`options` is required** (non-nullable array). Each option requires `key` (the API identifier) and `value` (the display label).
+**`options` is required** (non-nullable array). Each option requires `key` (the API identifier) and `value`. `label` is optional, but it is good practice to set it on every option — it is the text the App UI displays to editors. Use the same human-readable text as `value` unless the user asks for something different. `label` is accepted by the Core API (Next and legacy) and by mass operations.
 
 ---
 
@@ -502,9 +503,9 @@ mutation CreateProductShape {
                     config: {
                         selection: {
                             options: [
-                                { key: "gloss", value: "Gloss" }
-                                { key: "satin", value: "Satin" }
-                                { key: "matte", value: "Matte" }
+                                { key: "gloss", value: "Gloss", label: "Gloss" }
+                                { key: "satin", value: "Satin", label: "Satin" }
+                                { key: "matte", value: "Matte", label: "Matte" }
                             ]
                             discoverable: true
                         }

@@ -101,8 +101,8 @@ Every block piece embeds the `layout` piece as a component. This gives editors p
             "config": {
                 "selection": {
                     "options": [
-                        { "key": "stretch", "value": "Stretch" },
-                        { "key": "contain", "value": "Contain" }
+                        { "key": "stretch", "value": "Stretch", "label": "Stretch" },
+                        { "key": "contain", "value": "Contain", "label": "Contain" }
                     ]
                 }
             }
@@ -113,11 +113,11 @@ Every block piece embeds the `layout` piece as a component. This gives editors p
             "config": {
                 "selection": {
                     "options": [
-                        { "key": "light", "value": "Light" },
-                        { "key": "dark", "value": "Dark" },
-                        { "key": "muted", "value": "Muted" },
-                        { "key": "pastel", "value": "Pastel" },
-                        { "key": "vivid", "value": "Vivid" }
+                        { "key": "light", "value": "Light", "label": "Light" },
+                        { "key": "dark", "value": "Dark", "label": "Dark" },
+                        { "key": "muted", "value": "Muted", "label": "Muted" },
+                        { "key": "pastel", "value": "Pastel", "label": "Pastel" },
+                        { "key": "vivid", "value": "Vivid", "label": "Vivid" }
                     ]
                 }
             }

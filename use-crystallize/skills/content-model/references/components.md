@@ -92,7 +92,8 @@ for a mapping to an industry standard — one build stored the ETIM feature code
     - **Radio/Enum pattern**: min=1, max=1, required → exactly one selection, renders as radio buttons or dropdown
     - **Checkboxes pattern**: min=0, max=N → optional multi-select, renders as checkboxes, can be null
       Use when the options are a fixed, small set that don't need their own content. If options need enrichment (images, descriptions), use Item Relations instead (Semantic Bridge pattern).
-    - **API option structure**: `{ key: "red", value: "Red", isPreselected?: Boolean }` — `key` is used in queries/filters, `value` is what editors see
+    - **API option structure**: `{ key: "red", value: "Red", label: "Red", isPreselected?: Boolean }` — `key` is used in queries/filters, `value` is the option's value, `label` is what the App UI displays to editors
+    - **Set `label` on every option** when creating or updating a selection component. It is optional, but good practice: the App UI displays it. Default it to the same text as `value`. Supported by the Core API (Next and legacy) and mass operations.
 - **Switch** → true/false toggle. Use for: "Featured", "On Sale", "Available in store", "Organic certified".
 - **Datetime** → date with optional time (type: `datetime`). Use for: launch date, preorder availability, expiration, event scheduling.
 - **Location** → latitude/longitude. Use for: store locator, pickup points, product origin.
@@ -264,7 +265,7 @@ When building a "Product Type" selector where each type (Smartphone, Laptop, Hea
 { "intent": "piece/create", "identifier": "smartphone-spec", "name": "Smartphone Spec", "components": [
     { "id": "screen-size", "name": "Screen Size", "type": "numeric", "config": { "numeric": { "units": ["inch"] } } },
     { "id": "storage", "name": "Storage", "type": "numeric", "config": { "numeric": { "units": ["GB", "TB"] } } },
-    { "id": "os", "name": "Operating System", "type": "selection", "config": { "selection": { "options": [{ "key": "ios", "value": "iOS" }, { "key": "android", "value": "Android" }] } } }
+    { "id": "os", "name": "Operating System", "type": "selection", "config": { "selection": { "options": [{ "key": "ios", "value": "iOS", "label": "iOS" }, { "key": "android", "value": "Android", "label": "Android" }] } } }
 ] }
 { "intent": "piece/create", "identifier": "laptop-spec", "name": "Laptop Spec", "components": [
     { "id": "screen-size", "name": "Screen Size", "type": "numeric", "config": { "numeric": { "units": ["inch"] } } },
