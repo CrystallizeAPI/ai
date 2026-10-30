@@ -299,7 +299,7 @@ export async function onOrderManagementStatus(cartId: string, push: OmPush) {
     if (["Created", "InProcess", "OnHold"].includes(tx.Status)) return; // another push follows
     const id = String(tx.OrderId);
     const order = await readOrder(cartId);
-    if (!order?.payments?.some((p) => p.provider === "qliro" && p.transactionId === id)) {
+    if (!order?.payments?.some((p) => p.transactionId === id)) {
         throw new RetryLater(`order ${cartId} has no Qliro payment ${id} yet`);
     }
     if (tx.Status !== "Success") {

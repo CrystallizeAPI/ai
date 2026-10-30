@@ -94,7 +94,7 @@ export async function createQuickPayPayment(placed: PlacedCart, origin: string, 
     if (payment?.accepted) return { url: returnUrl }; // already paid: just wait for the webhook
     payment ??= await quickpay<QuickPayPayment>("/payments", {
         method: "POST",
-        body: { order_id: orderId, currency: placed.total.currency, variables: { cartId: placed.id } },
+        body: { order_id: orderId, currency: placed.total.currency.toUpperCase(), variables: { cartId: placed.id } },
     }).catch(async (error) => (await findPayment(orderId)) ?? Promise.reject(error)); // lost the race: reuse
     const link = await quickpay<{ url: string }>(`/payments/${payment.id}/link`, {
         method: "PUT",

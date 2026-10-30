@@ -102,12 +102,13 @@ export async function createMontonioOrder(placed: PlacedCart, { origin, locale, 
     const c = placed.customer;
     const a = c?.addresses?.find((x) => x.type === "billing") ?? c?.addresses?.[0];
     const grandTotal = round2(placed.total.gross);
+    const currency = placed.total.currency.toUpperCase(); // EUR or PLN
     const method = m.montonioMethod || "paymentInitiation";
     const order = await montonio<{ uuid: string; paymentUrl: string }>("/orders", {
         merchantReference: placed.id, // unique per store: a second POST replaces the unpaid order, never adds one
         returnUrl: `${origin}/checkout/montonio/return?cart=${placed.id}`, // + &order-token=<JWT>, paid or cancelled
         notificationUrl: `${process.env.PUBLIC_URL}/api/payments/montonio/webhook`,
-        currency: placed.total.currency, // EUR or PLN
+        currency,
         grandTotal,
         locale, // de, en, et, fi, lt, lv, pl, ru
         billingAddress: {
@@ -128,7 +129,7 @@ export async function createMontonioOrder(placed: PlacedCart, { origin, locale, 
         payment: {
             method, // paymentInitiation, cardPayments, applePay, googlePay, mobilePay, blik, bnpl, hirePurchase
             amount: grandTotal, // must equal grandTotal
-            currency: placed.total.currency,
+            currency,
             methodOptions:
                 method === "paymentInitiation"
                     ? {
@@ -342,8 +343,10 @@ export async function POST(req: Request) {
     const cart = (await carts.fetch(cartId, { state: true, ...PLACED_CART })) as unknown as PlacedCart & {
         state: string;
     };
-    if (cart.state !== "cart") return Response.json({ error: "placed" }, { status: 409 }); // the write would be lost
-    const banks = await listBanks(choice.bankCountry, cart.total.currency);
+    if (cart.state === "placed" || cart.state === "ordered") {
+        return Response.json({ error: "placed" }, { status: 409 }); // the write would be lost
+    }
+    const banks = await listBanks(choice.bankCountry, cart.total.currency.toUpperCase());
     const bank = banks.find((b) => b.code === choice.bank)?.code ?? "";
     const point = (await listPickupPoints(choice.carrier, choice.shipTo)).find((p) => p.id === choice.pickupPoint);
     const meta = {

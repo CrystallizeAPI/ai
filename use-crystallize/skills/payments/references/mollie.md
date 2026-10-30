@@ -46,9 +46,9 @@ The crystallize.com page names one credential, the **apiKey**:
 3. **Payment methods**: activate at least one, or checkout has nothing to offer. The crystallize.com page says
    Settings → Website profiles → Payment methods; today's Web app has it under Organization settings → Profiles → your
    web store → the method → Activate ([troubleshooting][troubleshoot]).
-4. **Currency**: Mollie accepts ISO 4217 codes only. A Crystallize price variant's currency can be named anything (€,
-   Euro, EURO, EUR): name it `EUR`, since `placed.total.currency` goes to Mollie unchanged. Address countries are ISO
-   3166-1 alpha-2 (`NL`).
+4. **Currency**: Mollie accepts ISO 4217 codes only. `placed.total.currency` is the `context.price.currency` the
+   storefront hydrated the cart with (`eur` when it sends none), not the name of the price variant's currency: send
+   an ISO code, never `€` or `Euro`; `paymentBody` upper-cases it. Address countries are ISO 3166-1 alpha-2 (`NL`).
 
 ```bash
 MOLLIE_API_KEY=test_...                  # live_... in production
@@ -135,7 +135,7 @@ export async function createMolliePayment(placed: PlacedCart): Promise<MolliePay
 }
 
 async function paymentBody(placed: PlacedCart) {
-    const currency = placed.total.currency; // ISO 4217: "EUR", never "€"
+    const currency = placed.total.currency.toUpperCase(); // ISO 4217: "EUR", never "€"
     const base = process.env.PUBLIC_BASE_URL; // fixed: a varying Host header would change the body
     const customer = placed.customer; // customer and addresses were set with setCustomer before place
     const address = (type: string) => {
@@ -173,7 +173,7 @@ const clean = (o: Record<string, unknown>) =>
 
 // Required for Klarna, Billie, in3, Riverty, Billink and vouchers; Mollie recommends them on every payment.
 function mollieLines(placed: PlacedCart) {
-    const cur = placed.total.currency;
+    const cur = placed.total.currency.toUpperCase();
     let sum = 0;
     const lines: Record<string, unknown>[] = placed.items.map((item) => {
         const total = minor(item.price.gross, cur); // line total, VAT and discounts included
@@ -462,7 +462,7 @@ refunded.
   timestamp) → `400`; trusting a replayed response's `status`; counting on the key after an hour.
 - `vatRate` as a number, a `vatAmount` that is not `totalAmount × rate / (100 + rate)`, lines that do not sum to
   `amount`, or negative `physical` / `shipping_fee` lines.
-- A price variant currency named `€` or `Euro`, or country names instead of ISO alpha-2 codes.
+- A cart `context.price.currency` of `€` or `Euro`, or country names instead of ISO alpha-2 codes.
 - Expecting Klarna or Billie to stop at `authorized` without `captureMode: 'manual'`, or calling the Orders API.
 - A subscription `startDate` with a time in it (it is `YYYY-MM-DD`), or before the first payment is paid.
 
