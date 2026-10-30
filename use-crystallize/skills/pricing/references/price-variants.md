@@ -213,7 +213,7 @@ A ladder is refused unless the first `threshold` is 1, thresholds strictly incre
 
 `tierConfig` on the price variant (`policy: disabled | optional | required`, `allowFreeform`, `presets`) shapes the tier editor in the app. API writes to a product variant are not checked against it.
 
-In a mass operation, `tierType` and `tiers` go on `priceVariants[]` of the `product/*` and `product/variant/*` intents, with a few parsing caveats listed in [[mass-operations]]. `product/variant/price/modify` is flat only, with a minimum of 1.
+In a mass operation, `tierType` and `tiers` go on `priceVariants[]` of the `product/*` and `product/variant/*` intents, with a few parsing caveats listed in [[mass-operations]]. The MCP mass-operation tools refuse both keys, so a file with tiers needs the CLI or the raw API. `product/variant/price/modify` is flat only, with a minimum of 1.
 
 ## Naming Convention Guide
 
