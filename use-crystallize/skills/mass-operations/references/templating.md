@@ -1,15 +1,15 @@
 # Templating: references, helpers, and variables
 
 Operations run sequentially, so a later operation can consume an earlier one's output. The templating
-layer is Handlebars (async, via `handlebars-async-helpers`) — `{{ ... }}` expressions are resolved by
-the runner immediately before each operation is converted to a command.
+layer is Handlebars with async helpers — `{{ ... }}` expressions are resolved by the runner immediately
+before each operation is converted to a command.
 
 **The schema is templating-aware.** `IdSchema` is `/^(?:[0-9a-f]{24}|{{.*}})$/`: an ID field accepts a
 24-character hex ID *or* a handlebars expression, and nothing else. A placeholder like `"TODO"` or
 `"<parent-id>"` fails validation immediately — which is useful, because it means malformed references
 are caught locally rather than at runtime.
 
-Verified against runner behaviour as of 2026-08-18.
+Verified against runner behaviour as of 2026-10-29.
 
 ## Contents
 
@@ -24,17 +24,26 @@ Verified against runner behaviour as of 2026-08-18.
 
 ## How enrichment works
 
-`MassOperationEnricherService.enrich` walks the operation object recursively and renders **every string
-value** as a Handlebars template. Two consequences:
+The runner walks the operation object recursively and renders **every string value** as a Handlebars
+template. Two consequences:
 
 - Any string field can contain `{{ ... }}`, not just ID fields.
 - The `_ref` key itself is skipped, so a `_ref` name is never templated.
 
-**A template that throws is swallowed.** `MassOperationTemplateRenderer.renderTemplate` catches the
-error, logs it, and returns the **original template string**. So a broken reference does not fail the
-operation — it writes the literal `{{ myRef.id }}` into your data, and you find out later. On an ID
-field the downstream command then fails with a confusing cast error; on a text field it just persists.
-Grep your `operationLogs` output for `{{` after a run.
+**A reference that resolves to nothing renders as an empty string.** A `_ref` that doesn't exist yet, a
+failed or skipped operation and a wrong property all give `""`, and the operation still runs with the
+blank value. On a text field that stores a blank. On an upsert's `itemId` it reads as "no id", so the upsert
+creates. On `tree.parentId` the item is created **outside the catalogue tree** and logged as a success, so
+one failed parent folder orphans its children. `item/publish` and `item/updateComponent/item` do fail on a
+blank `itemId`. Check `input` in `operationLogs` for blanks after a run.
+
+**A template that throws is swallowed.** A syntax error or a failing helper does not fail the operation:
+the runner returns the **original template string**, so the literal `{{ myRef.id }}` lands in your data.
+On an ID field the downstream command then fails with a confusing cast error; on a text field it just
+persists. Grep your `operationLogs` output for `{{` after a run.
+
+**`{{ x }}` HTML-escapes its output.** `Tom & Jerry` renders as `Tom &amp; Jerry`, and quotes and `=` are
+escaped too. IDs are unaffected. Copy text with the triple form, `{{{ x }}}`.
 
 ## `_ref` chaining
 
@@ -64,36 +73,30 @@ Tag an operation with `_ref` (a non-empty string), then reference its output by 
 
 Which properties a `_ref` exposes depends on the intent — see `intents.md` § "Properties exposed to
 `_ref`". Some outputs are a bare string rather than an object; for those, use `{{ myRef }}` directly.
-An operation whose converter produced no command saves nothing at all, so a `_ref` to it resolves to
-empty (see `intents.md` § "Silent skips").
+An operation that failed, or that produced no command, stores `{}`, so `{{ myRef.id }}` renders empty
+(see `intents.md` § "Silent skips").
 
 ## Positional references
 
-Undocumented, but implemented and unit-tested: a reference whose first segment parses as a number is
-looked up by **operation number** rather than by `_ref`.
+Undocumented, but implemented: a reference whose first segment parses as a number is looked up by
+**operation number** rather than by `_ref`.
 
 ```handlebars
 {{ 0.firstName }}
 ```
 
-`MassOperationTemplateRenderer.getOperationId` does `Number.isNaN(+id)` and routes to
-`findByOperationNumber(taskId, n)` when it's numeric.
+The number is the operation's **0-based index in the file**. Every operation gets a slot, including
+failed and skipped ones, which hold `{}`, so numbering never shifts.
 
-The counter is **0-based and assigned at save time**, not from your file's array index:
-`MassOperationRepository.save` sets `operationNumber = count(existing rows for this task)`. Only
-operations that actually produced a command are saved — a silently-skipped operation writes no row,
-so everything after it shifts down by one relative to the file.
-
-**Prefer named `_ref`.** Positional references are brittle against exactly the failure mode that is
-hardest to notice.
+**Prefer named `_ref`.** Positional references break as soon as the file is reordered or chunked.
 
 ## The upsert return-shape trap (legacy only)
 
 The public docs warn that an upsert returns `{ id }` when it creates and `{ id: { id } }` when it
 updates, and prescribe a Handlebars conditional to cope.
 
-**That applies to `version: "0.0.1"` only.** At `version: "1.0.0"` the runner flattens every upsert
-result before storing it, whichever path the backend took — create or update. `product/upsert`,
+**That applies to `version: "0.0.1"` only.** At `version: "1.0.0"` the runner flattens these upsert
+results before storing them, whichever path the backend took — create or update. `product/upsert`,
 `folder/upsert` and `document/upsert` all yield a flat `{ id: string }`. `shape/upsert`, `piece/create|upsert` and
 `customer/create|update|upsert` normalise to `{ identifier: string }`.
 
@@ -114,7 +117,7 @@ Keep it only if you genuinely target `version: "0.0.1"`. You should not.
 
 ## Default context variables
 
-Injected by the runner without any `_ref`, assembled once per (tenant, task) by `DefaultsService`:
+Injected by the runner without any `_ref`, assembled once per task:
 
 | Variable | Source |
 | --- | --- |
@@ -123,14 +126,14 @@ Injected by the runner without any `_ref`, assembled once per (tenant, task) by 
 | `{{ defaults.tenantIdentifier }}` | tenant identifier, falling back to the id |
 | `{{ defaults.rootItemId }}` | the catalogue tree root |
 | `{{ defaults.languages.[0] }}` | **tenant default language**; `[1..]` are the custom languages |
-| `{{ defaults.vatTypeIds.[0] }}` | vat type ids, **first 100 only** (the repository query is capped) |
+| `{{ defaults.vatTypeIds.[0] }}` | vat type ids, **first 100 only** |
 
 These are the idiomatic way to satisfy required ID fields portably. `product/create` and
 `product/upsert` both require `vatTypeId`, which must match `IdSchema` — so
 `"vatTypeId": "{{ defaults.vatTypeIds.[0] }}"` is how you write a product operation that runs against
 any tenant. Likewise `{{ defaults.rootItemId }}` for a top-level `tree.parentId`.
 
-Note the `.[0]` bracket syntax for array indexing — Handlebars requires it for numeric segments.
+Note the `.[0]` bracket syntax for array indexing — the form Handlebars documents for numeric segments.
 `defaults.vatTypeIds` has no guaranteed ordering, so `[0]` means "some vat type", not "the default
 one" — name the vat type explicitly if it matters.
 
@@ -141,9 +144,12 @@ one" — name the vat type explicitly if it matters.
 {{ upload "https://my-image.com/image.jpg" "hero-image-1" }}
 ```
 
-The optional **second argument is a `resourceIdentifier`** (undocumented). If an image is already
-registered under it in this tenant, `upload` returns that image's existing key and nothing is
-re-fetched — this is what makes image imports re-runnable.
+The optional **second argument is a `resourceIdentifier`** (undocumented). If an image in this tenant
+already carries it, `upload` returns that image's existing key and nothing is re-fetched.
+
+**This does not make an import re-runnable on its own.** Nothing writes that field: `image/register` only
+looks its `resourceIdentifier` up and does not store it on the image, and no public API sets one. A second
+run of the file below downloads the image again under a new key and registers a second image.
 
 ```json
 {
@@ -156,11 +162,12 @@ re-fetched — this is what makes image imports re-runnable.
 Mechanics worth knowing:
 
 - `upload` **does not upload during the expression.** It reserves a storage key and queues the job.
-  The actual download-and-upload runs after the operation completes, on a `p-queue` with concurrency
-  **10**, and the runner awaits `queue.onIdle()` before the next operation.
-- Within one task, repeated calls with the same URL return the same key (deduped in the runner's
-  SQLite scratch DB) — so calling `upload` inline in several operations is safe.
-- The filename is `path.basename(sourceUrl)`, so query strings and redirect URLs can produce odd names.
+  The actual download-and-upload runs after the operation completes, up to **10** at a time, and the
+  runner waits for them before the next operation.
+- Within one task, repeated calls with the same URL return the same key — so calling `upload` inline in
+  several operations is safe.
+- The filename is the last segment of the URL, so query strings and redirect URLs can produce odd names.
+- The source must send `Content-Length` and an allowed image `Content-Type` (`references/limits.md`).
 - Image uploads are logged as their own entries with `"intent": "image/upload"` and statusCode 200/500,
   **separate** from the operation that called `upload`. A failed image does not fail its operation.
 - You can call `upload` inline anywhere a key is expected in another operation.
@@ -171,7 +178,7 @@ fetch helpers below do.
 ## Fetch helpers
 
 For pulling in entities that already exist in the tenant, rather than ones created earlier in the file.
-Ten helpers, all registered via `@HandlebarsHelper`:
+Ten helpers:
 
 | Helper | Arguments |
 | --- | --- |
@@ -188,8 +195,7 @@ Ten helpers, all registered via `@HandlebarsHelper`:
 
 **Always pass every argument explicitly.** Handlebars appends its own options hash as the final
 argument, so omitting `language` puts that object into the `language` slot rather than falling back to
-a default. The runner's own tests call the helper as
-`fetchItemById('item-1', 'en', 'published', {})` — the trailing `{}` is the options hash.
+a default.
 
 ```handlebars
 {{ valueOf (fetchItemById '626af86d6f9c909e39ecb8a6' 'en' 'published') 'name' }}
@@ -197,30 +203,38 @@ a default. The runner's own tests call the helper as
 ```
 
 `fetchItemById`'s `version` argument is coerced: **only the literal `'published'` is honoured, anything
-else silently becomes `'draft'`** (`version === 'published' ? 'published' : 'draft'`). So `'latest'` or
-`'live'` quietly reads the draft.
+else silently becomes `'draft'`**. So `'latest'` or `'live'` quietly reads the draft.
+
+To feed an ID into an intent that needs one, read the right property. `id` on these results is a composite
+object, not the plain ID:
+
+```handlebars
+{{ valueOf (fetchItemByResourceIdentifier 'hero-product' 'en') 'itemId' }}
+{{ valueOf (fetchItemById '626af86d6f9c909e39ecb8a6' 'en' 'draft') 'id.id' }}
+{{ valueOf (fetchTopicByResourceIdentifier 'colors' 'en') 'id.id' }}
+```
 
 ### Caching and staleness
 
-Six helpers read through a per-task cache (`MassOperationResourceCacheService`): `fetchItemById`,
+Six helpers read through a per-task cache: `fetchItemById`,
 `fetchOrderById`, `fetchCustomerByIdentifier`, `fetchCustomerGroupByIdentifier`,
 `fetchPriceListByIdentifier`, `fetchSubscriptionContractById`. The cache is emptied at task start and
 end.
 
-After each successful operation the runner calls `refreshFetchedResourceCache`, which invalidates only
-these intents:
+After each successful operation the runner refreshes the cache for these intents only:
 
 `product|document|folder /update|upsert` · `order/update|upsert` · `customer/update|upsert` ·
 `customer/group/update|upsert` · `pricelist/update|upsert` · `subscription-contract/update|upsert`
 
 **Anything else leaves the cache stale.** In particular `item/updateComponent/item|sku`,
-`product/variant/*`, `topic/*` and `image/register` do *not* invalidate — so a `fetchItemById` after a
-component update in the same task can return pre-update data. The item refresh is also keyed on
-`operation.itemId`, so an update resolved via `resourceIdentifier` alone may not invalidate either.
+`product/variant/*`, `topic/*` and `image/register` do *not* refresh it — so a `fetchItemById` after a
+component update in the same task can return pre-update data. The item refresh also needs `itemId` on the
+operation and only re-reads the `draft` version, so an upsert keyed on `resourceIdentifier` alone, or a
+cached `'published'` read, stays stale too.
 
 The four uncached helpers — `fetchItemByResourceIdentifier`, `fetchProductVariantBySku`,
-`fetchTopicByResourceIdentifier`, `fetchImageByResourceIdentifier` — hit the repository every time and
-are always fresh. Prefer them when you need to read something you just wrote.
+`fetchTopicByResourceIdentifier`, `fetchImageByResourceIdentifier` — read live every time and are always
+fresh. Prefer them when you need to read something you just wrote.
 
 `fetchOrderById` and `fetchSubscriptionContractById` load by raw id and then verify tenant ownership,
 returning `null` for a foreign-tenant record — indistinguishable from "not found".
@@ -237,8 +251,10 @@ Reads a property off a helper result. It **splits on `.`**, so dotted paths work
 
 ```handlebars
 {{ valueOf (fetchItemById '626af86d…' 'en' 'draft') 'name' }}
-{{ valueOf (fetchItemById '626af86d…' 'en' 'draft') 'components.description.content.plainText' }}
+{{ valueOf (fetchItemById '626af86d…' 'en' 'draft') 'components.0.content.text' }}
 ```
 
-Implementation is `prop.split('.').reduce((acc, curr) => acc?.[curr], await obj)`, so a missing segment
-yields `undefined` (rendered as an empty string) rather than throwing.
+`components` is an array in shape order, so address a component by position, not by its id. A
+`singleLine` holds `content.text`; a `richText` holds `content.json`, not plain text.
+
+A missing segment yields `undefined` (rendered as an empty string) rather than throwing.
