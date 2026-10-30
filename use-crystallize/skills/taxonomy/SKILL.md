@@ -1,6 +1,6 @@
 ---
 name: taxonomy
-description: Design topic maps (taxonomies) for Crystallize PIM. Plan hierarchical classification systems used to tag and categorize products, documents, and media; enable faceted navigation and filtering; power search and discovery; and create cross-category collections. Use when the user wants to design a topic map, build a taxonomy, plan filters/facets for a storefront, model attributes like color/size/material/style/season, classify content (categories, difficulty, content type), organize brands/origins/certifications, design temporal tags (seasons, collections, events), or generate the `topicTree` JSON for topics. Also use when the user mentions classification, tagging, facets, filters, attribute taxonomies, or cross-cutting tags for items in Crystallize — even if they don't explicitly say "topic map" or "taxonomy".
+description: Design topic maps (taxonomies) for Crystallize PIM. Plan hierarchical classification systems used to tag and categorize products, documents, and media; enable faceted navigation and filtering; power search and discovery; and create cross-category collections. Use when the user wants to design a topic map, build a taxonomy, plan filters/facets for a storefront, model attributes like color/size/material/style/season, classify content (categories, difficulty, content type), organize brands/origins/certifications, design temporal tags (seasons, collections, events), generate the `topicTree` JSON for topics, or ship a topic tree to a tenant with `createTopic`. Also use when the user mentions classification, tagging, facets, filters, attribute taxonomies, or cross-cutting tags for items in Crystallize — even if they don't explicitly say "topic map" or "taxonomy".
 metadata:
     author: Crystallize
     version: "1.0"
@@ -10,7 +10,7 @@ metadata:
 
 Design and generate topic maps (taxonomies) for Crystallize PIM. This skill produces the `topicTree` JSON used to create hierarchical classification systems that tag and categorize catalogue items, power faceted navigation, and drive search and discovery.
 
-Topic maps are one of the three organization systems in Crystallize. Folders define **where** an item lives (single hierarchy) — see [[information-architecture]] for that. Topics define **what** an item is about (multi-dimensional, multiple tags per item). Shapes that consume topics — and decide whether to tag via the built-in `topics` field or a `topicReference` component — are covered in [[content-model]]. To write topics to a tenant via the API, see [[mutation]].
+Topic maps are one of the three organization systems in Crystallize. Folders define **where** an item lives (single hierarchy) — see [[information-architecture]] for that. Topics define **what** an item is about (multi-dimensional, multiple tags per item). `topics` is a built-in field on items and variants, so a shape needs no component to carry them: there is no topic component type. Shape design is covered in [[content-model]]. To write topics to a tenant, see Shipping a Topic Tree below.
 
 ## Consultation Approach
 
@@ -43,25 +43,26 @@ After 2–3 answers, propose an initial tree with colors assigned. Concrete prop
 
 A topic map is a hierarchical classification system used to:
 
-- **Tag and categorize** products, documents, folders, and media
+- **Tag and categorize** products, variants, documents, folders, and media
 - **Enable faceted navigation** and filtering on the storefront
 - **Power search and discovery** via the Discovery API
 - **Create cross-category collections** ("all red items", "all summer items")
 - **Organize images** and other media
 
-Each tenant can have **many topic maps** — one per facet (Colors, Sizes, Materials, Styles, etc.). An item can carry topics from multiple maps simultaneously.
+Each tenant can have **many topic maps** — one per facet (Colors, Sizes, Materials, Styles, etc.). An item can carry topics from multiple maps simultaneously. A topic map is not a separate object in the API: it is a root topic, one with no `parentId`.
 
 ### Topic Properties
 
-| Property         | Description                                                              |
-| ---------------- | ------------------------------------------------------------------------ |
-| `name`           | Display name shown to editors and (optionally) on the storefront         |
-| `pathIdentifier` | URL-safe identifier (lowercase, hyphens) — becomes part of the topic URL |
-| `displayColor`   | Hex color (`#rrggbb`) for visual distinction in the editor and UI        |
-| `parentId`       | Reference to a parent topic (for nesting)                                |
-| `children`       | Array of child topics                                                    |
+| Property         | Description                                                                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`           | Display name shown to editors and (optionally) on the storefront                                                                             |
+| `pathIdentifier` | URL-safe identifier (lowercase, hyphens) — becomes the last segment of the topic's `path` (`/colors/reds`). Derived from `name` when omitted |
+| `displayColor`   | Hex color (`#rrggbb`; the API also takes `#rgb` and `#rrggbbaa`) for visual distinction in the editor and UI                                 |
+| `parentId`       | Reference to a parent topic (for nesting)                                                                                                    |
+| `children`       | Array of child topics                                                                                                                        |
+| `meta`           | Key/value pairs for short machine data (e.g. an ERP code), readable from the Core API and Discovery                                          |
 
-`displayColor` is **required** in every topic generated by this skill — see Color Guidelines below.
+`displayColor` is optional in the API: the Crystallize app then shows the nearest ancestor's color, but the APIs return only the topic's own value. It is **required** in every topic generated by this skill — see Color Guidelines below.
 
 ## Color Guidelines
 
@@ -115,12 +116,12 @@ Each root topic map gets its own thematic color family so the maps are visually 
 ## Topic Map Design Principles
 
 1. **Flat vs. Deep** — Flat works for stable, exclusive attributes (Size: S/M/L/XL). Deep works for layered classifications (Fragrance → Fresh → Citrus → Bergamot).
-2. **Mutually Exclusive vs. Overlapping** — Decide up front whether items can carry multiple topics from this map. Sizes typically exclusive; Materials often overlapping.
+2. **Mutually Exclusive vs. Overlapping** — Decide up front whether items can carry multiple topics from this map. Sizes typically exclusive; Materials often overlapping. Crystallize does not enforce this: an item can carry any topics from any map, up to 250 per item.
 3. **User-Centric** — Design for how customers think when filtering, not how the internal team categorizes inventory.
 4. **Consistent Depth** — Within a single topic map, keep branches at similar depth. Don't put `Reds → Light Red` next to `Blues` (no children) without a reason.
 5. **5–10 topics per level** — Beyond that, filters become overwhelming. Group or split into sub-topics.
 6. **Plan for Growth** — Leave headroom for new entries. A flat list of 4 colors becomes painful at 40; nest early if you expect growth.
-7. **Multiple maps = multiple facets** — One topic map per filter axis. Colors, Sizes, Materials = three maps, three facets in the storefront.
+7. **Multiple maps = multiple facets** — One topic map per filter axis. Colors, Sizes, Materials = three maps, three facets in the storefront. Discovery returns all maps in one `topics` facet, so the storefront splits it by root path — see Topics in Discovery.
 
 ## Common Topic Map Types
 
@@ -203,7 +204,7 @@ Fragrances (displayColor: "#9c27b0")
 
 ## Output Format
 
-Generate topic maps as a `topicTree` JSON document. `displayColor` is required on every topic.
+Generate topic maps as a `topicTree` JSON document. `displayColor` is required on every topic. `topicTree` is this skill's design format, not an API payload: see Shipping a Topic Tree before writing it to a tenant.
 
 ```json
 {
@@ -259,13 +260,63 @@ Generate topic maps as a `topicTree` JSON document. `displayColor` is required o
 
 ### Rules
 
-1. `id` is URL-friendly — lowercase, hyphens, no spaces or special characters.
+1. `id` is URL-friendly — lowercase, hyphens, no spaces or special characters. It is a key local to this document: the API generates the real topic id.
 2. `pathIdentifier` matches the `id`.
 3. `displayColor` is **required** on every topic. Follow the Color Guidelines above.
 4. `children` is always an array — use `[]` for leaf nodes.
 5. Names are clear, consistent, and use the same casing/style across siblings.
 6. Color-named topics use the actual color as `displayColor`.
 7. Non-color topics use a hierarchy gradient (root saturated, descendants lighter).
+
+## Shipping a Topic Tree
+
+No API accepts a `topicTree` document as it stands. Each root is one write: `createTopic` on the Core API, or `topic/create` in a [[mass-operations]] file.
+
+```graphql
+mutation {
+    createTopic(
+        language: "en"
+        input: {
+            name: "Colors"
+            pathIdentifier: "colors"
+            displayColor: "#f59e0b"
+            children: [
+                { name: "Reds", pathIdentifier: "reds", children: [{ name: "Crimson", pathIdentifier: "crimson" }] }
+            ]
+        }
+    ) {
+        ... on Topic {
+            id
+            path
+        }
+        ... on BasicError {
+            errorName
+            message
+        }
+    }
+}
+```
+
+A write takes less than the design holds:
+
+- **No `id`.** The API generates topic ids. `createTopic` rejects an `id` field and `topic/create` silently drops it.
+- **No `displayColor` on nested `children`.** They take `name`, `pathIdentifier` and `children`, plus `meta` on `createTopic`. `createTopic` rejects a nested color and `topic/create` silently drops it. To color every topic, write one topic at a time, top-down, with the parent's id as `parentId`, or set the colors afterwards with `updateTopic(id:, language:, input: { displayColor: "#e53935" })`. [[mass-operations]] documents the `_ref` output to take that id from.
+- **30 topics per write**, counting the root and all its descendants. Split a larger tree and attach each part with `parentId`.
+- **One language per write.** Translate with `updateTopic(id:, language:, input: { name: "Farger" })`, parents first: a topic cannot be created or translated in a language its parent lacks.
+
+After the first write:
+
+- **A second write does not merge.** Sibling names (case-insensitive) and path identifiers are unique per language, so running the same `createTopic` twice fails. For a re-runnable import, use `topic/upsert` with a `resourceIdentifier` — see [[mass-operations]].
+- **Renaming moves the path.** `updateTopic` with a `name` and no `pathIdentifier` regenerates the path segment, for the topic and its descendants. Send the current `pathIdentifier` with the new name to keep the paths storefront filters rely on.
+- **`deleteTopic` also deletes every descendant.** To restructure, move the branch with `updateTopic(id:, language:, input: { parentId: "..." })`.
+
+## Topics in Discovery
+
+`topics` is a built-in index field on every shape, so a topic map needs no index setup. Variants have their own `variants_topics` field.
+
+- **Filter by path.** An item is indexed with the path of each of its topics and of their ancestors, so `filters: { topics: { equals: "/colors/reds" } }` also matches an item tagged only `/colors/reds/crimson`.
+- **One facet, whatever the number of maps.** `facets: { topics: { limit: 50 } }` returns a single `topics` facet in `summary.facets`, keyed by path, with labels like `Colors > Reds`. `limit` defaults to 10 and caps the buckets across all maps, ancestors included, keeping the most frequent. Set it high enough for every map, then group the buckets by root path to draw one filter per map.
+- **Paths are per language.** Filter with the path of the language you query. A topic with no translation in that language is not indexed for it.
 
 ## Best Practices
 
@@ -293,16 +344,17 @@ Generate topic maps as a `topicTree` JSON document. `displayColor` is required o
 
 ❌ **`id` with spaces, uppercase, or special characters** — `Light Red` or `light_red` is wrong; `light-red` is right.
 
-❌ **`pathIdentifier` ≠ `id`** — Keep them in sync to avoid editor confusion and broken URLs.
+❌ **`pathIdentifier` ≠ `id`** — Keep them in sync, so the `id` in the design reads as the path segment the topic gets.
 
 ❌ **Flat list of 40+ topics** — Nest them. `Colors → Reds → Light Red, Crimson, …` scales; a flat list of 40 colors does not.
 
 ## Integration with Other Skills
 
 - **[[information-architecture]]** — Folders define where an item lives (single hierarchy). Topics define what it is about (multi-dimensional). Design folders and topic maps together.
-- **[[content-model]]** — Shapes can reference topic maps via a `topicReference` component, or items can use the built-in `topics` field. If a classification needs rich content (logo, description, icon), model it as a Document via the Semantic Bridge pattern instead of a topic map.
-- **[[mutation]]** — Use the Core API to write the generated `topicTree` to a tenant. The output of this skill is the design payload; the mutation skill explains how to ship it.
-- **[[query]]** — Use the Discovery API to filter and aggregate by topic on the storefront (`topics.path.equals`, topic aggregations for facet counts).
+- **[[content-model]]** — Items and variants carry topics through the built-in `topics` field; there is no topic component. If a classification needs rich content (logo, description, icon), model it as a Document via the Semantic Bridge pattern instead of a topic map.
+- **[[mutation]]** — Core API conventions. Write the tree as described in Shipping a Topic Tree, then tag items and variants with `topicIds`.
+- **[[mass-operations]]** — The `topic/*` intents, for bulk or re-runnable imports.
+- **[[query]]** — Use the Discovery API to filter and aggregate by topic on the storefront — see Topics in Discovery above.
 
 ## Related Links
 
