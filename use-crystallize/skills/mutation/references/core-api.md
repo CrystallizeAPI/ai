@@ -9,7 +9,7 @@ Two things decide the shape of every call on this page:
 - **Mutations are top level.** `createProduct`, `publishItem`, `updateComponent` — there is no `product { … }`
   or `item { … }` wrapper. That wrapper belongs to the legacy PIM API, which is a different endpoint with a
   different schema.
-- **The tenant is in the URL** (`https://api.crystallize.com/@<tenant>/core`), so no input takes a `tenantId`.
+- **The tenant is in the URL** (`https://api.crystallize.com/@<tenant>`), so no input takes a `tenantId`.
   The PIM API does, which is the quickest way to tell a Core example from a PIM one.
 
 ## Table of Contents
@@ -80,7 +80,8 @@ would only repeat itself. Add it everywhere in real code.
 ### Create Product
 
 `variants` and `vatTypeId` are required — a product cannot exist without at least one SKU and a VAT type. Read
-the VAT types from the PIM API (see [below](#only-in-the-legacy-pim-api)) and keep the id in your config.
+the VAT types from the PIM API (see [below](#only-in-the-legacy-pim-api)) and keep the id in your config. Exactly
+one variant must have `isDefault: true`, or the call fails.
 
 ```graphql
 mutation CreateProduct($input: CreateProductInput!, $language: String!) {
@@ -178,6 +179,10 @@ mutation CreateFolder($input: CreateFolderInput!, $language: String!) {
 
 Publishing makes the item visible on the storefront. Creating an item does NOT publish it.
 
+**Publishing runs in the background.** The answer means the request was accepted, not that the published
+version exists yet, even though `PublishInfo.versionId` already names it. A step that depends on the published
+version has to read it first: `item(id:, language:, versionLabel: published)`.
+
 ```graphql
 mutation PublishItem {
     publishItem(id: "<item id>", language: "en", includeDescendants: false) {
@@ -197,15 +202,20 @@ mutation PublishItem {
 `disableComponentValidation: true` publishes an item whose shape validation would otherwise block it — an empty
 numeric piece is the usual reason.
 
-`publishItems(ids: [ID!]!, language: String!)` exists for batches, but it answers with a `PublishItemsRequest`
-whose return is not proof that the items are published yet. Prefer `publishItem` per item when the next step
-depends on the published version.
+`publishItems(ids: [ID!]!, language: String!)` exists for batches of up to 50 ids (more answers
+`TooManyItemsProvidedError`). It takes the same two flags and answers with a `PublishItemsRequest`,
+`{ language, success { itemId }, failure { itemId, error } }`, so read `failure`: one item failing validation
+does not fail the call. `unpublishItems` is the same.
 
 ### Unpublish Item
 
+**Unpublishing always takes the children with it.** `includeDescendants` defaults to `true` here, unlike on
+`publishItem`, and `false` is ignored: everything under the item goes off the storefront. Move a child out first
+to keep it live.
+
 ```graphql
 mutation UnpublishItem {
-    unpublishItem(id: "<item id>", language: "en", includeDescendants: false) {
+    unpublishItem(id: "<item id>", language: "en") {
         ... on PublishInfo {
             id
         }
@@ -233,8 +243,10 @@ mutation DeleteItem {
 }
 ```
 
-The argument is `itemId`, and the answer is a count, not the item. Deleting a folder with children fails until
-the children are moved or deleted.
+The argument is `itemId`, and the answer is a count, not the item.
+
+**Deleting a folder deletes everything under it.** There is no check and no prompt: the children go in the
+background, after the answer, and `removed` counts only the item you named. Move what you want to keep first.
 
 ### Move Item in Tree
 
@@ -317,15 +329,19 @@ mutation UpdateComponent($itemId: ID!, $language: String!, $component: Component
 
 Arguments worth knowing:
 
-| Argument                   | Meaning                                                                    |
-| -------------------------- | -------------------------------------------------------------------------- |
-| `itemId`                   | The item to edit                                                           |
-| `sku`                      | Edit a **variant's** component instead — pass the SKU rather than `itemId` |
-| `language`                 | Required; components are per language unless the shape says otherwise      |
-| `disableContentValidation` | Write content the shape would otherwise reject                             |
+| Argument                   | Meaning                                                                     |
+| -------------------------- | --------------------------------------------------------------------------- |
+| `itemId`                   | The item to edit                                                            |
+| `sku`                      | Edit a **variant's** component instead — pass the SKU rather than `itemId`  |
+| `language`                 | Required; components are per language unless the shape says otherwise       |
+| `disableContentValidation` | Defaults to **`true`**: pass `false` to have the shape validate the content |
+
+With the default, `updateComponent` stores content the shape would reject and the problem only surfaces on
+publish. `ComponentContentValidationFailedError` needs `disableContentValidation: false`.
 
 `ComponentInput` is `{ componentId, <one content key> }`. The content key names the component type, and the
-examples below differ only in that key. `removeComponent(itemId:, language:, componentId:)` clears one.
+examples below differ only in that key. `removeComponent(itemId:, language:, componentId:)` clears one; it also
+takes `sku` for a variant component, and `itemId` stays required.
 
 ### Rich Text
 
@@ -431,14 +447,14 @@ The other content keys on `ComponentInput` follow the same pattern: `datetime`, 
 Variants are purchasable SKUs on a product. There is no `setVariants` on Core: variants are added, updated and
 deleted one at a time, and stock and price have their own mutations.
 
-| Task                  | Mutation                                                                                  |
-| --------------------- | ----------------------------------------------------------------------------------------- |
-| Add a variant         | `addProductVariant(productId:, language:, input: CreateProductVariantInput!)`             |
-| Change one variant    | `updateProductVariant(sku:, language:, input: UpdateSingleProductVariantInput!)`          |
-| Delete one            | `deleteProductVariant(sku:)` — refuses the default with `CannotDeleteDefaultVariantError` |
-| Replace the whole set | `updateProduct(id:, language:, input: { variants: [...] })`                               |
-| Stock                 | `modifyProductVariantStock(sku:, stockLocationIdentifier:, operation:, quantity:)`        |
-| Price                 | `modifyProductVariantPrice(sku:, priceVariantIdentifier:, price:, tiers:, tierType:)`     |
+| Task                  | Mutation                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| Add a variant         | `addProductVariant(productId:, language:, input: CreateProductVariantInput!)`                         |
+| Change one variant    | `updateProductVariant(sku:, language:, input: UpdateSingleProductVariantInput!)`, no `isDefault` here |
+| Delete one            | `deleteProductVariant(sku:)` — refuses the default with `CannotDeleteDefaultVariantError`             |
+| Replace the whole set | `updateProduct(id:, language:, input: { variants: [...] })`                                           |
+| Stock                 | `modifyProductVariantStock(sku:, stockLocationIdentifier:, operation:, quantity:)`                    |
+| Price                 | `modifyProductVariantPrice(sku:, priceVariantIdentifier:, price:, tiers:, tierType:)`                 |
 
 ### Add a Variant
 
@@ -513,7 +529,8 @@ Use consistent attribute names across products so the filters line up.
 ## Customer Mutations
 
 One mutation creates both kinds of customer: `type` is `individual` or `organization`. There is no
-`createIndividual` or `createOrganization` on Core.
+`createIndividual` or `createOrganization` on Core. From a storefront, use the Shop API `/customer` endpoint
+instead, see [Customer Creation](shop-api-mutations.md#customer-creation).
 
 ### Create a Customer
 
@@ -603,13 +620,14 @@ call; orders are deleted separately. As with items, a list you send replaces the
 
 ## Order Mutations
 
-> **If a storefront lists these orders, change them on the Shop API instead.** Every `updateOrder`
-> in Core adds **another copy** of the order to the Shop store: three updates on one order left three
-> Shop orders with new ids, the same `coreId` and different `updatedAt`, and a storefront summing that
-> list counted the money three times. `updateOrderPipelineStage` and `deleteOrder` in Core, by contrast,
-> never reach the Shop store at all. Use Shop `/order` `setMeta` and `addToStage` for anything a
-> storefront reads, and keep Core order writes for back-office work on orders nobody lists from the edge.
-> See [Shop API Order Mutations](shop-api-order-mutations.md).
+> **If a storefront lists these orders, change them on the Shop API instead.** On an order born in Core
+> (`registerOrder`), every `updateOrder` adds **another copy** of the order to
+> the Shop store: three updates on one order left three Shop orders with new ids, the same `coreId` and
+> different `updatedAt`, and a storefront summing that list counted the money three times. On an order born
+> on the Shop API, the same calls rewrite the Shop order with Core's whole version, over whatever the Shop
+> wrote last. Use Shop `/order` `setMeta` and `addToStage` for anything a storefront reads, and keep Core
+> order writes for back-office work on orders nobody lists from the edge.
+> See [Shop API Order Mutations](shop-api-order-mutations.md#the-order-store-and-core).
 
 ### Update Order
 
@@ -639,7 +657,8 @@ mutation UpdateOrder($id: ID!, $input: UpdateOrderInput!) {
 `deleteOrderMetadata(id:, key:)` removes one.
 
 `registerOrder(input: RegisterOrderInput!)` writes an order that did not come from a cart — a renewal invoice, a
-POS sale, an import. Before using it, read what it does to an order a storefront lists, in
+POS sale, an import. It answers `{ id, createdAt }` before the order is stored, so a call right behind it can
+get `OrderNotFoundError`. Before using it, read what it does to an order a storefront lists, in
 [shop-api-order-mutations.md](shop-api-order-mutations.md).
 
 ---
@@ -653,13 +672,13 @@ variants. Six mutations cover it:
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `copyRemoteAsset(sourceUrl:, type: image, targetFilename:, requestHeaders:)` | Crystallize fetches the URL. A **bulk task**: it returns `targetKey` before the file lands, and it registers the image for you |
 | `generatePresignedUploadRequest(filename:, contentType:, type: MEDIA)`       | A target to POST your own bytes to — the only path for video                                                                   |
-| `registerImage(imageKey:)`                                                   | Registers an uploaded key. Not needed after `copyRemoteAsset`                                                                  |
-| `registerImageRevision(imageKey:, revisionKey:)`                             | Repoints the library entry — it does **not** reach published items                                                             |
+| `registerImage(imageKey:)`                                                   | Registers an uploaded key. Takes nothing else. Not needed after `copyRemoteAsset`                                              |
+| `registerImageRevision(imageKey:, revisionKey:)`                             | Repoints the library entry — Discovery follows only once the items using it are indexed again                                  |
 | `updateImage(key:, language:, input:)`                                       | `altText`, `caption`, `focalPoint`, `meta`, `topicIds`, `showcase` — per language                                              |
 | `deleteImage(key:, force:)`                                                  | Refuses while any item version references it; `force: true` overrides                                                          |
 
 An import that follows these six in the obvious order still breaks in four different ways — keys whose
-file never arrives, renditions that are not ready, revisions that never reach the storefront, and
+file never arrives, renditions that are not ready, revisions the storefront does not show yet, and
 deletes that refuse. **See [Media & Images](media.md)** for the working pipeline, what to verify after an
 import, and how to replace an image later.
 
@@ -706,7 +725,7 @@ Discovery's vector ranking is authored entirely on the Core API. Four calls, in 
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `upsertVocabulary(input: UpsertVocabularyInput!)` | **Full replace**, not a patch — omitted dimensions are dropped                                                                 |
 | `setItemTaste(input: SetItemTasteInput!)`         | One item, one language, one vocabulary. Writes the **draft**                                                                   |
-| `publishItem(id: ID!, language: String!)`         | The indexer reads the published version — skipping this fails silently. See the note on `publishItems` below                   |
+| `publishItem(id: ID!, language: String!)`         | The indexer reads the published version — skipping this fails silently. See the note on publishing below                       |
 | `igniteDiscoApi(stacks: opensearch)`              | Async; poll `bulkTask(id:)` until `complete`, then allow propagation. `stacks: opensearch` is required for vectors to be built |
 
 ```graphql
@@ -751,23 +770,24 @@ mutation Index {
 }
 ```
 
-All three results are unions whose error members implement `BasicError`, so a single fragment covers
-every failure and `errorName` identifies it. `setItemTaste` and `igniteDiscoApi` can both return
-`ExperimentalFeaturesNotAvailableError`, which means vectors are not enabled for the tenant.
+`setItemTaste` and `igniteDiscoApi` return unions whose error members implement `BasicError`, so a single
+fragment covers every failure and `errorName` identifies it. `upsertVocabulary` returns the `Vocabulary`
+directly and fails as a GraphQL error.
 
-Read back with `vocabulary(name:)` and `item(id:, language:) { taste { vocabulary entries { key weight } } }`.
+Read back with `vocabulary(name:)` and `item(id:, language:) { ... on Item { taste { vocabulary entries { key weight } } } }`.
 
-Prefer `publishItem` per item over `publishItems` here. `publishItem` returns the published version
-(`PublishInfo`) or an error for that item; `publishItems` returns a `PublishItemsRequest`, and its return
-is not proof that the items are published yet — index right after it and the index may read the old
-versions.
+`publishItem` and `publishItems` both run in the background, so neither return is proof that the items are
+published yet — index right after them and the index may read the old versions. Wait for
+`item(id:, language:, versionLabel: published)` to show the new content first.
 
-**Re-run `igniteDiscoApi` after every change to vocabularies or taste entries** — an unindexed change
-has no effect and raises no error. Run it **last**, once shapes and published content exist. A task
+**Run `igniteDiscoApi` the first time, and again after every `upsertVocabulary`** — an unindexed vocabulary
+change has no effect and raises no error. A taste change needs no ignition on a tenant already served for
+ranking: publishing the item re-indexes it. Run it **last**, once shapes and published content exist. A task
 that ends in `error` is blocking: `bulkTask(id:) { ... on BulkTask { status info } }` carries the reason
-in `info.traces`. Probe Discovery with `{ __typename }` before reporting success. Omitting `stacks: opensearch` likewise fails silently: the index
-rebuilds, but without vectors. Full guidance, including vocabulary design, positional weights and
-key validation, is in the [[vector-ranking]] skill.
+in `info.traces`. Probe Discovery with `{ __typename }` before reporting success. On a tenant not yet served
+for ranking, omitting `stacks: opensearch` fails silently: the index rebuilds, but without vectors. On a
+tenant already served for ranking, the task ends in `error`. Full guidance, including vocabulary design,
+positional weights and key validation, is in the [[vector-ranking]] skill.
 
 ## Only in the legacy PIM API
 
@@ -796,7 +816,7 @@ The Core API uses union return types. Always handle potential errors:
 
 ```graphql
 mutation UpdateComponent($itemId: ID!, $language: String!, $component: ComponentInput!) {
-    updateComponent(itemId: $itemId, language: $language, component: $component) {
+    updateComponent(itemId: $itemId, language: $language, component: $component, disableContentValidation: false) {
         __typename
         ... on UpdatedComponent {
             updatedComponentPath

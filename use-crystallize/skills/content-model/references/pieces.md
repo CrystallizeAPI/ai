@@ -10,7 +10,7 @@ Pieces are independent component groups that exist outside of shapes. Once creat
 
 - Created once, used many times
 - Changes to a piece affect all shapes using it
-- Can contain any components including chunks
+- Can contain any components including chunks and other pieces, but never itself, directly or through another piece
 - Support localization
 
 ## When to Use Pieces
@@ -23,6 +23,33 @@ Use pieces for content that:
 - Represents a reusable concept
 
 ## Common Piece Examples
+
+### Standard SEO Piece
+
+A reusable piece for SEO metadata, commonly added to products, folders (landing pages), and documents (articles):
+
+```json
+{
+    "identifier": "seo",
+    "name": "SEO",
+    "components": [
+        { "id": "title", "name": "Title", "type": "singleLine" },
+        { "id": "description", "name": "Description", "type": "richText" },
+        { "id": "image", "name": "Image", "type": "images" }
+    ]
+}
+```
+
+Usage in a shape:
+
+```json
+{
+    "id": "seo",
+    "name": "SEO",
+    "type": "piece",
+    "config": { "piece": { "identifier": "seo" } }
+}
+```
 
 ### SEO Metadata
 
@@ -64,7 +91,7 @@ Banner (Piece)
 ├── Background (Images)
 ├── CTA Text (Single Line)
 ├── CTA Link (Single Line)
-└── Theme (Choice: Light, Dark, Transparent)
+└── Theme (Selection: Light, Dark, Transparent)
 ```
 
 ### Author
@@ -138,7 +165,7 @@ Additional options:
 
 ## Best Practices
 
-1. **Name clearly** - "SEO Metadata" not "SEO"
+1. **Name clearly** - "SEO", "Banner", not "Piece 1"
 2. **Single responsibility** - One piece = one concept
 3. **Plan for reuse** - Design pieces to work in multiple contexts
 4. **Keep pieces small** - Large pieces are harder to maintain
@@ -160,15 +187,18 @@ Pieces appear in the API as nested objects:
 
 ```graphql
 {
-    catalogue(path: "/products/coffee") {
+    catalogue(path: "/products/coffee", language: "en") {
         ... on Product {
-            components {
-                id
+            component(id: "seo") {
                 content {
-                    ... on ParagraphCollectionContent {
-                        paragraphs {
-                            title
-                            body
+                    ... on PieceContent {
+                        components {
+                            id
+                            content {
+                                ... on SingleLineContent {
+                                    text
+                                }
+                            }
                         }
                     }
                 }

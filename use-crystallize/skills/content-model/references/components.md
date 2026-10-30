@@ -1,6 +1,6 @@
 # Components Reference
 
-Components are the **dynamic** fields you add to a Shape. They sit on top of built-in fields that every item already has (`name`, `id`, `language`, `tree`, `topics`, `createdAt`, `updatedAt`). Product variants also have built-in fields for `sku`, `images`, `videos`, `price`, `stock`, and `attributes` — these are NOT components.
+Components are the **dynamic** fields you add to a Shape. They sit on top of built-in fields that every item already has (`name`, `id`, `language`, `tree`, `topics`, `externalReference`, `createdAt`, `updatedAt`). Product variants also have built-in fields for `sku`, `images`, `videos`, `price`, `stock`, `attributes`, and `externalReference` — these are NOT components.
 
 Choosing the right component for each piece of **additional** data determines how editors interact with it, how it renders on the frontend, and whether it can be filtered/searched via the Discovery API.
 
@@ -15,7 +15,7 @@ Choosing the right component for each piece of **additional** data determines ho
 | Long-form editorial with mixed media sections                  | **Paragraph Collection** |
 
 - **Single Line** → structured, unformatted, indexable. Ideal for labels, codes, and short metadata. Note: item `name` and variant `sku` are built-in fields, not Single Line components — but additional identifiers (GTIN, EAN, UPC, MPN) beyond the built-in SKU are valid Single Line components.
-- **Rich Text** → formatted text block. Produces structured JSON (not HTML). Supports headings, lists, links, bold, italic, inline code. Use for product descriptions, marketing copy, specification text.
+- **Rich Text** → formatted text block. Stored as structured JSON, and the APIs return it as `json`, `html` and `plainText`. Supports headings, lists, links, bold, italic, inline code. Use for product descriptions, marketing copy, specification text.
 - **Paragraph Collection** → repeating sections, each with: title (single line) + body (rich text) + media (images/video). Use for blog posts, editorial storytelling, landing page content blocks, any content that alternates text and media.
 
 ### "I need to store numbers"
@@ -34,14 +34,15 @@ Choosing the right component for each piece of **additional** data determines ho
 
 **Rule of thumb**: If you always know the key name upfront → use Numeric. If the keys vary per item → use Properties Table.
 
-> **A unit list makes a Numeric effectively required.** Content for a numeric with `units` has to name
-> one ("No unit provided for numeric item component `voltage`. Need to specify one of the following units:
-> V"), even when the list holds a single unit — and a numeric input cannot carry a unit without a number,
-> since `number` is non-null. So every item of that shape needs a value, on create **and** on every update
-> that sends components. Two builds hit this: a `vehicle` document for an electric car with no
-> displacement, and a variant component that only oils and chemicals fill, which made `updateProduct` fail
-> on a filter for a component none of its variants had. If the value is genuinely optional, leave `units`
-> out and put the unit in the component's name (`Volume (l)`), or split it into unit-free fields.
+> **A unit list makes a Numeric effectively required, unless you set `required: false`.** Content for a
+> numeric with `units` has to name one ("No unit provided for numeric item component `voltage`. Need to
+> specify one of the following units: V"), even when the list holds a single unit — and a numeric input
+> cannot carry a unit without a number, since `number` is non-null. So with `required` left out, every item
+> of that shape needs a value, on create **and** on every update that sends components. Two builds hit
+> this: a `vehicle` document for an electric car with no displacement, and a variant component that only
+> oils and chemicals fill, which made `updateProduct` fail on a filter for a component none of its variants
+> had. If the value is genuinely optional, set `required: false` on the numeric: an empty component then
+> skips the unit check, and a filled one must still name a unit.
 
 Component definitions also take a **`description`**, which shows up as editor help. It is the natural place
 for a mapping to an industry standard — one build stored the ETIM feature code there
@@ -66,11 +67,11 @@ for a mapping to an industry standard — one build stored the ETIM feature code
 | Link to another catalogue item (product, document, folder) | **Item Relation** |
 | Link to a curated grid of items                            | **Grid Relation** |
 
-- **Item Relation** → the backbone of all bridge design patterns. Links to one or more items. On product shapes, can link to specific variants (SKU-level). Use for: related products, brand references, ingredients, accessories, any semantic relationship.
+- **Item Relation** → the backbone of all bridge design patterns. Links to one or more items, and can link to specific variants (SKU-level) through `skus`. Use for: related products, brand references, ingredients, accessories, any semantic relationship.
     - **Configuration options** (like relational database constraints):
-        - **Accepted shape identifiers**: restrict which shapes can be linked (e.g., only allow "Brand" documents, or only "Product" shapes)
+        - **Accepted shape identifiers**: restrict which shapes can be linked (e.g., only allow "Brand" documents, or only "Product" shapes). Applies to linked SKUs too, through their product's shape
         - **Min relations**: minimum number of items that must be linked (e.g., every product must have at least 1 brand)
-        - **Max relations**: maximum number of items that can be linked (e.g., product can link to max 5 related products)
+        - **Max relations**: maximum number of items that can be linked (e.g., product can link to max 5 related products). The ceiling is 75 items and 75 SKUs per component, even with no `maxItems` set
     - These constraints enforce data integrity and guide editors to create consistent relationships.
 - **Grid Relation** → links to a curated grid. Use for: seasonal landing pages, campaign highlights, curated collections.
 
@@ -88,7 +89,7 @@ for a mapping to an industry standard — one build stored the ETIM feature code
 | A date or timestamp                                       | **Datetime**  |
 | Geographic coordinates                                    | **Location**  |
 
-- **Selection** → dropdown, radio buttons, or checkboxes with predefined options. Each option has a `key` (API value) and `value` (display label). Configure min/max selections to control behavior:
+- **Selection** → dropdown, radio buttons, or checkboxes with predefined options. Each option has a `key` (API value), a `value` and a `label` (display text). Configure min/max selections to control behavior:
     - **Radio/Enum pattern**: min=1, max=1, required → exactly one selection, renders as radio buttons or dropdown
     - **Checkboxes pattern**: min=0, max=N → optional multi-select, renders as checkboxes, can be null
       Use when the options are a fixed, small set that don't need their own content. If options need enrichment (images, descriptions), use Item Relations instead (Semantic Bridge pattern).
@@ -106,9 +107,12 @@ for a mapping to an industry standard — one build stored the ETIM feature code
 | A colour _name_ used only for filtering and navigation                  | **Selection** or **Topic** |
 
 - **Colors (`colors`)** → stores one or more colour entries. Each entry can carry the same colour in several notations **at once** — `hex`, `rgb`, `hsl`, `cmyk`, `pantone`, `ral` — plus a free-text `label`. The component is a **list**, so a single component holds a whole colourway.
-    - **Configuration**: `min` / `max` (number of entries), `colorPresets` (a fixed palette editors pick from), `customColorSpaces` (which notations beyond the default are offered), `requireLabel`, plus the usual `required`, `discoverable` and `multilingual`.
-    - **`colorPresets` is how you enforce a brand palette.** Editors choose from the palette instead of typing hex values, which is the difference between a design system and 40 slightly different greys.
+    - **Configuration**: `min` / `max` (number of entries, at most 100 when `max` is unset), `colorPresets` (a palette editors pick from), `customColorSpaces` (the only notations an entry may carry), `requireLabel`, plus the usual `required`, `discoverable` and `multilingual`.
+    - **`customColorSpaces` decides what editors can type in the App.** With none set, the App shows no colour inputs at all, so a component with neither `customColorSpaces` nor `colorPresets` gives editors nothing to enter. Set it, usually to `["hex"]`. When it is set, the API rejects content in any other notation. When it is unset, the API accepts all of them.
+    - **`colorPresets` with no `customColorSpaces` is how you hold editors to a brand palette.** Editors choose from the palette instead of typing hex values, which is the difference between a design system and 40 slightly different greys. This is an App rule: the API does not check content against the presets.
     - **`requireLabel: true`** forces every entry to be named ("Midnight Blue"). The label is what the storefront shows; the value is what it renders.
+
+**Content rules the API enforces**: `hex` is `#RRGGBB` or `#RRGGBBAA` (a short `#FFF` is rejected), `ral` is `RAL 1234`, `pantone` is `Pantone 485 C` or `485 C`, and each entry needs at least one of `hex`, `rgb`, `hsl`, `ral` or `pantone`, so a `cmyk`-only entry is rejected.
 
 **Why one entry carries several notations**: screen wants `hex`/`rgb`, print wants `cmyk`/`pantone`, paint and industrial want `ral`. One authoritative entry serves all three. Modelling them as three separate Single Line components guarantees they drift apart the first time a colour is corrected.
 
@@ -136,23 +140,25 @@ These are **structural components** — they don't store data directly but organ
 
 - **Chunk (contentChunk)** → a group of components that belong together (repeatable OR single occurrence)
     - **Can be repeatable:** Enable `repeatable: true` to create lists (ingredients, specifications, addresses)
-    - **Can be single:** Use `repeatable: false` (or omit) for one-time groups that only occur once in the model
+    - **Can be single:** Set `repeatable: false` for one-time groups that only occur once in the model. Omitting `repeatable` makes the chunk repeatable
     - **When to use chunk:** Fields are tightly coupled and specific to one location in your content model
     - **Examples (repeatable):** Ingredients list, multiple addresses, product specifications, USP items
     - **Examples (non-repeatable):** SEO metadata (title+description+keywords as one group), single shipping address, environment settings
     - **Decision rule:** If this exact group structure only appears once in the entire content model → use a non-repeatable chunk instead of creating a piece
     - Building block for all bridge patterns (semantic, quantised, conditional, composite)
     - **A chunk must always have at least 1 child component — empty chunks are invalid.**
-    - **A chunk that is not `multilingual` shares its text across languages.** The setting covers the whole
+    - **A chunk with `multilingual: false` shares its text across languages.** The setting covers the whole
       chunk, including the `singleLine` and `richText` fields inside it, so translating one language
-      overwrites the others. A chunk holding text that should be translated needs `multilingual: true`.
+      overwrites the others. A chunk holding text that should be translated leaves `multilingual` out: the
+      rows stay shared and each field follows its own setting. `multilingual: true` also gives each language
+      its own rows.
     - **A chunk on a variant may not publish.** One build found a variant's chunk sitting in the draft while
       the published version and Discovery had `chunks: []`, where a `singleLine` on the same variant
       published fine. If that happens, move the data to the product and identify each row by SKU.
-- **Choice (choice, componentChoice)** → select exactly ONE structure from a set. The editor picks which form applies, and only sees fields for that choice. Implements the **Polymorphic Choice** pattern. Use when a concept has multiple valid but mutually exclusive representations.
+- **Choice (componentChoice)** → select exactly ONE structure from a set. The editor picks which form applies, and only sees fields for that choice. Implements the **Polymorphic Choice** pattern. Use when a concept has multiple valid but mutually exclusive representations.
 - **Multiple Choice (componentMultipleChoice)** → select ONE OR MORE structures from a set. Similar to Choice but allows combining forms. Use when multiple structural forms can coexist on the same item.
     - **Common pattern**: Define each option as a **Piece** (reusable component group) for consistency across shapes
-    - **Validation**: `allowDuplicates` (API field) — when `false`, each choice can only be selected once; when `true`, editors can add the same choice multiple times (e.g., two Banner sections on a page)
+    - **Validation**: `allowDuplicates` (API field, `true` when left out) — when `false`, each choice can only be selected once; when `true`, editors can add the same choice multiple times (e.g., two Banner sections on a page)
     - **Use cases**:
         - **Page builders**: Multiple Choice of section Pieces (Banner, Testimonials, Product Grid, Text Block) — editors add/remove/reorder sections
         - **Polymorphic products**: Products that are similar but details vary — add fragmented Pieces (Physical Attributes, Digital License, Subscription Terms) that editors select based on product type
@@ -189,7 +195,7 @@ They **CANNOT** have other structural components as direct children:
   "type": "componentChoice",
   "config": {
     "componentChoice": {
-      "componentConfigs": [
+      "choices": [
         { "id": "image", "name": "Image", "type": "images" },
         { "id": "video", "name": "Video", "type": "videos" }
       ]
@@ -204,9 +210,9 @@ They **CANNOT** have other structural components as direct children:
   "type": "componentChoice",
   "config": {
     "componentChoice": {
-      "componentConfigs": [
-        { "id": "smartphone", "type": "piece", "config": { "piece": { "identifier": "smartphone-spec" } } },
-        { "id": "laptop", "type": "piece", "config": { "piece": { "identifier": "laptop-spec" } } }
+      "choices": [
+        { "id": "smartphone", "name": "Smartphone", "type": "piece", "config": { "piece": { "identifier": "smartphone-spec" } } },
+        { "id": "laptop", "name": "Laptop", "type": "piece", "config": { "piece": { "identifier": "laptop-spec" } } }
       ]
     }
   }
@@ -219,7 +225,7 @@ They **CANNOT** have other structural components as direct children:
   "type": "componentChoice",
   "config": {
     "componentChoice": {
-      "componentConfigs": [
+      "choices": [
         { "id": "smartphone", "name": "Smartphone", "type": "contentChunk", "components": [...] }
       ]
     }
@@ -299,8 +305,10 @@ When building a "Product Type" selector where each type (Smartphone, Laptop, Hea
   "name": "Smartphone Spec",
   "components": [
     {
+      "id": "details",
+      "name": "Details",
       "type": "contentChunk",  // ✓ allowed inside a piece
-      "components": [...]
+      "config": { "contentChunk": { "components": [...] } }
     }
   ]
 }
@@ -333,7 +341,7 @@ Product Shape
                  │         └─ Level 5: headline (Single Line) ✓
                  │         └─ Level 5: button-url (Single Line) ✓
                  └─ Video Hero
-                      └─ Level 4: video-options (Chunk)
+                      └─ Level 4: video-options (Piece)
                            └─ Level 5: video (Videos) ✓
                            └─ Level 5: autoplay (Switch) ✓
 ```
@@ -352,51 +360,53 @@ Product Shape
 
 ## Multilingual & Localization
 
-Every component has an **isTranslatable** flag that determines whether content can vary by language or is shared across all languages. This is critical for multi-market catalogues where some data is universal (GTINs, dimensions) while other data needs localization (descriptions, marketing copy).
+Every component has a **`multilingual`** config flag that determines whether content can vary by language or is shared across all languages. This is critical for multi-market catalogues where some data is universal (GTINs, dimensions) while other data needs localization (descriptions, marketing copy).
 
 ### How Localization Works
 
 - **Languages** are configured at tenant level (Settings → Languages) with unique codes (ISO 639-1 recommended: `en`, `de`, `fr`, `no-nb`, `se`, but not required)
-- **Each component** has an `isTranslatable` configuration you set when designing shapes
+- **Each component** has a `multilingual` configuration you set when designing shapes
 - **Editors** switch between languages in the item edit view to add translated content
-- **isTranslatable = true** → component content can vary per language (localized)
-- **isTranslatable = false** → component content is shared across all languages (universal)
-- **Built-in name field** is translatable and creates the path leaf in the catalogue tree — if not defined for a language, you'll see `MISSING_NAME_FOR_ITEM` as placeholder
+- **`multilingual: true`** → component content can vary per language (localized)
+- **`multilingual: false`** → component content is shared across all languages (universal)
+- **Built-in name field** is translatable and creates the path leaf in the catalogue tree — if not defined for a language, you'll see `MISSING_NAME_FOR_LANGUAGE` as placeholder
 - **Query language** is specified at the top level of Catalogue API and Discovery API queries
 
 ### Default Localization Settings by Component
 
-Different components have different default `isTranslatable` values based on their typical use cases:
+Different components behave differently when `multilingual` is left out of the config:
 
-| Component                | Default isTranslatable | Typical use case                                               |
-| ------------------------ | ---------------------- | -------------------------------------------------------------- |
-| **Single Line**          | ✓ True                 | Titles, subtitles, slogans, taglines                           |
-| **Rich Text**            | ✓ True                 | Descriptions, marketing copy, specifications                   |
-| **Paragraph Collection** | ✓ True                 | Blog posts, landing pages, editorial content                   |
-| **Numeric**              | ✗ False                | Dimensions, weights, ratings (universal values)                |
-| **Properties Table**     | ✗ False                | Technical specs with shared keys/values                        |
-| **Images**               | ✗ False                | Product photos (same images, translate captions)               |
-| **Videos**               | ✗ False                | Product videos (same videos, translate captions)               |
-| **Files**                | ✗ False                | Shared downloads (or create separate per-market)               |
-| **Selection**            | ✗ False                | Shared options (size, colour codes)                            |
-| **Colors**               | ✗ False                | Colour values are universal — `label` is the translatable part |
-| **Switch**               | ✗ False                | Boolean flags (universal true/false)                           |
-| **Datetime**             | ✗ False                | Universal dates (launch, expiration)                           |
-| **Location**             | ✗ False                | Geographic coordinates (universal)                             |
-| **Item Relation**        | ✗ False                | Relationships are shared, but related items can be translated  |
-| **Grid Relation**        | ✗ False                | Grid references shared, grid content can be translated         |
+| Component                | Default multilingual                  | Typical use case                                                                   |
+| ------------------------ | ------------------------------------- | ---------------------------------------------------------------------------------- |
+| **Single Line**          | ✓ True                                | Titles, subtitles, slogans, taglines                                               |
+| **Rich Text**            | ✓ True                                | Descriptions, marketing copy, specifications                                       |
+| **Paragraph Collection** | ✓ Title and body, ✗ images and videos | Blog posts, landing pages, editorial content                                       |
+| **Colors**               | ✓ True                                | The whole entry is stored per language. Set `false` when the colours are universal |
+| **Numeric**              | ✗ False                               | Dimensions, weights, ratings (universal values)                                    |
+| **Properties Table**     | ✗ False                               | Technical specs with shared keys/values                                            |
+| **Images**               | ✗ False                               | Product photos (same images, translate captions)                                   |
+| **Videos**               | ✗ False                               | Product videos (same videos, translate captions)                                   |
+| **Files**                | ✗ False                               | Shared downloads (or create separate per-market)                                   |
+| **Selection**            | ✗ False                               | Shared options (size, colour codes)                                                |
+| **Switch**               | ✗ False                               | Boolean flags (universal true/false)                                               |
+| **Datetime**             | ✗ False                               | Universal dates (launch, expiration)                                               |
+| **Location**             | ✗ False                               | Geographic coordinates (universal)                                                 |
+| **Item Relation**        | ✗ False                               | Relationships are shared, but related items can be translated                      |
+| **Grid Relation**        | ✗ False                               | Grid references shared, grid content can be translated                             |
 
-**Important**: These are defaults when adding components. You can override them based on your specific use case.
+**Important**: These are the API defaults, for shapes created by mutation or mass operation. You can override them based on your specific use case. A component added in the App starts with explicit values instead: on for Single Line, Rich Text, Multiple Choice and every part of Paragraph Collection, off for everything else, Colors included.
 
 ### Structural Components (Choice & Multiple Choice)
 
 Choice and Multiple Choice components have special translation behavior:
 
-**When the structural component is NOT translatable:**
+**When `multilingual` is left out:**
 
 - The same choices are used across all languages (universal structure)
-- Components and Pieces INSIDE each choice CAN be translatable
+- Components and Pieces INSIDE each choice CAN be translatable. Components inside a Piece follow their own setting, and a plain component chosen directly uses its type's default from the table above
 - Editors see the same choice options in all languages, but content within choices can vary
+
+An explicit `multilingual: false` is not the same: it forces everything inside to be shared, on a chunk, a choice, a multiple choice or a piece. The App sends nothing rather than `false`, so do the same.
 
 **Example:**
 
@@ -413,13 +423,15 @@ Product Shape
 
 In this example, the choice between "Physical Product" and "Digital Product" is the same across all languages, but the descriptions inside can be translated.
 
-**When the structural component IS translatable:**
+**When `multilingual: true`:**
 
 - The choices themselves become translatable (different choice options per language)
 - All components inside are ALWAYS translatable (cannot be shared)
 - This is uncommon — only use when the structure itself varies by market
 
-**Best practice**: Keep Choice/Multiple Choice NOT translatable. Translate the content inside the choices instead. This maintains consistent structure across markets while allowing localized content.
+**Best practice**: Leave `multilingual` out on Choice/Multiple Choice and translate the content inside the choices instead. This maintains consistent structure across markets while allowing localized content. Page builder blocks are the exception, see [page-builder-pattern.md](page-builder-pattern.md).
+
+**On a piece component**, `multilingual` overrides every component inside the piece when it is set. Left out, they follow their own setting.
 
 ### Paragraph Collection Granular Control
 
@@ -434,9 +446,9 @@ This granularity is useful for blog posts or editorial content where media is un
 
 #### Operations Config for paragraphCollection
 
-**CRITICAL**: The `multilingual` property is **REQUIRED** (not optional) for paragraphCollection. It must be an array of **paragraph part names** that should support translations (lowercase), NOT language codes.
+**CRITICAL**: In mass operations, the `multilingual` property is **REQUIRED** (not optional) in a paragraphCollection config. It must be an array of **paragraph part names** that should support translations (lowercase), NOT language codes.
 
-Valid values: `"body"`, `"title"`, `"images"`, `"videos"`, `"structure"`
+Valid values: `"body"`, `"title"`, `"images"`, `"videos"`, `"structure"`. `"structure"` gives each language its own set of paragraphs.
 
 **Examples:**
 
@@ -465,7 +477,7 @@ Valid values: `"body"`, `"title"`, `"images"`, `"videos"`, `"structure"`
 
 ### Localized vs Shared Content Patterns
 
-**When to use localized (isTranslatable = true):**
+**When to use localized (`multilingual: true`):**
 
 - Marketing copy and storytelling (titles, descriptions, taglines)
 - Editorial content (blog posts, articles, guides)
@@ -473,7 +485,7 @@ Valid values: `"body"`, `"title"`, `"images"`, `"videos"`, `"structure"`
 - Legal disclaimers that must be in local language
 - SEO metadata (meta descriptions, page titles)
 
-**When to use shared (isTranslatable = false):**
+**When to use shared (leave it out, or `multilingual: false` on a field):**
 
 - Universal product identifiers (GTIN, EAN, MPN, internal SKUs)
 - Technical specifications with numeric values (weight, dimensions, voltage)
@@ -558,12 +570,22 @@ query GetProduct($path: String!, $language: String!) {
                 price
             }
             # Component fields
-            description {
-                plainText
+            description: component(id: "description") {
+                content {
+                    ... on RichTextContent {
+                        plainText
+                    }
+                }
             }
-            # Relationship components can specify language
-            brand {
-                name # Automatically uses parent query language
+            # Related items resolve in the parent query language
+            brand: component(id: "brand") {
+                content {
+                    ... on ItemRelationsContent {
+                        items {
+                            name
+                        }
+                    }
+                }
             }
         }
     }
@@ -572,7 +594,7 @@ query GetProduct($path: String!, $language: String!) {
 
 **For non-translatable components:**
 
-- The default language's content is returned for all queries
+- The same shared value is returned for every language
 - Ensures universal data (GTINs, dimensions, dates) is consistent across markets
 
 **For translatable components:**
@@ -594,19 +616,18 @@ This gives you full control over fallback behavior based on your business rules 
 
 ### Planning for Production
 
-**Critical**: Changing `isTranslatable` settings after content is created has side effects.
+**Critical**: Changing `multilingual` settings after content is created has side effects. Changing the shape rewrites no item content, so the effects show up on read and on the next save.
 
 **When switching from localized to shared:**
 
-- All language variations are discarded
-- Content defaults back to the default language value
-- All markets will see the same content (from default language)
-- **This is irreversible** — translations are permanently lost
+- Each language keeps showing its own translation until the item is saved, because the read falls back to it
+- The next save writes a shared value, and every language then shows it
+- All markets end up seeing the same content, item by item, in whatever language was last saved
 
 **When switching from shared to localized:**
 
-- Existing shared content becomes the default language value
-- All non-default languages start empty (need new translations)
+- Every language keeps showing the existing shared value, because the read falls back to it
+- A language only diverges once it gets its own value
 - Editors must add translations for each market
 
 **Best practices:**
@@ -616,7 +637,7 @@ This gives you full control over fallback behavior based on your business rules 
 3. **Test with 2-3 languages early** — verify your translation strategy works before scaling to many markets
 4. **Document your decisions** — explain why certain components are/aren't translatable for future maintainers
 5. **Use Semantic Bridges for reusable translations** — translate classification documents once, reuse everywhere
-6. **Avoid changing isTranslatable in production** — if needed, create new components and migrate content gradually
+6. **Avoid changing `multilingual` in production** — if needed, create new components and migrate content gradually
 
 ### Localization Examples by Use Case
 
@@ -700,23 +721,27 @@ Does the data need grouping/structure?
 
 ## Discoverability Rules
 
-The **discoverable** flag determines whether a component is **indexed in the Discovery API at all**. This is not just about filtering — if a component is NOT marked discoverable, it will be completely absent from Discovery API responses.
+The **discoverable** flag determines whether a component is **indexed in the Discovery API at all**. It is **on by default**: a component is indexed unless it sets `discoverable: false`. This is not just about filtering — a component with `discoverable: false` will be completely absent from Discovery API responses.
 
-**Discoverable = true:**
+**Discoverable left out, or `true`:**
 
 - Component data is indexed and returned in Discovery API queries
 - Component becomes available as a filter/sort/facet field
-- Generated field name follows the convention: `{componentId}_{subfield}_{type}`
+- Field names are the component path with hyphens turned to camelCase and dots to `_`. A numeric `weight` filters as `weight_number`, a variant component as `variants_weight_number`, and `hero-title` as `heroTitle`. The schema is generated per tenant, so introspect it rather than guess (see [[query]])
+- An id that clashes with a built-in Discovery field becomes `component_<id>`. Among them: `name`, `type`, `path`, `language`, `position`, `shape`, `topics`, `score`, and on products `variants`, `sku`, `price`, `stock`, `attributes`, on variants also `images` and `videos`, on folders `children`. Pick another id for a component you want to query under its own name
 
-**Discoverable = false:**
+**`discoverable: false`:**
 
 - Component data is NOT indexed in Discovery API
 - Component will NOT appear in Discovery API responses at all
+- On a chunk, choice or piece it removes everything inside. Set on one nested component, it removes only that one
 - Data is still available via Catalogue API and other APIs
 
-### When to Mark Components as Discoverable
+**Narrowing the query surface:** `searchable`, `filterable`, `sortable` and `facetable` are `true` when left out. Turn one off to drop that capability, which keeps the generated schema and full-text search smaller. The component stays stored and is still returned. On a chunk, choice or piece they cap everything inside: a child can only narrow further.
 
-**Mark as discoverable when:**
+### When to Keep Components Discoverable
+
+**Keep them discoverable when:**
 
 - Customers need to filter/search by this field (color, size, brand, price range)
 - You want to sort results by this field (weight, rating, date)
@@ -731,12 +756,12 @@ The **discoverable** flag determines whether a component is **indexed in the Dis
 - Switch (featured, on-sale) → enables boolean filtering
 - Item Relations (brand, category) → enables filtering by related items
 
-**Colors is the exception — do not reach for `discoverable` to build a colour filter.** Filter on the
+**Colors is the exception — do not build a colour filter on it, even though it is indexed.** Filter on the
 Selection or topic that carries the colour _name_, and keep the Colors component for the value you
 render. A hex is a poor facet: shoppers pick "Red", not `#B22222`, and two near-identical hexes will
 not collapse into one bucket. See "Colors vs Selection" above.
 
-**Do NOT mark as discoverable when:**
+**Set `discoverable: false` when:**
 
 - Data is for internal use only and should not be exposed in public APIs (external system IDs, integration keys, internal workflow flags)
 - Content contains sensitive organizational information not meant to be shared outside the organization
@@ -759,15 +784,15 @@ Remember: **non-discoverable does NOT mean "hidden"** — the data is still avai
 
 ### Discovery vs Catalogue API
 
-- **Discovery API** = fast search/filter engine with async indexing. Only includes discoverable component data. **Eventually consistent** — disconnected from database, updates propagate after a short delay.
-- **Catalogue API** = full content retrieval with direct database connection. Includes ALL component data regardless of discoverable flag. **Always in sync** — reflects changes immediately.
+- **Discovery API** = fast search/filter engine with async indexing. Only includes discoverable component data. **Eventually consistent** — updates propagate after a short delay.
+- **Catalogue API** = full content retrieval. Includes ALL component data regardless of discoverable flag. **Always in sync** — reflects changes immediately.
 
 **When to use each:**
 
 - **Discovery API** — when you need fast search/filter/faceting and can tolerate eventual consistency (typically seconds to minutes). Works for listing pages AND product detail pages if real-time accuracy isn't critical.
 - **Catalogue API** — when you need complete data or real-time accuracy. Essential for: admin interfaces, real-time inventory checks, editorial previews, integrations requiring guaranteed up-to-date data.
 
-**Important**: Adding or removing discoverable components requires **re-igniting** the Discovery API for the schema changes to take effect. Plan discoverability at shape design time to minimize re-ignitions.
+**Important**: Adding or removing discoverable components, and changing `searchable`, `filterable`, `sortable` or `facetable`, requires **re-igniting** the Discovery API (`igniteDiscoApi`) for the schema changes to take effect. Plan discoverability at shape design time to minimize re-ignitions.
 
 ## Component Validations
 
@@ -779,39 +804,40 @@ Every component type supports validation rules to enforce data integrity and gui
 | ------------------------ | ---------------------------------------------------------- |
 | **Single Line**          | Min/max character length, regex pattern, required/optional |
 | **Rich Text**            | Min/max character length, required/optional                |
-| **Paragraph Collection** | Min/max number of paragraphs, required/optional            |
+| **Paragraph Collection** | Required/optional                                          |
 
 **Example use cases:**
 
-- Single Line with regex: enforce URL format, validate email addresses, require specific SKU patterns
-- Rich Text min length: ensure product descriptions are at least 100 characters
-- Paragraph Collection min: require at least 3 sections for blog posts
+- Single Line with regex: enforce URL format, validate email addresses, require specific SKU patterns. The API rejects a pattern it considers unsafe (nested quantifiers and the like)
+- Rich Text min length: ensure product descriptions are at least 100 characters, counted on the plain text
+- Paragraph Collection required: at least one paragraph needs body text. A title or images alone count as empty
 
 ### Numeric Components
 
-| Component            | Available validations                            |
-| -------------------- | ------------------------------------------------ |
-| **Numeric**          | Min/max value, decimal places, required/optional |
-| **Properties Table** | Min/max number of rows, required/optional        |
+| Component            | Available validations            |
+| -------------------- | -------------------------------- |
+| **Numeric**          | Allowed units, required/optional |
+| **Properties Table** | Required/optional                |
+
+Numeric has no min or max value: range checks belong in your application. `decimalPlaces` is not a validation either: it truncates the stored number on write (`12.3456` with 2 places becomes `12.34`, it does not round).
 
 **Example use cases:**
 
-- Numeric min/max: weight must be between 0.1kg and 500kg, rating 1-5
+- Numeric units: only accept `g` or `kg`
 - Numeric decimal places: price to 2 decimals, weight to 3 decimals
-- Properties Table min rows: require at least 5 specifications per product
 
 ### Media Components
 
 | Component  | Available validations                                      |
 | ---------- | ---------------------------------------------------------- |
-| **Images** | Min/max count, max file size, min/max dimensions, required |
-| **Videos** | Min/max count, max file size, max duration, required       |
+| **Images** | Min/max count, required                                    |
+| **Videos** | Min/max count, required                                    |
 | **Files**  | Min/max count, max file size, allowed file types, required |
 
 **Example use cases:**
 
-- Images: require at least 3 product photos, max 10, each under 5MB, min 800px wide
-- Videos: max 1 demo video, under 100MB, under 3 minutes
+- Images: require at least 3 product photos, max 10
+- Videos: max 1 demo video
 - Files: allow only PDF/DOCX for datasheets, max 10MB per file
 
 ### Selection Components
@@ -820,7 +846,7 @@ Every component type supports validation rules to enforce data integrity and gui
 | ------------- | --------------------------------------------------------------------------------------------- |
 | **Selection** | Min/max selections, required/optional                                                         |
 | **Switch**    | No validations (always boolean true/false)                                                    |
-| **Datetime**  | Min/max date range, required/optional                                                         |
+| **Datetime**  | Required/optional                                                                             |
 | **Location**  | Required/optional                                                                             |
 | **Colors**    | Min/max number of entries, require label, restrict available colour spaces, required/optional |
 
@@ -830,17 +856,16 @@ Every component type supports validation rules to enforce data integrity and gui
 - **Checkboxes pattern**: min=0, max=5 → "Select up to 5 dietary preferences" — optional multi-select, can be null
 - **Required multi-select**: min=1, max=3 → "Select 1-3 colors" — at least one required, up to 3 allowed
 - **Preselected defaults**: Set `isPreselected: true` on commonly chosen options to prefill the selection for editors. Useful for default sizes, standard shipping modes, or common categories. Multiple options can be preselected.
-- Date range: launch date must be in the future, expiration within 2 years
 - **Colors with min=1, max=1, `requireLabel: true`**: exactly one named brand colour per item
-- **Colors with `colorPresets`**: editors can only choose from the approved palette
+- **Colors with `colorPresets` and no `customColorSpaces`**: editors can only choose from the approved palette in the App
 - **Colors with `customColorSpaces: ["hex", "pantone"]`**: a print-facing shape that wants screen and press values, and nothing else
 
 ### Relationship Components
 
-| Component         | Available validations                                   |
-| ----------------- | ------------------------------------------------------- |
-| **Item Relation** | Min/max relations, accepted shape identifiers, required |
-| **Grid Relation** | Min/max grids, required/optional                        |
+| Component         | Available validations                                             |
+| ----------------- | ----------------------------------------------------------------- |
+| **Item Relation** | Min/max items, min/max SKUs, accepted shape identifiers, required |
+| **Grid Relation** | Min/max grids, required/optional                                  |
 
 **Example use cases:**
 
@@ -850,23 +875,24 @@ Every component type supports validation rules to enforce data integrity and gui
 
 ### Structural Components
 
-| Component           | Available validations                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------- |
-| **Chunk**           | Min/max items (for repeating chunks), required                                                    |
-| **Choice**          | Required/optional                                                                                 |
-| **Multiple Choice** | Min/max choices selected, `allowDuplicates` (allow same choice multiple times), required/optional |
+| Component           | Available validations                                                   |
+| ------------------- | ----------------------------------------------------------------------- |
+| **Chunk**           | `repeatable` (`false` allows exactly one chunk), required               |
+| **Choice**          | Required/optional                                                       |
+| **Multiple Choice** | `allowDuplicates` (allow same choice multiple times), required/optional |
+
+A chunk or multiple choice has no min or max: the number of rows or blocks cannot be capped.
 
 **Example use cases:**
 
-- Chunk repeating: recipe must have at least 3 ingredients, kit must have 1-10 components
-- Multiple Choice for page builder: min=1 (at least one section), `allowDuplicates: true` (can repeat Banner section multiple times)
-- Multiple Choice for polymorphic product: min=1, max=3, `allowDuplicates: false` (product must have 1-3 detail Pieces, each unique)
+- Multiple Choice for page builder: `required: true` (at least one section), `allowDuplicates: true` (can repeat Banner section multiple times)
+- Multiple Choice for polymorphic product: `required: true`, `allowDuplicates: false` (product must have at least one detail Piece, each unique)
 
 ### Validation Best Practices
 
 1. **Start lenient, tighten later** — it's easier to add validations than remove them after content is created
 2. **Use validations to prevent common errors** — regex for SKU format, min/max for ratings, required for critical fields
-3. **Guide editors with clear validation messages** — "Product description must be at least 100 characters to ensure quality"
+3. **Guide editors in the component `description`** — "Product description must be at least 100 characters to ensure quality". The validation messages themselves cannot be customized
 4. **Combine with discoverability** — fields used for filtering should have validations ensuring data consistency
 5. **Test validations during shape design** — create test items to verify validation rules work as intended
 
@@ -882,7 +908,7 @@ Every component type supports validation rules to enforce data integrity and gui
 
 2. **Will this group repeat multiple times in the same location?** (like a list)
     - YES → Use a **Chunk with `repeatable: true`**
-    - NO → Use a **Chunk with `repeatable: false`** (or omit repeatable property)
+    - NO → Use a **Chunk with `repeatable: false`**
 
 ### Examples
 
@@ -964,10 +990,8 @@ Landing Page (Folder shape - folders can have children, documents cannot)
 
 ### Configuration
 
-- **Min choices**: 1 (page needs at least one section)
-- **Max choices**: unlimited (or set a limit like 20)
-- **Only allow unique**: false (editors can add multiple Banners or Text Blocks)
-- **Required**: yes
+- **`required`**: true (page needs at least one section)
+- **`allowDuplicates`**: true (editors can add multiple Banners or Text Blocks)
 
 ### Why This Pattern Works
 
@@ -1012,10 +1036,8 @@ Product Shape
 
 ### Configuration
 
-- **Min choices**: 1 (product must have at least one detail type)
-- **Max choices**: 3 (product can have multiple detail types but not all)
-- **Only allow unique**: true (each detail type can only be selected once)
-- **Required**: yes
+- **`required`**: true (product must have at least one detail type)
+- **`allowDuplicates`**: false (each detail type can only be selected once)
 
 ### Why This Pattern Works
 

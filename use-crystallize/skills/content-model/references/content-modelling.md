@@ -13,6 +13,7 @@ Every item in Crystallize has built-in fields that exist automatically:
 - `language` - Language code
 - `tree` - Catalogue tree position
 - `topics` - Topic classifications
+- `externalReference` - ID of the item in an external system
 - `createdAt` - Creation timestamp
 - `updatedAt` - Last modification timestamp
 
@@ -24,6 +25,7 @@ Every item in Crystallize has built-in fields that exist automatically:
 - `price` - Pricing information
 - `stock` - Inventory levels
 - `attributes` - Additional variant attributes
+- `externalReference` - ID of the variant in an external system
 
 **Components** are the additional, dynamic fields you add to shapes beyond these built-in fields. When designing shapes, you're defining what extra information is needed beyond what Crystallize provides automatically.
 
@@ -199,6 +201,77 @@ Grids → Homepage features, campaigns, seasonal collections
 - Publisher: Logo, description, catalogue
 - Series: Description, reading order, theme
 
+## Examples by Industry
+
+**Fashion:** Product with variants (size/color), material classifications, brand documents, care instructions
+
+**Food/Recipe Domain:** Complete model using Quantised Bridge pattern:
+
+```
+Product Shape: Ingredient
+  ├── Description (Rich Text)
+  ├── Nutrition (Piece → nutrition)
+  └── Allergens (Item Relations → allergen docs, acceptedShapeIdentifiers: ["allergen"])
+
+Product Shape: Recipe
+  ├── Description (Rich Text)
+  ├── Prep Time (Numeric, unit: minutes)
+  ├── Cook Time (Numeric, unit: minutes)
+  ├── Servings (Numeric)
+  ├── Ingredients (contentChunk, repeating) ← Quantised Bridge
+  │     ├── Quantity (Numeric)
+  │     ├── Unit (Selection: g, ml, pcs, tbsp, tsp, cup)
+  │     └── Ingredient (Item Relations → ingredient, acceptedShapeIdentifiers: ["ingredient"])
+  ├── Instructions (Paragraph Collection)
+  └── Allergens (Item Relations → allergen docs, derived from the ingredients by your own integration)
+
+Product Shape: Meal Kit
+  ├── Description (Rich Text)
+  ├── Recipes (contentChunk, repeating) ← Quantised Bridge
+  │     ├── Servings (Numeric)
+  │     └── Recipe (Item Relations → recipe, acceptedShapeIdentifiers: ["recipe"])
+  └── Dietary Tags (Item Relations → dietary docs)
+
+Document Shape: Allergen
+  ├── Icon (Images)
+  ├── Warning Text (Rich Text)
+  └── Severity (Selection: mild, moderate, severe)
+
+Piece: nutrition
+  ├── Calories (Numeric, unit: kcal)
+  ├── Protein (Numeric, unit: g)
+  ├── Carbs (Numeric, unit: g)
+  └── Fat (Numeric, unit: g)
+```
+
+This pattern enables: ingredient → recipe → meal kit composition with quantity tracking at each level. The data supports allergen rollup and nutrition calculation, but Crystallize does not compute them: your application or integration does.
+
+**Electronics:** Product with configuration options, compatibility rules, technical specs, brand classifications
+
+**Music/Instruments:** Guitar store example using Semantic Bridge pattern:
+
+```
+Product Shape: Guitar
+  ├── Description (Rich Text)
+  ├── Body Type (Item Relations → body-type docs, acceptedShapeIdentifiers: ["body-type"])
+  ├── Pickup Configuration (Item Relations → pickup docs, acceptedShapeIdentifiers: ["pickup"])
+  ├── Wood Type (Item Relations → wood docs, acceptedShapeIdentifiers: ["wood"])
+  ├── Brand (Item Relations → brand doc, acceptedShapeIdentifiers: ["brand"], min:1, max:1)
+  └── SEO (Piece → seo)
+
+Classification Documents:
+  ├── body-type: Stratocaster, Les Paul, Telecaster, SG...
+  ├── pickup: Single Coil, Humbucker, P90, Active...
+  ├── wood: Alder, Mahogany, Maple, Rosewood...
+  └── brand: Fender, Gibson, PRS, Ibanez...
+```
+
+This pattern allows rich content for each classification (e.g., brand logo, wood tone characteristics) while maintaining type safety through `acceptedShapeIdentifiers`.
+
+**B2B:** Service packages with tiers, case studies, industry classifications, expertise levels
+
+**Publishing:** Books with contributors (composite bridge), series, publishers, multi-format variants
+
 ## Common Patterns by Use Case
 
 ### E-commerce Fundamentals
@@ -316,6 +389,62 @@ Product Shape: Global Product
         ├── EU Piece (translated descriptions, certifications)
         ├── US Piece (FDA info, warnings)
         └── APAC Piece (local certifications)
+```
+
+## Common Use Cases
+
+### E-commerce Product with Variants
+
+```
+Product Shape: Clothing
+  ├── Description (Rich Text, translatable)
+  ├── Material (Item Relations → material documents, acceptedShapeIdentifiers: ["material"])
+  ├── Brand (Item Relations → brand document, acceptedShapeIdentifiers: ["brand"], min:1, max:1)
+  └── Care Instructions (Rich Text, translatable)
+
+Variant-level (built-in):
+  ├── Size (attribute)
+  ├── Color (attribute)
+  ├── SKU (built-in)
+  ├── Images (built-in)
+  └── Price (built-in)
+```
+
+### Recipe with Ingredients
+
+```
+Document Shape: Recipe
+  ├── Description (Rich Text)
+  ├── Ingredients (contentChunk, repeating)
+  │     ├── Quantity (Numeric)
+  │     ├── Unit (Selection: g, ml, pcs)
+  │     └── Ingredient (Item Relations → ingredient products, acceptedShapeIdentifiers: ["ingredient"])
+  └── Allergens (Item Relations → allergen documents, acceptedShapeIdentifiers: ["allergen"])
+```
+
+### Blog Post with Topics
+
+```
+Document Shape: Blog Post
+  ├── Hero Image (Images)
+  ├── Content (Paragraph Collection)
+  ├── Author (Item Relations → author document, acceptedShapeIdentifiers: ["author"])
+  ├── SEO (Piece → seo-metadata)
+  └── topics → Category topic map, Tags topic map
+```
+
+### Product Configurator
+
+```
+Product Shape: Configurable Product
+  └── Options (contentChunk, repeating)
+        ├── Option (Item Relations → option products, acceptedShapeIdentifiers: ["option"])
+        └── Quantity (Numeric)
+
+Document Shape: Configuration Rule
+  ├── If Option (Item Relations → option, acceptedShapeIdentifiers: ["option"])
+  ├── Rule Type (Selection: requires, excludes, optional)
+  └── Then Option (Item Relations → option, acceptedShapeIdentifiers: ["option"])
 ```
 
 ## Anti-Patterns to Avoid
@@ -478,7 +607,17 @@ This enforces:
 
 ### Required vs Optional Fields
 
-While Crystallize doesn't have a global "required" flag, you can enforce requirements through:
+Every component config takes `required`, and leaving it out is not the same as `false`:
+
+| `required` | Empty component                                                         | Component with content |
+| ---------- | ----------------------------------------------------------------------- | ---------------------- |
+| `true`     | Rejected                                                                | Fully validated        |
+| `false`    | Accepted. Every other rule is skipped                                   | Fully validated        |
+| left out   | Still held to its rules, so a `min`, `pattern` or `units` makes it fail | Fully validated        |
+
+This is why a new component in the App starts with `required: false`, and why a shape created through the API often needs it set explicitly. These checks run when an item is created or its components are updated.
+
+You can also enforce requirements through:
 
 1. **Item Relations**: `minItems: 1` makes the field required
 2. **Selection**: `min: 1, max: 1` for required single selection
@@ -492,6 +631,7 @@ Always restrict Item Relation components to specific shapes:
 ```json
 {
     "id": "ingredients",
+    "name": "Ingredients",
     "type": "itemRelations",
     "config": {
         "itemRelations": {
@@ -520,7 +660,7 @@ Without `acceptedShapeIdentifiers`, editors could link any shape type, breaking 
 
 ### Discovery API Optimization
 
-- Enable discovery only on fields used for filtering/search
+- Discovery indexes every component unless it sets `discoverable: false`, so turn it off on fields nobody searches
 - Numeric fields with discovery enabled can be sorted/filtered
 - Rich Text discovery enables full-text search on that content
 
@@ -528,7 +668,7 @@ Without `acceptedShapeIdentifiers`, editors could link any shape type, breaking 
 
 ### Adding New Components
 
-Safe - existing items get null/empty values for new components.
+Safe - existing items get null/empty values for new components. The next update to one of those items is validated against the new definition, though: a new component with `required: true`, or with a `min`, `pattern` or `units` and `required` left out, makes that update fail until it is filled.
 
 ### Removing Components
 
@@ -537,7 +677,7 @@ Dangerous - data loss. Consider:
 1. Export data first
 2. Create new shape with migration path
 3. Gradually migrate content
-4. Archive old shape when complete
+4. Delete the old shape when complete. A shape cannot be deleted while it has items or a role refers to it, and a piece cannot be deleted while a shape or another piece uses it
 
 ### Changing Component Types
 

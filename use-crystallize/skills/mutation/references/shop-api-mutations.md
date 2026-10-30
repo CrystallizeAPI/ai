@@ -10,16 +10,23 @@ Carts follow a state machine that controls what operations are allowed:
 
 ```
 cart → placed → ordered
-         ↘
-       abandoned
+  ↕      ↗
+abandoned
 ```
 
-| State       | Description                                     | Mutable? |
-| ----------- | ----------------------------------------------- | -------- |
-| `cart`      | Active cart, items and prices can be changed    | Yes      |
-| `placed`    | Locked for payment — no modifications allowed   | No       |
-| `ordered`   | Linked to an order via `orderId`                | No       |
-| `abandoned` | Explicitly abandoned (e.g., user left checkout) | No       |
+| State       | Description                                   | Mutable?                |
+| ----------- | --------------------------------------------- | ----------------------- |
+| `cart`      | Active cart, items and prices can be changed  | Yes                     |
+| `placed`    | Locked for payment — no modifications allowed | No                      |
+| `ordered`   | Linked to an order via `orderId`              | No                      |
+| `abandoned` | Explicitly abandoned, or left to go stale     | Yes: a write revives it |
+
+`abandon` works only from `cart`, so a placed cart cannot be abandoned: its only way forward is `ordered`.
+An abandoned cart goes back to `cart` on the next `hydrate` or write, and can be placed directly.
+
+**A write on a placed or ordered cart can look like it worked.** `hydrate` refuses a placed cart and serves
+an ordered one read-only, but `addSkuItem`, `setCustomer`, `setMeta` and the other item mutations answer with
+the changed cart while nothing is stored. Check `state` before you write.
 
 Query the cart state with:
 
@@ -28,12 +35,15 @@ query {
     cart(id: "cart-id") {
         id
         state # cart | placed | ordered | abandoned
-        isStale # true if prices may have changed since last hydration
-        isExpired # true if cart has expired
+        isStale # true once staleAt has passed: no write for context.staleTtl
+        isExpired # true once expiresAt has passed: no write for context.ttl
         orderId # set when an order is created from the cart
     }
 }
 ```
+
+Stale is about time, not prices. Every write pushes `staleAt` forward by `context.staleTtl` (1 hour by
+default), and a stale cart turns `abandoned` within about five minutes. Wishlists never go stale or expire.
 
 ## Cart Hydration
 
@@ -43,6 +53,14 @@ The primary mutation for creating and updating carts. Hydration:
 2. Fetches product data from Catalogue API
 3. Calculates prices, taxes, and totals
 4. Returns a fully constructed cart
+
+**Hydrating an existing `id` replaces the cart, it does not merge.** `items`, `externalItems`, `customer`,
+`meta` and `context` are all taken from this input, so anything you leave out is dropped, the customer and
+the price context included. Resend the whole cart, or use the targeted mutations below. An `id` that does
+not exist creates a new cart with a new id.
+
+**A SKU the catalogue does not return is dropped with no error**: an unknown SKU, an unpublished product,
+or a language it is not published in. Compare the `items` you get back with the ones you sent.
 
 ### Basic Hydration
 
@@ -56,9 +74,11 @@ mutation {
         isStale
         isExpired
         items {
-            sku
             name
             quantity
+            variant {
+                sku
+            }
             price {
                 gross
                 net
@@ -74,7 +94,7 @@ mutation {
 
 ### Hydration with Customer and Context
 
-The hydrate input accepts customer info inline — this is the recommended way to associate a customer during checkout. It also accepts item `type` and `group` for categorizing line items.
+The hydrate input accepts customer info inline — this is the recommended way to associate a customer during checkout. `isGuest` is required on `CustomerInput`. It also accepts item `type` and `group` for categorizing line items.
 
 ```graphql
 mutation {
@@ -171,6 +191,7 @@ mutation {
 | ---------- | ----------------- | -------- | ---------------------------------------------------------------------------------------------------------- |
 | `sku`      | `String!`         | Yes      | Product variant SKU                                                                                        |
 | `quantity` | `PositiveInt`     | No       | Quantity (default: 1)                                                                                      |
+| `lineId`   | `String`          | No       | Selects an existing line, needed only when several lines share a SKU. Read it from `items { lineId }`      |
 | `type`     | `CartItemType`    | No       | `standard`, `subscription`, `shipping`, `fee`, `promotion`, `refund`, `service`, `digital`, `bonus`, `tax` |
 | `group`    | `String`          | No       | Free-form group label (e.g., "Outdoor", "Plants")                                                          |
 | `taxRate`  | `Rate`            | No       | Override tax rate for this item                                                                            |
@@ -178,19 +199,24 @@ mutation {
 
 ### Context Options
 
-| Field                                  | Description                                        |
-| -------------------------------------- | -------------------------------------------------- |
-| `language`                             | Locale for product names (default: "en")           |
-| `selectedVariantIdentifier`            | Price variant to use as active price               |
-| `compareAtVariantIdentifier`           | Price variant for discount comparison              |
-| `decimals`                             | Decimal precision (default: 0, recommended: 4)     |
-| `pricesHaveTaxesIncludedInCrystallize` | Tax handling: `true` for B2C, `false` for B2B      |
-| `taxRate`                              | Override tax rate                                  |
-| `markets`                              | Array of markets for price lists                   |
-| `currency`                             | Display currency (must match price variant config) |
-| `customerGroup`                        | Customer group for pricing                         |
-| `fallbackVariantIdentifiers`           | Fallback price variants if selected is missing     |
-| `voucherCode`                          | Apply voucher code                                 |
+`context` holds `language`, `ttl`, `staleTtl` and a nested `price` object:
+
+| Field                                        | Description                                                                                                                                                             |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `language`                                   | Locale for product names (default: "en")                                                                                                                                |
+| `ttl`                                        | Seconds until the cart expires, reset by each write (default: 30 days)                                                                                                  |
+| `staleTtl`                                   | Seconds without a write before the cart goes stale (default: 1 hour)                                                                                                    |
+| `price.selectedVariantIdentifier`            | Price variant to use as active price (default: `default`)                                                                                                               |
+| `price.compareAtVariantIdentifier`           | Price variant for discount comparison                                                                                                                                   |
+| `price.fallbackVariantIdentifiers`           | Tried in order when the selected variant has no price. If none has one, the SKU's first price variant is used, so a wrong identifier prices the line instead of failing |
+| `price.decimals`                             | Decimal precision (default: 0, recommended: 4)                                                                                                                          |
+| `price.pricesHaveTaxesIncludedInCrystallize` | Default `false`. Tax handling: `true` for B2C, `false` for B2B                                                                                                          |
+| `price.discountOnNetPrices`                  | Apply discounts on the net price (default: `false`)                                                                                                                     |
+| `price.taxRate`                              | Override tax rate, between 0 and 1                                                                                                                                      |
+| `price.markets`                              | Array of markets for price lists                                                                                                                                        |
+| `price.currency`                             | Label stamped on the prices (default: `eur`). It converts nothing and nothing checks it against the price variant, so pass that variant's currency                      |
+| `price.customerGroups`                       | Customer groups for pricing (`customerGroup` is deprecated)                                                                                                             |
+| `price.voucherCodes`                         | Apply voucher codes (`voucherCode` is deprecated)                                                                                                                       |
 
 ### Hydration with External Items
 
@@ -217,9 +243,10 @@ mutation {
     ) {
         id
         items {
-            sku
             name
-            origin
+            variant {
+                sku
+            }
         }
     }
 }
@@ -229,7 +256,7 @@ mutation {
 
 ### Add SKU Item
 
-Add a single SKU item to an existing cart. If the item already exists and is managed, only the quantity is updated.
+Add a single SKU item to an existing cart. If the SKU is already in the cart, `quantity` is **added** to that line. It does not take a `booking`: use `bookSkuItem`, see [[bookable-resources]].
 
 ```graphql
 mutation {
@@ -248,7 +275,7 @@ mutation {
 
 ### Add External Item
 
-Add a fully custom item not in Crystallize (e.g., shipping, service fees).
+Add a fully custom item not in Crystallize (e.g., shipping, service fees). `name` and `variant` are required, and `variant.price` is the unit price. If the SKU is already an external line, `quantity` is added to it.
 
 ```graphql
 mutation {
@@ -258,8 +285,8 @@ mutation {
             sku: "shipping-standard"
             name: "Standard Shipping"
             quantity: 1
-            price: { gross: 9.99, net: 7.99 }
             type: shipping
+            variant: { price: { gross: 9.99, net: 7.99 }, product: { id: "shipping-product", path: "/shipping" } }
         }
     ) {
         id
@@ -279,9 +306,11 @@ mutation {
 
 ### Remove Items
 
+`quantity` defaults to 1, so leaving it out takes **one unit off** the line. The line goes when it reaches 0: pass its full quantity to remove it.
+
 ```graphql
 mutation {
-    removeCartItem(id: "cart-id", sku: "product-to-remove") {
+    removeCartItem(id: "cart-id", sku: "product-to-remove", quantity: 3) {
         id
         items {
             variant {
@@ -295,13 +324,17 @@ mutation {
 
 ### Update Item Quantity
 
+`addCartItem` adds to a line already in the cart and `removeCartItem` takes from it, both by a delta. A SKU that is not in the cart is ignored: use `addSkuItem` for that.
+
 ```graphql
 mutation {
-    setCartItem(id: "cart-id", sku: "product-sku", quantity: 5) {
+    addCartItem(id: "cart-id", sku: "product-sku", quantity: 2) {
         id
         items {
-            sku
             quantity
+            variant {
+                sku
+            }
         }
     }
 }
@@ -309,15 +342,17 @@ mutation {
 
 ### Change Item Pricing
 
-Override managed pricing (makes item unmanaged):
+Override managed pricing (makes item unmanaged). `price` is the unit price, and `input` also takes `quantity`, which is how to set an absolute quantity. A SKU that is not in the cart is ignored.
 
 ```graphql
 mutation {
-    changeCartItemPricing(id: "cart-id", sku: "product-sku", price: { gross: 49.99, net: 39.99 }) {
+    changeCartItemPricing(id: "cart-id", input: { sku: "product-sku", price: { gross: 49.99, net: 39.99 } }) {
         id
         items {
-            sku
-            managed
+            context # HashMap: managed, origin, taxRate
+            variant {
+                sku
+            }
             price {
                 gross
                 net
@@ -327,15 +362,21 @@ mutation {
 }
 ```
 
+An unmanaged line keeps its price through later hydrations, only its quantity moves.
+
+`setCartItem(id:, input:)` is the full form: it takes the same `CartItemInput` as `addExternalItem`, so `name` and `variant` are required, then adds or replaces the line and flags it unmanaged.
+
 ## Customer Information
 
 ### Set Customer on Cart
+
+The argument is `input` here, and `customer` on the `/order` endpoint's `setCustomer`. `isGuest` is required, and the customer you send replaces the one on the cart.
 
 ```graphql
 mutation {
     setCustomer(
         id: "cart-id"
-        customer: { firstName: "John", lastName: "Doe", email: "john@example.com", phone: "+1234567890" }
+        input: { isGuest: false, firstName: "John", lastName: "Doe", email: "john@example.com", phone: "+1234567890" }
     ) {
         id
         customer {
@@ -349,52 +390,62 @@ mutation {
 
 ### Set Addresses
 
+Addresses live on the customer, so they go in `customer.addresses` with a `type` of `billing`, `delivery` or `other`:
+
 ```graphql
 mutation {
-    setAddresses(
+    setCustomer(
         id: "cart-id"
-        billing: { street: "123 Main St", city: "New York", postalCode: "10001", country: "US" }
-        delivery: { street: "456 Oak Ave", city: "Brooklyn", postalCode: "11201", country: "US" }
+        input: {
+            isGuest: false
+            firstName: "John"
+            addresses: [
+                { type: billing, street: "123 Main St", city: "New York", postalCode: "10001", country: "US" }
+                { type: delivery, street: "456 Oak Ave", city: "Brooklyn", postalCode: "11201", country: "US" }
+            ]
+        }
     ) {
         id
     }
 }
 ```
 
-## Cart to Order Intent
+### Set Cart Metadata
 
-Get cart formatted for order creation:
+`merge` defaults to `true`, and `false` replaces all the meta.
 
 ```graphql
 mutation {
-    cartAsOrderIntent(id: "cart-id") {
-        customer {
-            firstName
-            lastName
-            email
-        }
+    setMeta(id: "cart-id", meta: [{ key: "campaign", value: "summer" }], merge: true) {
+        id
+        meta
+    }
+}
+```
+
+## Cart to Order Intent
+
+`createFromCart` is the normal way to get an order from a cart. Use `orderIntent`, a **query** on `/cart`, when you create the order yourself: it works on a placed cart only, and you close the cart with `fulfill` afterwards.
+
+```graphql
+query {
+    orderIntent(id: "cart-id", format: shop) {
+        order # HashMap: the order input
         cart {
-            sku
-            name
-            quantity
-            price {
-                gross
-                net
-            }
-        }
-        total {
-            gross
-            net
+            id
+            state
         }
     }
 }
 ```
 
+`format` is `legacy` (the default), `core`, `coreWithOrderV2` or `shop`. Use `shop` for the `/order` `create` mutation.
+
 ## Cart Lifecycle
 
 ### Place Cart
 
-Placing a cart locks it and makes it **immutable**. This should happen when the user enters checkout (e.g., before collecting payment). After placing, items, quantities, and prices cannot be changed.
+Placing a cart locks it and makes it **immutable**. This should happen when the user enters checkout (e.g., before collecting payment). After placing, items, quantities, and prices cannot be changed. `place` hydrates the cart one last time first, so charge the `total` it returns, not the one you showed earlier.
 
 ```graphql
 mutation {
@@ -418,7 +469,7 @@ mutation {
 
 ### Fulfill Cart
 
-**Not needed after `createFromCart`.** [`createFromCart`](shop-api-order-mutations.md) on the `/order` endpoint already moves the cart to `ordered` and sets `orderId`, and the order id is the cart id. Use `fulfill` to link a cart to an order created some other way:
+**Not needed after `createFromCart`.** [`createFromCart`](shop-api-order-mutations.md) on the `/order` endpoint already moves the cart to `ordered` and sets `orderId`, and the order id is the cart id. Use `fulfill` to link a placed cart to an order created some other way:
 
 ```graphql
 mutation {
@@ -432,7 +483,7 @@ mutation {
 
 ### Abandon Cart
 
-Explicitly mark a cart as abandoned (e.g., user left checkout, session timeout):
+Explicitly mark a cart as abandoned (e.g., user left checkout, session timeout). This fails on a placed or ordered cart.
 
 ```graphql
 mutation {
@@ -445,7 +496,7 @@ mutation {
 
 ### Mark as Wishlist
 
-Convert a cart to a non-expiring wishlist:
+Convert a cart in state `cart` to a non-expiring wishlist:
 
 ```graphql
 mutation {
@@ -459,22 +510,15 @@ mutation {
 
 ### Set Cart Expiration
 
-```graphql
-mutation {
-    setCartExpiration(id: "cart-id", expiresAt: "2024-12-31T23:59:59Z") {
-        id
-        expiresAt
-    }
-}
-```
+There is no expiration mutation. Pass `context.ttl` and `context.staleTtl`, in seconds, to `hydrate`.
 
 ### Remove Cart
 
+`remove` returns a Boolean, so it takes no selection:
+
 ```graphql
 mutation {
-    remove(id: "cart-id") {
-        id
-    }
+    remove(id: "cart-id")
 }
 ```
 
@@ -483,9 +527,9 @@ mutation {
 The full checkout flow spans the Core API, `/cart` endpoint, and `/order` endpoint:
 
 ```
-0. (Optional) Create Customer → Core API  — createCustomer
+0. (Optional) Create Customer → POST /customer — customer(input:)
 1. Hydrate Cart               → POST /cart   — Create cart with items, customer, context
-2. (Optional edits)           → POST /cart   — addSkuItem, setCustomer, setAddresses, etc.
+2. (Optional edits)           → POST /cart   — addSkuItem, setCustomer, etc.
 3. Place Cart                 → POST /cart   — Lock cart for payment
 4. Create Order               → POST /order  — createFromCart (⚠ different endpoint!)
 ```
@@ -495,9 +539,10 @@ separate fulfill step.
 
 ### Customer Creation
 
-Customers can be created **before** checkout via the [Core API](core-api.md) or **inline** during hydration:
+Customers can be created **before** checkout, on the Shop API or the [Core API](core-api.md), or **inline** during hydration:
 
-- **Core API** (persistent customer records): Use `createCustomer` with `type: individual` or `type: organization`. The customer's `identifier` (typically email) can then be passed to `hydrate`.
+- **Shop API `/customer`** (from a storefront): `customer(input: { identifier, ... })` creates or updates the customer, and `addAddress`, `setAddress`, `removeAddress` and `setMeta` edit it. The token needs the `customer` scope.
+- **Core API** (persistent customer records, from a back office): Use `createCustomer` with `type: individual` or `type: organization`. The customer's `identifier` (typically email) can then be passed to `hydrate`.
 - **Inline during hydrate** (recommended for checkout): Pass `customer: { identifier, firstName, lastName, isGuest }` directly in the hydrate input. This associates the customer with the cart without requiring a separate API call.
 
 For guest checkout, set `isGuest: true` in the hydrate customer input.
@@ -568,7 +613,8 @@ mutation {
 6. **Use item groups** — Group items logically ("Outdoor", "Plants") for organized order views
 7. **Handle managed state** — Know when items become unmanaged after price overrides
 8. **External items for non-catalog items** — Shipping, fees, discounts via `addExternalItem`
-9. **Auto-cleanup** — Carts expire after 3 months of inactivity
+9. **Auto-cleanup** — Carts expire 30 days after the last write by default (`context.ttl`) and are deleted three months after that
+10. **Don't write in parallel** — Most cart writes land just after the response, and on the same cart the last one wins. Wait for each answer and work from the cart it returns
 
 ## Related Links
 

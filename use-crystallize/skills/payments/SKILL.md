@@ -7,10 +7,9 @@ description: >
     capture, refund and cancellation from fulfilment pipelines. Use when adding a payment provider or method to a
     Crystallize storefront, building or fixing checkout payment or a payment webhook, stopping duplicate or unpaid
     orders, a cart changed after paying (two tabs, back button), capturing on shipment or refunding. Trigger on
-    "payment", "payment gateway", "webhook", "capture", "refund", "place cart", "lock the cart", "duplicate order",
-    "paymentStatus", "addPayments", "setPayments", "createFromCart", "createShopOrderManager", "Stripe", "Adyen",
-    "Klarna", "Qliro", "Dintero", "Vipps", "MobilePay", "Mollie", "Montonio", "QuickPay", "Two", "Razorpay",
-    "B2B invoice".
+    "payment", "payment gateway", "payment webhook", "capture", "refund", "place cart", "lock the cart",
+    "duplicate order", "paymentStatus", "addPayments", "setPayments", "createFromCart", "Stripe", "Adyen", "Klarna",
+    "Qliro", "Dintero", "Vipps", "MobilePay", "Mollie", "Montonio", "QuickPay", "Two", "Razorpay", "B2B invoice".
 metadata:
     author: Crystallize
     version: "2.0"
@@ -75,21 +74,35 @@ Crystallize closes it with `place`:
   so an order can only ever come from a frozen cart.
 - **Place first, then create the provider session — never the other way round.** Charge the `total` that
   `place` returns: `place` re-prices the cart from the catalogue one last time, so it can differ from the
-  last `hydrate`. Never take an amount from the browser.
+  last `hydrate`, and a SKU the catalogue no longer serves in the cart's language is dropped without an error (a
+  booking line makes `place` fail instead). Never take an amount from the browser.
+- **Hydrate with `context.price.decimals`** (4 suits most shops). The default is 0, and the Shop API then answers
+  rounded amounts: `place` says 20 for a cart worth 19.99, and you charge 20 for an order of 19.99. `total.currency`
+  is `context.price.currency` exactly as you sent it (`eur` when you send none), whatever the price variant's
+  currency is called: send an ISO 4217 code.
 - **Everything the order needs goes on the cart before `place`:** customer and addresses
   (`setCustomer`), shipping as an external item so it is part of the total, and checkout choices that
   shape the order, such as a pickup point or a B2B company (cart `meta`). A payment method or bank
   preselection does not change the amount: keep it on the cart, or pass it when you create the session
   (and put it in the session's idempotency key) so the shopper can switch method on the same placed cart.
+  A later `hydrate` replaces `customer` and `meta` with what it is given: send them again, or set them after it.
+- **Cart writes land just after they answer.** `hydrate`, `setCustomer`, `setMeta` and the item mutations save a
+  moment after their response, so a `place` sent straight after can miss the write, or fail with "The cart was
+  changed by another request while it was being placed"; two writes in a row can overwrite each other. Read the cart
+  until it shows the write, then place. When `place` fails, read the cart again: `placed` means another request
+  placed it; otherwise place it again.
 - **Writes to a placed cart fail silently.** `addSkuItem`, `addExternalItem`, `setCustomer`, `setMeta`
-  and item changes answer with a cart that shows your change — but nothing is saved. Read
-  the cart's `state` before editing it.
+  and item changes answer with a cart that shows your change — but nothing is saved. `hydrate` and the booking
+  mutations do refuse ("A placed cart cannot be hydrated; its contents are frozen."). Read the cart's `state` before
+  editing it.
 - **Back from the payment page = a new cart.** If the shopper wants to change anything, `hydrate` a new
   cart without an id (copy the items over) and swap your cookie. The old placed cart keeps its own
   session; if that session is paid later, it pays for exactly the old cart — still consistent. Expire or
   cancel that old session where the provider allows it (each reference says how).
 - On a placed cart, `isStale` turns `true` after about an hour and means nothing: placed prices never
   change. Carts (placed included) are deleted about three months after they expire.
+- A cart still in the `cart` state turns `abandoned` once stale (`context.staleTtl`, 1 hour by default). That closes
+  nothing: an abandoned cart can still be hydrated, edited and placed. Only `ordered` is final.
 
 ```ts
 // app/api/checkout/pay/route.ts — the storefront's "Pay" button
@@ -100,7 +113,7 @@ export async function POST(req: Request) {
     const cart = (await carts.fetch(cartId, { state: true, ...PLACED_CART })) as unknown as PlacedCart & {
         state: "cart" | "placed" | "ordered" | "abandoned";
     };
-    if (cart.state !== "cart" && cart.state !== "placed") return Response.json({ error: "closed" }, { status: 409 });
+    if (cart.state === "ordered") return Response.json({ error: "closed" }, { status: 409 });
     const placed = cart.state === "placed" ? cart : ((await carts.place(cartId, PLACED_CART)) as unknown as PlacedCart);
     // → the provider reference's create function: amount = placed.total.gross, reference = placed.id. It reuses
     //   the cart's existing session, and answers "already paid" (→ the return page) when that session completed.
@@ -166,229 +179,22 @@ and reading Klarna's HPP session are optional. The reference says so; the page s
 
 ## `lib/crystallize-payments.ts`
 
-The provider references import these helpers. Everything goes through `@crystallize/js-api-client` (7.5 or later):
-`createCartManager` for the Shop API `/cart`, `createShopOrderManager` for `/order` (`createFromCart`,
-`addPayments`, `setPayments`) and `createShopCustomerManager` for `/customer`. The client fetches one Shop API
-token for all of them.
+The provider references import these helpers, so write this file first: the code is in
+[references/crystallize-payments-lib.md](references/crystallize-payments-lib.md). It needs
+`@crystallize/js-api-client` 7.5 or later.
 
-```ts
-// lib/crystallize-payments.ts
-import {
-    createCartManager,
-    createClient,
-    createShopCustomerManager,
-    createShopOrderManager,
-} from "@crystallize/js-api-client";
-
-export const api = createClient(
-    {
-        tenantIdentifier: process.env.CRYSTALLIZE_TENANT_IDENTIFIER!,
-        accessTokenId: process.env.CRYSTALLIZE_ACCESS_TOKEN_ID!,
-        accessTokenSecret: process.env.CRYSTALLIZE_ACCESS_TOKEN_SECRET!,
-    },
-    { shopApiToken: { scopes: ["cart", "order", "customer"] } }, // one token for every endpoint used here
-);
-export const carts = createCartManager(api);
-export const orders = createShopOrderManager(api);
-const customers = createShopCustomerManager(api);
-
-// What a provider session needs from the placed cart. `price` is the line total, `variant.price` the unit.
-// `type` tells product lines from external ones (`shipping`, `fee`, `promotion`, …).
-const ADDRESS = {
-    type: true,
-    firstName: true,
-    lastName: true,
-    street: true,
-    street2: true,
-    streetNumber: true,
-    postalCode: true,
-    city: true,
-    state: true,
-    country: true,
-    phone: true,
-    email: true,
-};
-const CUSTOMER = {
-    identifier: true,
-    isGuest: true,
-    type: true,
-    email: true,
-    firstName: true,
-    lastName: true,
-    phone: true,
-    companyName: true,
-    taxNumber: true,
-    addresses: ADDRESS,
-};
-export const PLACED_CART = {
-    total: { gross: true, net: true, taxAmount: true, currency: true },
-    items: {
-        lineId: true,
-        type: true,
-        name: true,
-        quantity: true,
-        variant: { sku: true, price: { gross: true, net: true, taxPercent: true } },
-        price: { gross: true, net: true, taxAmount: true, taxPercent: true },
-    },
-    customer: CUSTOMER,
-    meta: true,
-};
-type Address = { type: "delivery" | "billing" | "other" } & Partial<
-    Record<Exclude<keyof typeof ADDRESS, "type">, string | null>
->;
-type CartCustomer = {
-    identifier?: string | null;
-    isGuest?: boolean;
-    type?: "individual" | "organization" | null;
-    email?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-    phone?: string | null;
-    companyName?: string | null;
-    taxNumber?: string | null;
-    addresses?: Address[] | null;
-};
-export type PlacedCart = {
-    id: string;
-    total: { gross: number; net: number; taxAmount: number; currency: string };
-    items: {
-        lineId: string | null;
-        type: "standard" | "shipping" | "fee" | "promotion" | "service" | "digital" | string | null;
-        name: string;
-        quantity: number;
-        variant: { sku: string | null; price: { gross: number; net: number; taxPercent: number } } | null;
-        price: { gross: number; net: number; taxAmount: number; taxPercent: number };
-    }[];
-    customer: {
-        identifier?: string;
-        type?: "individual" | "organization";
-        email?: string;
-        firstName?: string;
-        lastName?: string;
-        phone?: string;
-        companyName?: string;
-        taxNumber?: string;
-        addresses?: Address[];
-    } | null;
-    meta: Record<string, string> | null;
-};
-
-export type PaymentStatus = "paid" | "partiallyPaid" | "partiallyRefunded" | "refunded" | "unpaid";
-export type Payment = {
-    provider: string; // lower-case provider name: "stripe", "klarna", "two", …
-    method?: string; // what the shopper used: card, vipps, invoice, bank, …
-    transactionId: string; // the provider's id for this payment or refund
-    amount: number; // MAJOR units, like the cart total
-    createdAt?: string;
-    meta?: { key: string; value: string }[];
-};
-
-/** Thrown when the provider should retry: answer 5xx. */
-export class RetryLater extends Error {}
-
-type CartState = { id: string; state: "cart" | "placed" | "ordered" | "abandoned"; customer: CartCustomer | null };
-export const readCart = async (id: string) =>
-    (await carts.fetch(id, { state: true, customer: CUSTOMER })) as unknown as CartState | null;
-
-type OrderRead = {
-    id: string;
-    coreId: string | null;
-    payments:
-        | {
-              provider: string;
-              method: string | null;
-              transactionId: string | null;
-              amount: number | null;
-              createdAt: string | null;
-              meta: Record<string, string> | null; // written as [{ key, value }], read back as an object
-          }[]
-        | null;
-};
-const ORDER = {
-    coreId: true,
-    payments: { provider: true, method: true, transactionId: true, amount: true, createdAt: true, meta: true },
-};
-/** null while the order is not readable yet: createFromCart and payment writes persist just after answering. */
-export const readOrder = (id: string) => orders.fetch<OrderRead>(id, ORDER).catch(() => null);
-
-/** The order id is the cart id. Creates it once; a later, different payment is recorded and flagged. */
-export async function createOrderOnce(
-    cartId: string,
-    paymentStatus: PaymentStatus,
-    payment: Payment,
-    pipelines?: { identifier: string; stage?: string }[], // e.g. [{ identifier: "fulfilment", stage: "new" }]
-) {
-    const cart = await readCart(cartId);
-    if (cart?.state === "ordered") return addRecord(cartId, payment, true);
-    if (cart?.state !== "placed") throw new Error(`cart ${cartId} is ${cart?.state ?? "missing"}`); // alert a human
-    await ensureCustomer(cart.customer);
-    await orders.createFromCart(cartId, { type: "standard", paymentStatus, payments: [payment], pipelines });
-}
-
-const toInput = (p: NonNullable<OrderRead["payments"]>[number]): Payment => ({
-    provider: p.provider,
-    method: p.method ?? undefined,
-    transactionId: p.transactionId ?? "",
-    amount: p.amount ?? 0,
-    createdAt: p.createdAt ?? undefined,
-    meta: Object.entries(p.meta ?? {}).map(([key, value]) => ({ key, value: String(value) })),
-});
-
-/** Refunds: append a record unless this transactionId is already on the order. */
-export const recordPayment = (orderId: string, payment: Payment) => addRecord(orderId, payment, false);
-
-async function addRecord(orderId: string, payment: Payment, isAnotherCharge: boolean) {
-    const order = await readOrder(orderId);
-    if (!order) throw new RetryLater(`order ${orderId} not readable yet`);
-    if (order.payments?.some((p) => p.transactionId === payment.transactionId)) return; // a redelivery
-    const flagged = isAnotherCharge && payment.meta?.find((m) => m.key === "type")?.value !== "refund";
-    if (flagged) console.error(`[payments] second payment ${payment.transactionId} for order ${orderId}: refund it`);
-    const record = flagged
-        ? { ...payment, meta: [...(payment.meta ?? []), { key: "attention", value: "duplicate-payment" }] }
-        : payment;
-    await orders.addPayments(orderId, [record]);
-}
-
-/** Capture, cancel: change one record and write the whole list back (setPayments replaces all). */
-export async function updatePayment(orderId: string, transactionId: string, change: (p: Payment) => Payment) {
-    const order = await readOrder(orderId);
-    if (!order?.payments) throw new RetryLater(`order ${orderId} not readable yet`);
-    const payments = order.payments.map(toInput).map((p) => (p.transactionId === transactionId ? change(p) : p));
-    await orders.setPayments(orderId, payments);
-}
-
-export const withMeta = (p: Payment, values: Record<string, string>, amount = p.amount): Payment => ({
-    ...p,
-    amount,
-    meta: [
-        ...(p.meta ?? []).filter((m) => !(m.key in values)),
-        ...Object.entries(values).map(([key, value]) => ({ key, value })),
-    ],
-});
-
-/** The Shop API rejects null where a field is optional: send only what the cart has. */
-const defined = <T extends object>(o: T) =>
-    Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined)) as {
-        [K in keyof T]?: NonNullable<T[K]>;
-    };
-
-/** The docs' "create the customer in Crystallize if it does not exist yet". Guests are skipped. */
-async function ensureCustomer(customer: CartCustomer | null) {
-    if (!customer?.identifier || customer.isGuest) return;
-    const exists = await customers.fetch(customer.identifier).then(
-        () => true,
-        () => false, // fetch rejects when the customer does not exist
-    );
-    if (exists) return; // never overwrite a known customer with checkout data
-    const { isGuest, addresses, ...fields } = customer;
-    await customers.upsert({
-        ...defined(fields),
-        identifier: customer.identifier,
-        type: customer.type ?? (customer.companyName ? "organization" : "individual"),
-        addresses: addresses?.map((address) => ({ ...defined(address), type: address.type })),
-    });
-}
-```
+| Export                      | What it does                                                                |
+| --------------------------- | --------------------------------------------------------------------------- |
+| `api`, `carts`, `orders`    | The client and the Shop API `/cart` and `/order` managers, on one token     |
+| `PLACED_CART`, `PlacedCart` | What a provider session needs from the placed cart: selection and type      |
+| `Payment`, `PaymentStatus`  | The payment record and the order's `paymentStatus`                          |
+| `RetryLater`                | Thrown when the provider should retry: answer 5xx                           |
+| `readCart`, `readOrder`     | The cart's state and customer; the order's payments, `null` until readable  |
+| `createOrderOnce`           | Customer, then `createFromCart` once; a later, different payment is flagged |
+| `recordPayment`             | Refunds: appends a record unless its `transactionId` is already there       |
+| `updatePayment`, `withMeta` | Capture, cancel: changes one record and writes the whole list back          |
+| `syncStages`                | Copies Core's stages onto the Shop order: run it before a Shop write        |
+| `defined`                   | Drops `null` and `undefined`, which the Shop API and the client both refuse |
 
 A provider webhook route then reads:
 
@@ -482,9 +288,10 @@ for every provider — `provider` is a free string. Use it for all of them:
 
 Crystallize stores it as a custom payment whose properties are `provider`, `transactionId`, `amount`,
 `method`, `createdAt` and every `meta` key — so never use those five names as meta keys. Keep meta
-small: `state`, `type` (`refund` on refund records), `cartId`, and the few provider ids needed later.
-The Shop API returns `meta` as an object (`{ state: "authorized" }`); `toInput` above turns it back into
-the `[{ key, value }]` list the mutations take.
+small: `state`, `type` (`refund` on refund records), `cartId`, and the few provider ids needed later
+(the helpers add `gateway`, see [below](#the-shop-order-and-the-core-order)).
+The Shop API returns `meta` as an object (`{ state: "authorized" }`) and `createdAt` as epoch milliseconds in a
+string; `toInput` in the helpers turns them back into what the mutations take.
 
 ### paymentStatus
 
@@ -507,16 +314,34 @@ Do **not** patch `paymentStatus` or payments through the Core API's `updateOrder
 Core write is pushed back to the Shop order as a whole and can overwrite payments you have just set
 through the Shop API. Keep every write to a checkout order on the Shop API `/order` endpoint.
 
+### The Shop order and the Core order
+
+A checkout order lives in two copies, and a write to one can damage the other. `updatePayment` and `recordPayment`
+deal with both traps below; before any other Shop write to the order (`setMeta`, `setCustomer`), call `syncStages`.
+
+- **A Shop write moves the Core stages.** Every `/order` mutation sends the whole Shop order to Core, and Core makes
+  the order's pipelines match its `pipelines` list: a stage that differs is moved back, a pipeline that is missing is
+  removed. That list only knows what the Shop API was told (`pipelines` at `createFromCart`, `addToStage`). Stage
+  moves made in the App or through the Core API do not reach it, nor do the pipelines Core picks for an order created
+  without `pipelines`. A bare `setPayments` after the order moved to "Shipped" therefore puts it back in its first
+  stage, or takes it out of the pipeline. The helpers read the stages from Core and copy them over with `addToStage`
+  before each payment write.
+- **A Core write replaces the Shop order.** After `updateOrder` or an edit in the App's order form, the Shop order's
+  payments read `provider: "custom"`, and writing them back would put that on the Core record too. The helpers keep
+  the real name in `meta` as `gateway` and restore it.
+
 ## Capture on shipment, from fulfilment pipelines
 
 Payment is the end of checkout and the start of the order's life. Put orders in a
 [fulfilment pipeline](https://crystallize.com/docs/commerce/order-management/fulfilment-pipelines) at
 creation (the last argument of `createOrderOnce`, passed to `createFromCart` as `pipelines`), and
-let the stage drive the provider:
+let the stage drive the provider. In `pipelines`, `identifier` is the pipeline **id** and `stage` the stage **id**,
+both required: a name such as `fulfilment` passes the Shop API, and the order then never reaches Core. Without
+`pipelines`, Core uses the pipelines the tenant set up for new orders.
 
-1. Crystallize → Settings → Webhooks: concern **Order**, event **pipeline stage change**, POST to
+1. Crystallize → Settings → Webhooks: concern **Orders**, event **Pipeline stage change**, POST to
    `/api/crystallize/order-stage`, **no GraphQL query**. The body is then
-   `{ orderId, pipelineId, stageId, tenantId, webhookId }` — `orderId` is the **Core** order id.
+   `{ orderId, pipelineId, stageId, tenantId, userId, webhookId }` — `orderId` is the **Core** order id.
 2. Verify `X-Crystallize-Signature` with the tenant's signature secret.
 3. Read the order's payment records from Core, take the `cartId` (= Shop order id), `provider` and
    `transactionId`, call the provider's capture (or cancel) with an idempotency key, then
@@ -547,7 +372,8 @@ export async function POST(req: Request) {
     const { order } = await api.nextPimApi<{
         order: { payment?: { properties?: { property: string; value: string | null }[] }[] };
     }>(
-        `query($id: ID!) { order(id: $id) { ... on Order { payment { ... on CustomPayment { properties { property value } } } } } }`,
+        // BasicError makes a refused read reject and answer 500, so the failure shows up. Without it this reads as "nothing to capture".
+        `query($id: ID!) { order(id: $id) { ... on Order { payment { ... on CustomPayment { properties { property value } } } } ... on BasicError { errorName message } } }`,
         { id: orderId },
     );
     const records = (order.payment ?? []).map((p) =>
@@ -566,7 +392,7 @@ export async function POST(req: Request) {
         return new Response("ok");
     } catch (error) {
         console.error(error);
-        return new Response("retry", { status: 500 }); // Crystallize retries failed webhooks
+        return new Response("failed", { status: 500 }); // logged as a failed invocation, not retried: see below
     }
 }
 ```
@@ -576,6 +402,12 @@ provider captures asynchronously (its `capture()` returns `null`), the record fl
 provider's own webhook, never before the capture has succeeded. Check
 how long each provider keeps an authorization alive (in its reference): made-to-order goods often ship
 after it expires.
+
+**Crystallize does not redeliver a failed webhook.** A non-2xx answer, or none within 10 seconds, stays a failed
+invocation until someone presses **Retry** on it (Settings → Webhooks, or `retryWebhookInvocation` on the Core API).
+Unlike a provider's webhook, a 5xx here retries nothing: subscribe a second webhook to concern **Webhooks**, event
+**Invocation failed**, to alert someone, or have a scheduled job re-check orders in the stage whose record is still
+`authorized`. Retrying is safe: `capture` is idempotent in every reference.
 
 ## Choosing a provider
 
@@ -616,6 +448,11 @@ provider's recurring API.
 - Calling a provider's old API family (eCom v2, Payments v1, `charges.data`) — each reference names the
   current one.
 - Patching `paymentStatus` or payments through Core `updateOrder` on a Shop API order.
+- Pipeline or stage names in `pipelines` or `addToStage`: both take ids.
+- A bare `setPayments` or `addPayments` after a stage move in the App: Core moves the order back.
+- Counting on Crystallize to redeliver a stage webhook that failed.
+- An explicit `undefined` in a client input (`method: undefined`, `pipelines: undefined`): the client prints it into
+  the query and the whole mutation fails. Leave the key out.
 - Long polling a provider inside one request instead of handling its webhook.
 
 ## References
@@ -624,6 +461,7 @@ Each reference opens with the provider at a glance, then: credentials and setup,
 from the placed cart, the client, the webhook, capture/refund/cancel, the mapping, provider specifics,
 going further, and common mistakes.
 
+- [references/crystallize-payments-lib.md](references/crystallize-payments-lib.md): the helpers every reference imports
 - [references/stripe.md](references/stripe.md)
 - [references/adyen.md](references/adyen.md)
 - [references/klarna.md](references/klarna.md)

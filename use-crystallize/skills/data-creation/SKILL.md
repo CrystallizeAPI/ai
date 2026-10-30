@@ -2,12 +2,12 @@
 name: data-creation
 description: >
     Generate and format catalogue items (products, documents, folders) for Crystallize PIM from sample/demo
-    requests or user-supplied data (spreadsheets, lists, descriptions). Use when the user wants to populate
-    a tenant with realistic items, bulk-create catalogue entries, import a spreadsheet of products, generate
-    demo data for a shape, map raw data onto shape components, assign items to folder locations, or produce
-    the `json:itemData` payload consumed by the Crystallize item-import grid. Also use when the user mentions
-    sample data, seed data, demo items, mock products, populating a catalogue, importing rows, mapping
-    columns to components, or filling a shape with variants.
+    requests or user-supplied data (spreadsheets, lists, descriptions). Use when the user wants realistic
+    sample items for a tenant, demo data for a shape, spreadsheet rows or lists mapped onto shape components,
+    items assigned to folder locations, or the `json:itemData` payload consumed by the Crystallize item-import
+    grid. Also use when the user mentions sample data, demo items, mock products, mapping columns to components,
+    or filling a shape with variants. To write items to a tenant, use mutation for a few and mass-operations for
+    bulk imports and seeding.
 metadata:
     author: Crystallize
     version: "1.0"
@@ -17,7 +17,7 @@ metadata:
 
 You are an expert at generating sample data for Crystallize PIM. Your role is to help users populate their catalogue with realistic items, mapped correctly onto an existing shape and placed in appropriate folder locations.
 
-This skill produces the **`json:itemData`** payload — the structured format consumed by the Crystallize item-import grid. Other skills handle adjacent concerns: use [[content-model]] to design the shapes themselves, [[information-architecture]] to design the folder hierarchy items will sit in, and [[mutation]] when you need to write the items to a tenant via the API instead of the grid.
+This skill produces the **`json:itemData`** payload — the structured format consumed by the Crystallize item-import grid. Other skills handle adjacent concerns: use [[content-model]] to design the shapes themselves, [[information-architecture]] to design the folder hierarchy items will sit in, and [[mass-operations]] or [[mutation]] when you need to write the items to a tenant via the API instead of the grid (see [Writing Items Without the Grid](#writing-items-without-the-grid)).
 
 ## Your Workflow
 
@@ -30,7 +30,7 @@ This skill produces the **`json:itemData`** payload — the structured format co
 
 ## Output Format
 
-ALWAYS output data in this exact fenced format when generating items. The `json:itemData` info-string is what the grid recognizes — do not change it.
+ALWAYS output data in this exact fenced format when generating items for the grid. The `json:itemData` info-string is what the grid recognizes — do not change it.
 
 ````
 ```json:itemData
@@ -57,7 +57,7 @@ ALWAYS output data in this exact fenced format when generating items. The `json:
 
 For **product** shapes, you MUST include these fields at the item level (NOT inside `components`):
 
-- **sku** — Unique product identifier, lowercase, hyphenated (e.g., `classic-red-rose-001`)
+- **sku** — Unique product identifier. Generated SKUs are lowercase and hyphenated (e.g., `classic-red-rose-001`), but that is only a convention: the API takes any non-empty string up to 512 characters, so keep SKUs from user-supplied data exactly as given.
 - **price** — Numeric price value (e.g., `29.99`, `149.00`)
 - **stock** — Integer stock quantity (e.g., `50`, `100`, `0` for out of stock)
 
@@ -122,7 +122,7 @@ Rules:
 - When there are **no** variant components and the user doesn't ask for variants → use the flat `sku`/`price`/`stock` format (single variant).
 - When there **are** variant components, OR the user requests variants → use the `variants` array.
 - The first variant in the array is the **default** variant.
-- Each SKU must be **globally unique** across all items and variants in the payload.
+- Each SKU must be **globally unique** across all items and variants in the payload, and across the tenant: a SKU already used by another product is rejected.
 
 ## Location Rules (IMPORTANT)
 
@@ -152,8 +152,13 @@ When generating data, match component types exactly:
 | `contentChunk`                                                                                   | Use **dot notation** for sub-components (see below).                                                                                                                                                                                                                                                             |
 | `piece`                                                                                          | Use **dot notation** for sub-components (see below).                                                                                                                                                                                                                                                             |
 | `propertiesTable`, `paragraphCollection`, `componentChoice`, `componentMultipleChoice`, `colors` | **Skip** — do NOT generate values for these complex types. `colors` entries are structured colour objects, not strings; author them through the API instead.                                                                                                                                                     |
+| `gridRelations`, `location`, `videos`, `files`                                                   | **Leave out and tell the user** — no `json:itemData` format is documented for these types.                                                                                                                                                                                                                       |
 
 **IMPORTANT:** Both `selection` keys AND `numeric` units MUST exactly match the configured values shown in `[options: ...]` and `[units: ...]`. Mismatches cause deployment failures.
+
+The API enforces the shape's other constraints the same way, so respect them when they are set: `singleLine` `min`, `max` (characters) and `pattern`; `richText` `min` and `max` (characters of plain text); `selection` `min` and `max` (number of keys); `images` `min` and `max`; `itemRelations` `minItems`, `maxItems`, `minSkus`, `maxSkus` and `acceptedShapeIdentifiers`.
+
+A component with `required: true` must have a value, on create and again on publish, even when it is a type you skip or the spreadsheet has no column for it. Tell the user instead of leaving it out silently.
 
 ### ContentChunk & Piece Sub-Components (DOT NOTATION)
 
@@ -215,7 +220,8 @@ Before emitting a `json:itemData` block, verify:
 - [ ] `shapeIdentifier` matches an existing shape on the tenant.
 - [ ] Every item has `name` and `location`.
 - [ ] Every **product** item has `sku` + `price` + `stock` (flat form) OR a `variants` array.
-- [ ] Every SKU in the payload is unique.
+- [ ] Every SKU in the payload is unique and not already in use on the tenant.
+- [ ] Every `required` component has a value, or the user has been told why it cannot.
 - [ ] `selection` values are exact keys from `[options: ...]`.
 - [ ] `numeric` units are exact strings from `[units: ...]`.
 - [ ] `itemRelations` values are paths starting with `/`, not plain names.
@@ -235,4 +241,36 @@ Before emitting a `json:itemData` block, verify:
 | Leaving `location` as `/` when the spreadsheet has Category/Subcategory columns.      | Combine the columns into a deep path like `/products/instruments/electric-guitars`.                  |
 | Putting a product image URL into a regular `images` component on a **product** shape. | Use `_defaultVariantImage` for the default variant image; variant-specific images go on the variant. |
 | Generating only 5 items from a 200-row spreadsheet.                                   | One item per row — no truncation for real imports.                                                   |
+| Rewriting a spreadsheet's SKUs to lowercase and hyphens.                              | Keep them exactly as given: that format is only a convention for generated SKUs.                     |
 | Generating values for `propertiesTable` / `paragraphCollection` / `componentChoice`.  | Skip these — the grid cannot import them via `json:itemData`.                                        |
+
+## Writing Items Without the Grid
+
+Only the grid reads `json:itemData`. It is not an API payload: the Core API, mass operations, the MCP server and the CLI do not accept it, so when no grid is attached (a coding agent working against a tenant, for example) a `json:itemData` block reaches nothing. Do the same mapping, then write the items yourself: [[mass-operations]] (`product/upsert`, `document/upsert`, `folder/upsert`) for imports and anything bulk, [[mutation]] for a few items.
+
+The "Available Folder Paths" and "Available Catalogue Paths" sections and the `[options: ...]` and `[units: ...]` hints will not be in your context there either. Read the shapes with the `fetch-content-model` MCP tool or `crystallize mass-operation dump-content-model <tenant> <file>`.
+
+The API input differs from `json:itemData` at almost every field:
+
+| `json:itemData`                   | API input                                                                                                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `location: "/a/b"`                | `tree: { parentId }`, the parent's item ID. Paths are not accepted.                                                                                                                   |
+| _(no equivalent)_                 | `language` on every write, and a required `vatTypeId` on products.                                                                                                                    |
+| Flat `sku`/`price`/`stock`        | One entry in `variants`: a product needs at least one.                                                                                                                                |
+| First variant is the default      | `isDefault: true` on exactly one variant. None, or more than one, is rejected.                                                                                                        |
+| Variant `name` is optional        | `name` is required on every variant.                                                                                                                                                  |
+| `price`                           | `priceVariants: [{ identifier: "default", price }]`. The Core API also takes `price`. A mass operation drops `price` without an error.                                                |
+| `stock`                           | `stockLocations: [{ identifier: "default", stock }]`. The Core API also takes `stock`. A mass operation drops `stock` without an error.                                               |
+| `attributes: { "size": "Small" }` | `attributes: [{ attribute: "size", value: "Small" }]`. A shape's variant components are separate: they go in the variant's `components`, which are rejected on a shape that has none. |
+| `image`, `_defaultVariantImage`   | `images: [{ key }]` on the variant.                                                                                                                                                   |
+| `components: { "id": value }`     | `components: [{ componentId: "id", <type>: content }]`, with `content` as in the rows below.                                                                                          |
+| `singleLine`                      | `singleLine: { text }`                                                                                                                                                                |
+| `richText`                        | `richText: { html: ["..."] }`, `richText: { json: [...] }` or both, each a list (see [[content-json]]). There is no plain text input.                                                 |
+| `numeric`                         | `numeric: { number: 25, unit: "cm" }`. The field is `number`, not `value`.                                                                                                            |
+| `boolean`, `datetime`             | `boolean: { value }`, `datetime: { datetime }`                                                                                                                                        |
+| `selection`                       | `selection: { keys: ["solid"] }`                                                                                                                                                      |
+| `images`                          | `images: [{ key }]`. A key, never a URL: copy a URL into the tenant first with `copyRemoteAsset` (see [[mutation]]).                                                                  |
+| `itemRelations`                   | `itemRelations: { itemIds: [...] }` or `itemRelations: { skus: [...] }`. Paths are not accepted.                                                                                      |
+| Dot notation                      | `piece: { identifier, components: [...] }`, `contentChunk: { chunks: [[...]] }`                                                                                                       |
+
+Created items stay unpublished until you publish them, and parent folders must exist first (`folder/upsert`, see [[information-architecture]]).
