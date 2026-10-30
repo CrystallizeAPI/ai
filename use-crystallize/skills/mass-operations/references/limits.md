@@ -79,6 +79,8 @@ loss in the whole format.
 - **Content for a `componentId` the shape doesn't have, or with a type key that doesn't match the shape,
   is dropped** on `product|document|folder /create|update|upsert` — no error. Only
   `item/updateComponent/*` reports it.
+- **`price` and `stock` set directly on a variant are not part of the schema**, so they are dropped. Use
+  `priceVariants` and `stockLocations`. The MCP mass-operation tools flag both keys.
 - **Stored content is dropped when its type no longer matches the definition**, e.g. after a shape
   change.
 
