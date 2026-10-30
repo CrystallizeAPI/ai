@@ -772,21 +772,22 @@ mutation Index {
 
 `setItemTaste` and `igniteDiscoApi` return unions whose error members implement `BasicError`, so a single
 fragment covers every failure and `errorName` identifies it. `upsertVocabulary` returns the `Vocabulary`
-directly and fails as a GraphQL error. `setItemTaste` and `igniteDiscoApi` can both return
-`ExperimentalFeaturesNotAvailableError`, which means vectors are not enabled for the tenant.
+directly and fails as a GraphQL error.
 
-Read back with `vocabulary(name:)` and `item(id:, language:) { taste { vocabulary entries { key weight } } }`.
+Read back with `vocabulary(name:)` and `item(id:, language:) { ... on Item { taste { vocabulary entries { key weight } } } }`.
 
 `publishItem` and `publishItems` both run in the background, so neither return is proof that the items are
 published yet — index right after them and the index may read the old versions. Wait for
 `item(id:, language:, versionLabel: published)` to show the new content first.
 
-**Re-run `igniteDiscoApi` after every change to vocabularies or taste entries** — an unindexed change
-has no effect and raises no error. Run it **last**, once shapes and published content exist. A task
+**Run `igniteDiscoApi` the first time, and again after every `upsertVocabulary`** — an unindexed vocabulary
+change has no effect and raises no error. A taste change needs no ignition on a tenant already served for
+ranking: publishing the item re-indexes it. Run it **last**, once shapes and published content exist. A task
 that ends in `error` is blocking: `bulkTask(id:) { ... on BulkTask { status info } }` carries the reason
-in `info.traces`. Probe Discovery with `{ __typename }` before reporting success. Omitting `stacks: opensearch` likewise fails silently: the index
-rebuilds, but without vectors. Full guidance, including vocabulary design, positional weights and
-key validation, is in the [[vector-ranking]] skill.
+in `info.traces`. Probe Discovery with `{ __typename }` before reporting success. On a tenant not yet served
+for ranking, omitting `stacks: opensearch` fails silently: the index rebuilds, but without vectors. On a
+tenant already served for ranking, the task ends in `error`. Full guidance, including vocabulary design,
+positional weights and key validation, is in the [[vector-ranking]] skill.
 
 ## Only in the legacy PIM API
 

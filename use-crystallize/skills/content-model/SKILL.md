@@ -419,4 +419,4 @@ Before presenting the mass operations JSON, verify:
 - [Shapes Reference](references/shapes.md) - Shape types, variantComponents, and creation process
 - [Pieces Reference](references/pieces.md) - Reusable field sets, standard SEO piece
 - [Taxonomies Reference](references/taxonomies.md) - Topic Maps and Grids
-- [[taxonomy]] — Use this skill to design topic maps (hierarchical taxonomies with `displayColor`, `pathIdentifier`, nesting) before referencing them from shapes here.
+- [[taxonomy]] — Use this skill to design topic maps (hierarchical taxonomies with `displayColor`, `pathIdentifier`, nesting). Topics are a built-in field on every item, so a shape does not reference them.

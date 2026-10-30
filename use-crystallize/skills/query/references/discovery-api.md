@@ -348,6 +348,9 @@ component fields available directly. This is the recommended approach for storef
 }
 ```
 
+**With no `sorting`, hits come back by `itemId` descending, not by relevance**, even with a `term`. Send
+`sorting: { score: desc }` to order by relevance.
+
 **Always add a deterministic secondary field** (such as `itemId`) so pagination stays stable across
 pages. Note that `sorting` does **not** compose predictably with ranking — see below.
 
