@@ -2,6 +2,8 @@
 
 A complete operations file following the 4-phase ordering described in [SKILL.md](../SKILL.md#mass-operations--4-phase-ordering).
 
+**Run this as it stands only on a tenant that has none of these shapes and pieces.** Phases 1 and 2 send no `components`, and an upsert replaces the whole definition, so on anything that already exists they empty it, and a run that stops before phases 3 and 4 leaves it empty. Skip phases 1 and 2 for anything that exists. [[mass-operations]] has the form for definitions that reference each other.
+
 ```json
 {
     "version": "1.0.0",
@@ -110,5 +112,3 @@ A complete operations file following the 4-phase ordering described in [SKILL.md
     ]
 }
 ```
-
-**Note:** Using `piece/upsert` or `shape/upsert` in a single operation (without the 4-phase split) will work ONLY if there are no cross-references. When pieces reference other pieces or shapes reference pieces/other shapes, the 4-phase order is required.

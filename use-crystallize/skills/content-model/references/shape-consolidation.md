@@ -257,9 +257,11 @@ Shape: Vase (product)
 
 When using the 4-phase ordering with consolidated shapes:
 
-1. **Phase 1**: Create variant-specific pieces (plant-attributes, vase-attributes)
-2. **Phase 2**: Create consolidated shape container
+1. **Phase 1**: Create every piece the shape references that does not exist yet: the variant-specific pieces (plant-attributes, vase-attributes) and shared ones such as `seo`
+2. **Phase 2**: Create consolidated shape container, if it does not exist yet
 3. **Phase 3**: Add components to variant pieces
 4. **Phase 4**: Add components (including the `componentChoice` with piece references) to consolidated shape
 
 This ensures all piece references in the `componentChoice` resolve correctly.
+
+**Consolidating on a live tenant: skip phases 1 and 2 for anything that already exists.** An upsert replaces the whole definition, so a container upsert empties an existing shape or piece, and a run that stops there leaves it empty. Phase 4 must also carry the shape's full definition: the example above shows only `components`, and sending no `variantComponents` on an existing product shape empties them.
