@@ -7,7 +7,7 @@ description: >
     /subscription-contract endpoint, usage tracking, renewals and renewal orders. Use when the user wants a
     monthly or yearly plan, a free trial, tiered or metered billing, pause/resume, upgrade or downgrade,
     cancel at period end, a recurring delivery, or a "my subscription" account page. Trigger on
-    "subscription", "subscriptions", "abonnement", "recurring", "membership", "plan", "trial",
+    "subscription", "abonnement", "recurring", "membership", "plan", "trial",
     "metered", "usage-based", "standing order", "renewal", "renewalDue", "subscriptionPlan",
     "createSubscriptionContract", "subscriptionContract", "renewSubscriptionContract",
     "pauseSubscriptionContract", "trackSubscriptionContractUsage", "createFromSubscriptionContract",
