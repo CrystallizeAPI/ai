@@ -7,6 +7,7 @@ The Core API provides comprehensive read access to items, customers, orders, sha
 - [Base URL](#base-url)
 - [Authentication](#authentication)
 - [Core API vs Other APIs](#core-api-vs-other-apis)
+- [Reading a Core Response](#reading-a-core-response) — Union results, component content, nulls, paging
 - [Item Queries](#item-queries) — Get by ID, list with pagination, get components, check identifiers
 - [Customer Queries](#customer-queries) — Get by identifier, list, customer groups
 - [Order Queries](#order-queries) — Get by ID, list with advanced filtering
@@ -54,6 +55,26 @@ curl -X POST 'https://api.crystallize.com/@your-tenant' \
 - Search and filtering
 - Public content access
 
+## Reading a Core Response
+
+Every query below follows these rules. The first three are checked before anything runs, so breaking one
+fails the whole request with a validation error.
+
+- **The tenant comes from the URL.** No query takes a `tenantId` argument.
+- **The root fields below return a union.** Select the result with `... on <Type>` and the failure with
+  `... on BasicError`; `items(...) { edges }` without a fragment does not validate. The list types are
+  `ItemConnection`, `CustomerConnection`, `CustomerGroupConnection`, `OrderConnection`, `PieceConnection`,
+  `FlowContentConnection`, `ArchivedItemVersionConnection`, `BulkTaskConnection` and `ImageConnection`.
+  `shapes` is the exception: it returns a plain `ShapeConnection`.
+- **`content` and `config` are unions too.** Give `content` one fragment per component type you expect. The
+  names carry `Component` here (`RichTextComponentContent`), unlike the Catalogue API (`RichTextContent`).
+- **A missing record is `null`, not an error.** `item`, `customer` and `order` answer `null` when nothing
+  matches, so a client has to handle `null` as well as the union members.
+- **An empty page has `edges: null`, not `[]`.** Guard before mapping over it.
+- **Keep the same `sort` on every page.** The cursor carries the sort field, and a different one is refused:
+  `Invalid pagination options: cannot provide a sort field and a cursor at the same time.` `first`/`after`
+  cannot be mixed with `last`/`before` either.
+
 ## Item Queries
 
 ### Get Item by ID
@@ -71,7 +92,15 @@ query GetItem {
             }
             components {
                 componentId
-                content
+                type
+                content {
+                    ... on SingleLineComponentContent {
+                        text
+                    }
+                    ... on RichTextComponentContent {
+                        html
+                    }
+                }
             }
             defaultVariant {
                 sku
@@ -96,20 +125,18 @@ query GetItem {
             shapeIdentifier
             components {
                 componentId
-                content
+                type
             }
         }
         ... on Folder {
             id
             name
             shapeIdentifier
-            children {
-                id
-                name
-                type
+            tree {
+                path
             }
         }
-        ... on ItemNotFoundError {
+        ... on BasicError {
             errorName
             message
         }
@@ -117,9 +144,14 @@ query GetItem {
 }
 ```
 
+`item` and `items` read the `current` version unless told otherwise (`versionLabel`: `current`, `draft` or
+`published`). `price` and `stock` read the `default` price variant and stock location: pass `identifier:`, or
+select `priceVariants` and `stockLocations`. A Core `Folder` has no `children` field; list them with
+`items(filter: { parentItemId: "folder-id" })`.
+
 ### List Items with Pagination
 
-> **`first` caps at 100.** Asking for more is refused —
+> **`first` defaults to 25 and caps at 100.** Asking for more is refused —
 > `Invalid pagination options: Cannot list more than 100 items at a time.` — and it arrives as an
 > `INTERNAL_SERVER_ERROR` with the path pointing at whatever field you selected, which makes it look like
 > something else went wrong. Page with `after` instead. Verified on a live tenant: `first: 100` returned
@@ -133,39 +165,50 @@ query ListItems {
         after: "cursor"
         filter: {
             shapeIdentifiers: ["product", "bundle"]
-            # path: { prefix: "/shop" }
-            # includeDescendants: true
+            # parentItemId: "folder-id"
+            # topicId: "topic-id"
         }
-        sort: { field: updatedAt, direction: desc }
+        sort: { field: createdAt, direction: desc }
     ) {
-        edges {
-            cursor
-            node {
-                id
-                name
-                type
-                shapeIdentifier
-                createdAt
-                updatedAt
-                ... on Product {
-                    defaultVariant {
-                        sku
-                        price
-                        stock
+        ... on ItemConnection {
+            edges {
+                cursor
+                node {
+                    id
+                    name
+                    type
+                    shapeIdentifier
+                    createdAt
+                    updatedAt
+                    ... on Product {
+                        defaultVariant {
+                            sku
+                            price
+                            stock
+                        }
                     }
                 }
             }
+            pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+            }
+            totalCount
         }
-        pageInfo {
-            hasNextPage
-            hasPreviousPage
-            startCursor
-            endCursor
+        ... on BasicError {
+            errorName
+            message
         }
-        totalCount
     }
 }
 ```
+
+`sort.field` is `name` (the default), `createdAt` or `position`: `updatedAt` is not sortable here. `filter` also
+takes `type`, `shapeIdentifier`, `name` (case-insensitive substring), `itemIds`, `externalReferences`,
+`relatingToItemId`, `imageKeys`, `videoKeys` and `fileKeys`. `parentItemId` lists direct children, shortcuts
+included.
 
 ### Get Item Component
 
@@ -178,7 +221,11 @@ query GetItemComponent {
             id
             component(id: "description") {
                 componentId
-                content
+                content {
+                    ... on RichTextComponentContent {
+                        html
+                    }
+                }
             }
         }
     }
@@ -189,13 +236,21 @@ query GetItemComponent {
 
 ```graphql
 query CheckIdentifier {
-    isIdentifierAvailable(tenantId: "tenant-id", identifier: "new-product-slug") {
+    isIdentifierAvailable(desired: "new-shape", type: shape) {
         ... on IdentifierAvailability {
-            available
+            isAvailable
+            suggestion
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
+
+`type` is required: `flow`, `flowStage`, `priceVariant`, `role`, `shape`, `stockLocation`, `customer` or
+`customerGroup`. `suggestion` is a free alternative when `isAvailable` is false.
 
 ## Customer Queries
 
@@ -205,20 +260,14 @@ query CheckIdentifier {
 query GetCustomer {
     customer(identifier: "customer@example.com") {
         ... on Customer {
-            id
             identifier
-            tenantId
-            ... on IndividualCustomer {
-                firstName
-                lastName
-                email
-                phone
-            }
-            ... on OrganizationCustomer {
-                name
-                taxId
-                organizationNumber
-            }
+            type
+            firstName
+            lastName
+            email
+            phone
+            companyName
+            taxNumber
             addresses {
                 type
                 firstName
@@ -237,7 +286,7 @@ query GetCustomer {
                 value
             }
         }
-        ... on CustomerNotFoundError {
+        ... on BasicError {
             errorName
             message
         }
@@ -245,66 +294,88 @@ query GetCustomer {
 }
 ```
 
+There is one `Customer` type for people and companies: `type` is `individual` or `organization`. Customers have
+no `id`. `customer` also answers on `externalReference: { key: "erp", value: "1234" }` instead of `identifier`.
+
 ### List Customers
 
 ```graphql
 query ListCustomers {
     customers(
-        tenantId: "tenant-id"
         first: 20
         filter: {
-            email: { contains: "@example.com" }
-            # customerType: individual
+            email: "jane@"
+            # type: individual
         }
     ) {
-        edges {
-            node {
-                id
-                identifier
-                ... on IndividualCustomer {
+        ... on CustomerConnection {
+            edges {
+                node {
+                    identifier
+                    type
                     firstName
                     lastName
                     email
-                }
-                ... on OrganizationCustomer {
-                    name
+                    companyName
                 }
             }
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+            totalCount
         }
-        pageInfo {
-            hasNextPage
-            endCursor
+        ... on BasicError {
+            errorName
+            message
         }
-        totalCount
     }
 }
 ```
+
+`email` is a case-insensitive **prefix** match, so a domain such as `@example.com` finds nothing. `identifier`,
+`firstName`, `lastName`, `companyName` and `phone` are case-insensitive substring matches. `filter` also takes
+`type`, `meta: { key, value }`, `parent: { identifier, type }` and `logicalOperator` (`and` by default, `or` to
+match any condition). `sort.field` is `createdAt` (the default), `name`, `identifier` or `type`.
 
 ### Get Customer Groups
 
 ```graphql
 query GetCustomerGroup {
-    customerGroup(id: "group-id") {
+    customerGroup(identifier: "group-identifier") {
         ... on CustomerGroup {
-            id
+            identifier
             name
-            customerIdentifiers
+            childCount
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 
 query ListCustomerGroups {
-    customerGroups(tenantId: "tenant-id", first: 20) {
-        edges {
-            node {
-                id
-                name
-                customerIdentifiers
+    customerGroups(first: 20) {
+        ... on CustomerGroupConnection {
+            edges {
+                node {
+                    identifier
+                    name
+                    childCount
+                }
             }
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
+
+A group does not list its members. Read them with
+`customers(filter: { parent: { identifier: "group-identifier", type: customerGroup } })`.
 
 ## Order Queries
 
@@ -315,15 +386,14 @@ query GetOrder {
     order(id: "order-id") {
         ... on Order {
             id
+            reference
             createdAt
             updatedAt
             customer {
                 identifier
-                ... on IndividualCustomer {
-                    firstName
-                    lastName
-                    email
-                }
+                firstName
+                lastName
+                email
             }
             cart {
                 sku
@@ -352,7 +422,8 @@ query GetOrder {
                 value
             }
         }
-        ... on OrderNotFoundError {
+        ... on BasicError {
+            errorName
             message
         }
     }
@@ -366,54 +437,66 @@ The Core API supports advanced order filtering by customer, SKU, payment provide
 ```graphql
 query ListOrders {
     orders(
-        tenantId: "tenant-id"
         first: 20
         filter: {
-            customerIdentifier: "customer@example.com"
+            customer: { identifier: "customer@example.com" }
             # sku: "PROD-123"
-            # paymentProvider: "stripe"
+            # paymentProvider: stripe
             # meta: [{ key: "source", value: "mobile-app" }]
         }
         sort: { field: createdAt, direction: desc }
     ) {
-        edges {
-            cursor
-            node {
-                id
-                createdAt
-                total {
-                    gross
-                    currency
-                }
-                customer {
-                    identifier
-                }
-                cart {
-                    sku
-                    name
-                    quantity
-                    price {
+        ... on OrderConnection {
+            edges {
+                cursor
+                node {
+                    id
+                    createdAt
+                    total {
                         gross
+                        currency
+                    }
+                    customer {
+                        identifier
+                    }
+                    cart {
+                        sku
+                        name
+                        quantity
+                        price {
+                            gross
+                        }
                     }
                 }
             }
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+            totalCount
         }
-        pageInfo {
-            hasNextPage
-            endCursor
+        ... on BasicError {
+            errorName
+            message
         }
-        totalCount
     }
 }
 ```
 
 **Filter Options:**
 
-- `customerIdentifier` - Filter by customer email/identifier
+- `customer` - `{ identifier, firstName, lastName, email, companyName, address: { street, city, country } }`
 - `sku` - Filter orders containing specific SKU
-- `paymentProvider` - Filter by payment method (stripe, klarna, etc.)
+- `paymentProvider` - Enum: `cash`, `custom`, `klarna`, `paypal` or `stripe`
+- `paymentStatus`, `types`, `reference` - Filter by payment status, order type or reference
 - `meta` - Filter by metadata key/value pairs
-- `createdAt` - Date range filtering
+- `createdAt`, `updatedAt` - Date range filtering: `{ min, max }`
+- `totalPrice` - `{ min, max, type }`, where `type` is `net` (the default) or `gross`
+- `pipelineId`, `pipelineIds`, `pipelineStageId`, `pipelineStageIds` - Filter by pipeline or stage
+- `stockLocationIdentifier`, `appliedPromotionIdentifier`, `hasSubscription`, `subscriptionContractId`,
+  `relatedToOrderId`
+
+`sort.field` is `updatedAt` (the default) or `createdAt`, and `direction` defaults to `desc`.
 
 ## Shape and Piece Queries
 
@@ -430,28 +513,48 @@ query GetShape {
                 id
                 name
                 type
-                config
+                description
             }
             variantComponents {
                 id
                 name
                 type
-                config
+                description
             }
+            resolvedConfiguration
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
 
+`config` on a component is the `ComponentConfig` union, so it needs one fragment per component type.
+`resolvedConfiguration` is the whole definition as JSON with pieces expanded, which is usually what a script
+wants.
+
 ### List All Shapes
+
+`shapes` is the one root field here with no union around it.
 
 ```graphql
 query ListShapes {
-    shapes(tenantId: "tenant-id") {
-        identifier
-        name
-        type
-        itemCount
+    shapes(first: 100) {
+        edges {
+            node {
+                identifier
+                name
+                type
+                itemCount
+            }
+        }
+        pageInfo {
+            hasNextPage
+            endCursor
+        }
+        totalCount
     }
 }
 ```
@@ -468,8 +571,11 @@ query GetPiece {
                 id
                 name
                 type
-                config
             }
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
@@ -479,17 +585,23 @@ query GetPiece {
 
 ```graphql
 query ListPieces {
-    pieces(tenantId: "tenant-id", first: 100) {
-        edges {
-            node {
-                identifier
-                name
-                components {
-                    id
+    pieces(first: 100) {
+        ... on PieceConnection {
+            edges {
+                node {
+                    identifier
                     name
-                    type
+                    components {
+                        id
+                        name
+                        type
+                    }
                 }
             }
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
@@ -501,15 +613,19 @@ query ListPieces {
 
 ```graphql
 query GetFlow {
-    flow(id: "flow-id") {
+    flow(identifier: "flow-identifier") {
         ... on Flow {
-            id
+            identifier
             name
+            type
             stages {
-                id
+                identifier
                 name
-                position
             }
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
@@ -521,24 +637,41 @@ List items in a flow stage:
 
 ```graphql
 query GetFlowContent {
-    flowContent(flowId: "flow-id", stageId: "stage-id", language: "en", first: 20) {
-        edges {
-            node {
-                item {
+    flowContent(first: 20, filter: { stageIdentifier: "stage-identifier" }) {
+        ... on FlowContentConnection {
+            edges {
+                node {
                     id
-                    name
-                    type
+                    stageIdentifier
+                    createdAt
+                    data {
+                        ... on FlowItemContentData {
+                            language
+                            version
+                            item {
+                                id
+                                name
+                                type
+                            }
+                        }
+                    }
                 }
-                assignedTo {
-                    id
-                    email
-                }
-                dueDate
             }
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
+
+Flows and stages are addressed by `identifier`. `filter.item` takes `{ id, language, version }` to find where an
+item sits, and `flowStage(identifier:)` reads one stage.
 
 ## Archive Queries
 
@@ -560,25 +693,38 @@ query GetArchive {
                 name
             }
         }
+        ... on BasicError {
+            errorName
+            message
+        }
     }
 }
 ```
+
+`archive` takes either `id` alone, or `itemId`, `language` and `number` together (plus an optional
+`versionLabel`, `published` by default). Mixing the two is refused.
 
 ### List Archived Versions
 
 ```graphql
 query ListArchives {
-    archives(itemId: "item-id", language: "en", first: 10, sort: { field: number, direction: desc }) {
-        edges {
-            node {
-                id
-                number
-                name
-                archivedAt
-                archivedBy {
-                    email
+    archives(filters: { itemId: "item-id", language: "en" }, first: 10, sort: { field: number, direction: desc }) {
+        ... on ArchivedItemVersionConnection {
+            edges {
+                node {
+                    id
+                    number
+                    name
+                    archivedAt
+                    archivedBy {
+                        email
+                    }
                 }
             }
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
@@ -603,6 +749,10 @@ query GetBulkTask {
                 email
             }
         }
+        ... on BasicError {
+            errorName
+            message
+        }
     }
 }
 ```
@@ -611,18 +761,26 @@ query GetBulkTask {
 
 ```graphql
 query ListBulkTasks {
-    bulkTasks(tenantId: "tenant-id", first: 20, filter: { status: running }) {
-        edges {
-            node {
-                id
-                type
-                status
-                createdAt
+    bulkTasks(first: 20, filter: { status: started }) {
+        ... on BulkTaskConnection {
+            edges {
+                node {
+                    id
+                    type
+                    status
+                    createdAt
+                }
             }
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
+
+`status` is `pending`, `started`, `complete` or `error`. `filter` also takes `type` and `actorId`.
 
 ## File and Image Queries
 
@@ -635,37 +793,55 @@ query GetImage {
             key
             url
             altText
-            caption
+            caption {
+                plainText
+            }
             variants {
                 url
                 width
                 height
             }
         }
-    }
-}
-```
-
-### List Images
-
-```graphql
-query ListImages {
-    images(tenantId: "tenant-id", first: 20, filter: { path: { prefix: "/products/" } }) {
-        edges {
-            node {
-                key
-                url
-                altText
-                createdAt
-            }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
 
+`image` and `images` take an optional `language` and fall back to the tenant's default language.
+
+### List Images
+
+```graphql
+query ListImages {
+    images(first: 20, filter: { filename: { value: "hero", condition: contains } }) {
+        ... on ImageConnection {
+            edges {
+                node {
+                    key
+                    url
+                    altText
+                    createdAt
+                }
+            }
+        }
+        ... on BasicError {
+            errorName
+            message
+        }
+    }
+}
+```
+
+`filename.condition` is `contains` (the default), `startsWith` or `endsWith`. `filter.topic` takes
+`{ ids, includeDescendants, logicalOperator }`.
+
 ## Error Handling
 
-The Core API uses union return types. Always handle potential errors:
+The Core API uses union return types. Always handle potential errors, and spread `BasicError`, the interface
+every error type implements, to catch them all in one fragment:
 
 ```graphql
 query {
@@ -674,11 +850,7 @@ query {
             id
             name
         }
-        ... on ItemNotFoundError {
-            errorName
-            message
-        }
-        ... on UnauthorizedError {
+        ... on BasicError {
             errorName
             message
         }
@@ -689,10 +861,12 @@ query {
 Common error types:
 
 - `UnauthorizedError` - Invalid or missing credentials
-- `ItemNotFoundError` - Item doesn't exist
-- `CustomerNotFoundError` - Customer doesn't exist
-- `OrderNotFoundError` - Order doesn't exist
+- `InvalidIdError` - The id is malformed; `providedValue` holds what was sent
+- `UnknownError` - Anything else; `errorName` carries the original error name
 - `BasicError` - Generic error
+
+`ItemNotFoundError` and `OrderNotFoundError` belong to mutations. They are not members of the `item` and `order`
+unions, so spreading them on a read fails validation: a read answers `null` instead.
 
 ## TypeScript Types
 
@@ -702,7 +876,8 @@ Use generated types for type safety:
 import { Query, GetItemQuery, GetCustomerQuery, ListOrdersQuery } from "@/generated/core";
 ```
 
-Types are generated from the Core API schema via GraphQL Code Generator.
+These come from your own GraphQL Code Generator run against the Core API schema: the import path is wherever
+your config writes them, and nothing is published under it.
 
 ## Related Links
 

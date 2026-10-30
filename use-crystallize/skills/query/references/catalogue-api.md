@@ -18,6 +18,9 @@ By default, the API is accessible without authentication. You can configure acce
 2. Choose your preferred access level
 3. Save changes
 
+A restricted Catalogue API takes the `X-Crystallize-Static-Auth-Token` header, or
+`X-Crystallize-Access-Token-Id` and `X-Crystallize-Access-Token-Secret`, depending on the level chosen.
+
 ## When to Use Catalogue API
 
 Use the Catalogue API when you need:
@@ -41,6 +44,10 @@ For search, filtering, and faceting, use the Discovery API instead.
     }
 }
 ```
+
+`catalogue` also takes `version` (`published` by default, or `draft`) and `pathResolutionMethods`. That one
+defaults to `[canonical]`, so an alias, a historic path or a shortcut answers `null` unless you ask for
+`alias`, `history`, `shortcut` or `any`.
 
 ### Product Query with Variants
 
@@ -66,20 +73,33 @@ For search, filtering, and faceting, use the Discovery API instead.
 
 ### Folder with Children
 
+`children` is deprecated. Read a folder through `subtree`, a cursor connection:
+
 ```graphql
 {
     catalogue(language: "en", path: "/shop/plants") {
         name
-        ... on Folder {
-            children {
-                name
-                path
-                type
+        subtree(first: 20, sortField: treePosition, sort: asc) {
+            edges {
+                cursor
+                node {
+                    name
+                    path
+                    type
+                }
+            }
+            pageInfo {
+                hasNextPage
+                endCursor
+                totalNodes
             }
         }
     }
 }
 ```
+
+`sortField` is `treePosition` (the default), `publishedAt` or `name`, and `type` narrows to `product`,
+`document` or `folder`.
 
 ### Document Query
 
@@ -139,8 +159,9 @@ frontend actually renders rather than all of them.
 `pantone` and `ral`. Every field is nullable — an entry only carries the notations that were authored,
 so a storefront reading `hex` needs a fallback for entries stored as Pantone only.
 
-Colour **filtering** does not belong here or in Discovery; filter on the Selection or topic that
-carries the colour name. See [[content-model]] for the modelling rule.
+Colour **filtering** does not belong here. Discovery does index a Colors component's `hex`, `label` and `ral`
+as filter fields, but filter on the Selection or topic that carries the colour name instead: near-identical
+hexes do not group into one facet. See [[content-model]] for the modelling rule.
 
 ## cURL Example
 
@@ -159,7 +180,7 @@ The Catalogue API does **not** support:
 - Full-text search
 - Filtering
 - Faceting
-- Sorting across multiple items
+- Sorting beyond the children of one item (`subtree`)
 
 Use the Discovery API for these capabilities.
 

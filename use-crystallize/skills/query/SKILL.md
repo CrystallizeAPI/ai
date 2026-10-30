@@ -21,7 +21,7 @@ Before writing queries, understand the context. Ask clarifying questions:
    A public Discovery endpoint serves **every price variant it exposes** to anyone who knows the field name
    (`nokPrice`, `wholesalePrice`, …), so confidential terms — negotiated B2B prices in particular — belong
    in a price list read from the Catalogue API server-side, not in a price variant. See [[pricing]].
-5. **What volume of results?** Pagination strategy matters — cursor-based is recommended for all APIs.
+5. **What volume of results?** Pagination strategy matters — cursor-based is recommended wherever an API has it. Shop API lists use `limit`/`skip`.
 
 ## Choosing the Right API
 
@@ -49,13 +49,15 @@ Crystallize provides four main APIs for querying data:
 
 ## API Endpoints
 
-| API         | Endpoint                                          | Auth Required           | Use For                        |
-| ----------- | ------------------------------------------------- | ----------------------- | ------------------------------ |
-| Core        | `https://api.crystallize.com/@{tenant}`           | Yes (access tokens)     | Admin, customers, orders       |
-| Discovery   | `https://api.crystallize.com/{tenant}/discovery`  | Optional (configurable) | Storefront search/filter       |
-| Catalogue   | `https://api.crystallize.com/{tenant}/catalogue`  | Optional (configurable) | Storefront path-based reads    |
-| Shop /cart  | `https://shop-api.crystallize.com/{tenant}/cart`  | Yes (JWT)               | Cart hydration, checkout flows |
-| Shop /order | `https://shop-api.crystallize.com/{tenant}/order` | Yes (JWT)               | Order queries by ID/customer   |
+| API                         | Endpoint                                                          | Auth Required           | Use For                        |
+| --------------------------- | ----------------------------------------------------------------- | ----------------------- | ------------------------------ |
+| Core                        | `https://api.crystallize.com/@{tenant}`                           | Yes (access tokens)     | Admin, customers, orders       |
+| Discovery                   | `https://api.crystallize.com/{tenant}/discovery`                  | Optional (configurable) | Storefront search/filter       |
+| Catalogue                   | `https://api.crystallize.com/{tenant}/catalogue`                  | Optional (configurable) | Storefront path-based reads    |
+| Shop /cart                  | `https://shop-api.crystallize.com/{tenant}/cart`                  | Yes (JWT)               | Cart hydration, checkout flows |
+| Shop /order                 | `https://shop-api.crystallize.com/{tenant}/order`                 | Yes (JWT)               | Order queries by ID/customer   |
+| Shop /customer              | `https://shop-api.crystallize.com/{tenant}/customer`              | Yes (JWT)               | Customer by identifier         |
+| Shop /subscription-contract | `https://shop-api.crystallize.com/{tenant}/subscription-contract` | Yes (JWT)               | Contracts by ID/customer       |
 
 ## Usage
 
@@ -79,7 +81,11 @@ query GetItem {
             name
             components {
                 componentId
-                content
+                content {
+                    ... on RichTextComponentContent {
+                        html
+                    }
+                }
             }
             defaultVariant {
                 sku
@@ -87,34 +93,43 @@ query GetItem {
                 stock
             }
         }
+        ... on BasicError {
+            errorName
+            message
+        }
     }
 }
 
 # Example: List orders filtered by customer
 query ListOrders {
     orders(
-        tenantId: "tenant-id"
         first: 20
-        filter: { customerIdentifier: "customer@example.com" }
+        filter: { customer: { identifier: "customer@example.com" } }
         sort: { field: createdAt, direction: desc }
     ) {
-        edges {
-            node {
-                id
-                total {
-                    gross
-                    currency
-                }
-                customer {
-                    identifier
+        ... on OrderConnection {
+            edges {
+                node {
+                    id
+                    total {
+                        gross
+                        currency
+                    }
+                    customer {
+                        identifier
+                    }
                 }
             }
+        }
+        ... on BasicError {
+            errorName
+            message
         }
     }
 }
 ```
 
-See [Core API Queries Reference](references/core-api.md) for complete documentation.
+The tenant comes from the URL, so no Core query takes a `tenantId`, and most root fields return a union. See [Core API Queries Reference](references/core-api.md) for complete documentation.
 
 ### Discovery API (Recommended for Storefronts)
 
@@ -139,7 +154,7 @@ The Discovery API has three entry points: `search` for full-text queries across 
             summary {
                 totalHits
                 hasMoreHits
-                endCursor
+                endToken
             }
             hits {
                 name
@@ -170,7 +185,7 @@ The Discovery API has three entry points: `search` for full-text queries across 
         summary {
             totalHits
             hasMoreHits
-            endCursor
+            endToken
             facets
         }
         hits {
@@ -214,7 +229,9 @@ query {
     cart(id: "cart-id") {
         id
         items {
-            sku
+            variant {
+                sku
+            }
             name
             quantity
             price {
@@ -238,18 +255,18 @@ query {
 4. **Request only needed fields** - GraphQL allows precise field selection to minimize payload
 5. **Handle async updates** - Discovery API may have sub-second delay for recently published content
 6. **Protect APIs in production** - Configure authentication for sensitive data
-7. **Use Core API for complex filters** - Only Core API supports filtering orders by customer, SKU, payment provider
+7. **Use Core API for complex filters** - Only Core API supports filtering orders by SKU, payment provider, stage or meta; the Shop API lists them by customer alone
 8. **Detect the Discovery schema, don't hardcode it** - Filter/sort/facet fields and the ranking arguments are tenant-generated; introspect before building a query
 9. **Keep Core out of the storefront** - Storefront reads are Discovery/Catalogue, and carts, orders, customers and subscription contracts are the Shop API
 10. **Scope `customerIdentifier` on the server** - The Shop API token is per tenant, not per shopper: `orders(customerIdentifier:)` answers for any identifier it is given, so take it from the session and never from the client
-11. **Read an order list through one store** - Orders edited in Core appear more than once in the Shop API's list; group by `coreId` and keep the newest copy (see the [Shop API Order Queries Reference](references/shop-api-order-queries.md))
+11. **Read an order list through one store** - Orders registered in Core and edited there appear more than once in the Shop API's list; group by `coreId` and keep the newest copy (see the [Shop API Order Queries Reference](references/shop-api-order-queries.md))
 
 ## References
 
 - [Core API Queries Reference](references/core-api.md) - Items, customers, orders, shapes with advanced filtering
 - [Discovery API Reference](references/discovery-api.md) - Search, browse, autocomplete, filters, facets, sorting, fuzzy matching, pagination and profiling
 - [Catalogue API Reference](references/catalogue-api.md) - Path-based query documentation
-- [Shop API Queries Reference](references/shop-api-queries.md) - Cart and checkout query documentation (`/cart` endpoint)
+- [Shop API Queries Reference](references/shop-api-queries.md) - Tokens and scopes, cart and checkout queries (`/cart` endpoint), customers and subscription contracts
 - [Shop API Order Queries Reference](references/shop-api-order-queries.md) - Order queries by ID or customer (`/order` endpoint)
 
 ## Related skills
