@@ -76,9 +76,14 @@ update meta.periodStart (and tier)       that same now, and nextTier → tier if
 - **A failed charge does not undo the renewal.** The dates have already moved, so decide what it means:
   `cancelSubscriptionContract { deactivate: true }` ends the contract now, `deactivate: false` lets the
   new period run out.
+- **`updateSubscriptionContract { meta }` replaces the whole list**, so send every key back with
+  `periodStart` and `tier`. On the Core copy of a contract born in the Shop store that includes
+  `_shopApiId`: without it, the next Core change reaches the Shop store under the Core id, and
+  `subscriptionContracts` fails on that element.
 - **To charge before the period starts**, bill from the day-ahead `renewalDue` instead (compare its
   `renewAt` with now): charge, then call `renewSubscriptionContract` yourself, which moves `renewAt` on so
-  the platform finds nothing due. If the charge fails, `cancelSubscriptionContract { deactivate: false }`
+  the platform finds nothing due. `renew` fires for that call too, so take billing off the `renew` webhook,
+  or it charges the period a second time. If the charge fails, `cancelSubscriptionContract { deactivate: false }`
   clears `renewAt` and the contract simply runs out. The usage of the ending period is not complete yet
   at that point, so this suits flat plans.
 - **For a safety net against a missed webhook**, keep the `renewAt` you last billed in `meta` and sweep
