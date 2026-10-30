@@ -6,7 +6,9 @@ See [SKILL.md](../SKILL.md) for endpoint URLs and authentication headers. This f
 
 ## Create Order from Cart
 
-Convert a placed cart into an order. The cart must be in "placed" state first (via `place` mutation on the `/cart` endpoint).
+Convert a placed cart into an order. The cart must be in "placed" state first (via `place` mutation on the `/cart` endpoint). Any other state fails, so a second call on the same cart fails too: the first one left it `ordered`.
+
+**The order is saved just after the answer.** An `addPayments` or `addToStage` sent right behind `createFromCart` can miss it, and an immediate read can lag. Pass `paymentStatus`, `payments` and `pipelines` in this input instead of chaining calls.
 
 ```graphql
 mutation CreateOrderFromCart($id: UUID!, $input: OrderFromCartInput) {
@@ -54,15 +56,15 @@ Variables:
 
 ### OrderFromCartInput
 
-| Field                     | Type                   | Description                      |
-| ------------------------- | ---------------------- | -------------------------------- |
-| `type`                    | `OrderType` enum       | Order type (default: `standard`) |
-| `paymentStatus`           | `OrderPaymentStatus`   | Payment status                   |
-| `payments`                | `[OrderPaymentInput]`  | Payment records                  |
-| `pipelines`               | `[OrderPipelineInput]` | Pipeline stage assignments       |
-| `stockLocationIdentifier` | `String`               | Stock location for inventory     |
-| `relatedOrderIds`         | `[String]`             | Related order IDs                |
-| `additionalInformation`   | `String`               | Free-text additional info        |
+| Field                     | Type                   | Description                                  |
+| ------------------------- | ---------------------- | -------------------------------------------- |
+| `type`                    | `OrderType` enum       | Order type. No default: pass `standard`      |
+| `paymentStatus`           | `OrderPaymentStatus`   | Payment status. Set here or never, see below |
+| `payments`                | `[OrderPaymentInput]`  | Payment records                              |
+| `pipelines`               | `[OrderPipelineInput]` | Pipeline stage assignments                   |
+| `stockLocationIdentifier` | `String`               | Stock location for inventory                 |
+| `relatedOrderIds`         | `[String]`             | Related **Core** order ids (`coreId`)        |
+| `additionalInformation`   | `String`               | Free-text additional info                    |
 
 ## Create Order Directly
 
@@ -157,20 +159,20 @@ Variables:
 
 ### OrderInput
 
-| Field                     | Type                   | Required | Description                               |
-| ------------------------- | ---------------------- | -------- | ----------------------------------------- |
-| `items`                   | `[OrderItemInput]`     | No       | Order line items                          |
-| `customer`                | `CustomerInput`        | No       | Customer information                      |
-| `context`                 | `OrderContextInput`    | No       | Price/language context                    |
-| `type`                    | `OrderType`            | No       | Order type (default: `standard`)          |
-| `paymentStatus`           | `OrderPaymentStatus`   | No       | Payment status                            |
-| `payments`                | `[OrderPaymentInput]`  | No       | Payment records                           |
-| `pipelines`               | `[OrderPipelineInput]` | No       | Pipeline stage assignments                |
-| `stockLocationIdentifier` | `String`               | No       | Stock location for inventory deduction    |
-| `relatedOrderIds`         | `[String]`             | No       | Related order IDs (returns, replacements) |
-| `additionalInformation`   | `String`               | No       | Free-text additional info                 |
-| `meta`                    | `[KeyValueInput]`      | No       | Arbitrary key-value metadata              |
-| `createdAt`               | `DateTime`             | No       | Override creation timestamp               |
+| Field                     | Type                   | Required | Description                                                                                                 |
+| ------------------------- | ---------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `items`                   | `[OrderItemInput]`     | No       | Order line items                                                                                            |
+| `customer`                | `CustomerInput`        | No       | Customer information                                                                                        |
+| `context`                 | `OrderContextInput`    | No       | `{ language, price: { currency, decimals, discountOnNetPrices } }`. `currency` defaults to `eur`, so set it |
+| `type`                    | `OrderType`            | No       | Order type. No default: pass `standard`                                                                     |
+| `paymentStatus`           | `OrderPaymentStatus`   | No       | Payment status. Set here or never, see below                                                                |
+| `payments`                | `[OrderPaymentInput]`  | No       | Payment records                                                                                             |
+| `pipelines`               | `[OrderPipelineInput]` | No       | Pipeline stage assignments                                                                                  |
+| `stockLocationIdentifier` | `String`               | No       | Stock location for inventory deduction                                                                      |
+| `relatedOrderIds`         | `[String]`             | No       | Related **Core** order ids (`coreId`), for returns and replacements. A Shop id fails the sync to Core       |
+| `additionalInformation`   | `String`               | No       | Free-text additional info                                                                                   |
+| `meta`                    | `[KeyValueInput]`      | No       | Arbitrary key-value metadata                                                                                |
+| `createdAt`               | `DateTime`             | No       | Override creation timestamp                                                                                 |
 
 ### OrderItemInput
 
@@ -182,6 +184,8 @@ Variables:
 | `price`                  | `PriceInput!`                | Yes      | Unit price (gross + net)       |
 | `productId`              | `String`                     | No       | Crystallize product ID         |
 | `imageUrl`               | `String`                     | No       | Item image URL                 |
+| `group`                  | `String`                     | No       | Free-form group label          |
+| `type`                   | `CartItemType`               | No       | Line type, see the enum below  |
 | `promotions`             | `[Float]`                    | No       | Discount amounts on item total |
 | `subscriptionContractId` | `String`                     | No       | Subscription contract ID       |
 | `subscription`           | `OrderItemSubscriptionInput` | No       | Subscription details           |
@@ -197,23 +201,22 @@ Variables:
 
 ### CustomerInput
 
-| Field                | Type              | Required | Description                    |
-| -------------------- | ----------------- | -------- | ------------------------------ |
-| `isGuest`            | `Boolean!`        | Yes      | Whether customer is guest      |
-| `identifier`         | `String`          | No       | Unique customer ID             |
-| `firstName`          | `String`          | No       | First name                     |
-| `lastName`           | `String`          | No       | Last name                      |
-| `middleName`         | `String`          | No       | Middle name                    |
-| `email`              | `String`          | No       | Email address                  |
-| `phone`              | `String`          | No       | Phone number                   |
-| `birthDate`          | `DateTime`        | No       | Date of birth                  |
-| `companyName`        | `String`          | No       | Company name                   |
-| `taxNumber`          | `String`          | No       | Tax/VAT number                 |
-| `type`               | `CustomerType`    | No       | `individual` or `organization` |
-| `externalReference`  | `String`          | No       | External system reference      |
-| `externalReferences` | `HashMap`         | No       | Multiple external refs         |
-| `addresses`          | `[AddressInput]`  | No       | Customer addresses             |
-| `meta`               | `[KeyValueInput]` | No       | Customer metadata              |
+| Field                | Type              | Required | Description                              |
+| -------------------- | ----------------- | -------- | ---------------------------------------- |
+| `isGuest`            | `Boolean!`        | Yes      | Whether customer is guest                |
+| `identifier`         | `String`          | No       | Unique customer ID                       |
+| `firstName`          | `String`          | No       | First name                               |
+| `lastName`           | `String`          | No       | Last name                                |
+| `middleName`         | `String`          | No       | Middle name                              |
+| `email`              | `String`          | No       | Email address                            |
+| `phone`              | `String`          | No       | Phone number                             |
+| `birthDate`          | `DateTime`        | No       | Date of birth                            |
+| `companyName`        | `String`          | No       | Company name                             |
+| `taxNumber`          | `String`          | No       | Tax/VAT number                           |
+| `type`               | `CustomerType`    | No       | `individual` (default) or `organization` |
+| `externalReferences` | `[KeyValueInput]` | No       | External system references               |
+| `addresses`          | `[AddressInput]`  | No       | Customer addresses                       |
+| `meta`               | `[KeyValueInput]` | No       | Customer metadata                        |
 
 ### AddressInput
 
@@ -247,10 +250,12 @@ Variables:
 
 ### OrderPipelineInput
 
-| Field        | Type      | Required | Description           |
-| ------------ | --------- | -------- | --------------------- |
-| `identifier` | `String!` | Yes      | Pipeline identifier   |
-| `stage`      | `String`  | No       | Stage within pipeline |
+| Field        | Type      | Required | Description                                                   |
+| ------------ | --------- | -------- | ------------------------------------------------------------- |
+| `identifier` | `String!` | Yes      | The pipeline **id**, not its name                             |
+| `stage`      | `String`  | Yes      | The stage **id**. The schema allows null, validation does not |
+
+These are ids, see [Pipeline Management](#pipeline-management). When `pipelines` is left out, the Core order lands in the pipelines the tenant set up for new orders.
 
 ## Add Payments to Order
 
@@ -293,6 +298,8 @@ Variables:
 
 Replace all payment records on an order.
 
+Neither mutation changes `paymentStatus`, and the `/order` endpoint has no mutation for it: it is set once, by `create` or `createFromCart`. See [[payments]] for tracking captures and refunds afterwards.
+
 ```graphql
 mutation SetPayments($id: UUID!, $payments: [OrderPaymentInput!]!) {
     setPayments(id: $id, payments: $payments) {
@@ -333,11 +340,11 @@ Variables:
 }
 ```
 
-When `merge` is `true`, new keys are added and existing keys are updated. When `false` (default), all existing metadata is replaced.
+When `merge` is `true` (default), new keys are added and existing keys are updated. When `false`, all existing metadata is replaced.
 
 ## Set Order Customer
 
-Update the customer information on an existing order.
+Update the customer information on an existing order. It replaces the customer, and `isGuest` is required.
 
 ```graphql
 mutation SetOrderCustomer($id: UUID!, $customer: CustomerInput!) {
@@ -355,32 +362,15 @@ mutation SetOrderCustomer($id: UUID!, $customer: CustomerInput!) {
 
 ## Create Order from Subscription Contract
 
-Create a new order from an existing subscription contract, using its current phase and period.
-
-```graphql
-mutation CreateFromSubscription($subscriptionContractId: UUID!) {
-    createFromSubscriptionContract(subscriptionContractId: $subscriptionContractId) {
-        id
-        type
-        items {
-            name
-            sku
-            quantity
-            subscription {
-                name
-                start
-                end
-            }
-        }
-    }
-}
-```
+`createFromSubscriptionContract` is in the schema but not implemented: every call errors. Read the `orderIntent` query on the `/subscription-contract` endpoint and pass the result to `create`. See [[subscriptions]].
 
 ## Pipeline Management
 
+`pipeline` and `stage` take the pipeline **id** and the stage **id**, not their names, here and in `pipelines` on `create` and `createFromCart`. Read them from the PIM API (`pipeline { getMany(tenantId:) { edges { node { id name stages { id name } } } } }`). **The Shop API does not check them:** the mutation succeeds and stores what you sent, and a name there stops the order from syncing to Core.
+
 ### Add Order to Pipeline Stage
 
-Add an order to a pipeline stage while keeping it in any existing stages.
+Put an order in a pipeline stage. An order holds one stage per pipeline, so calling this again on the same pipeline moves it, and its other pipelines are untouched.
 
 ```graphql
 mutation AddToStage($id: UUID!, $pipeline: String!, $stage: String!) {
@@ -399,8 +389,8 @@ Variables:
 ```json
 {
     "id": "order-uuid",
-    "pipeline": "fulfillment",
-    "stage": "shipped"
+    "pipeline": "<pipeline id>",
+    "stage": "<stage id>"
 }
 ```
 
@@ -522,7 +512,10 @@ mutation {
 
 # Step 2: Set customer info (on /cart endpoint)
 mutation {
-    setCustomer(id: "cart-id", customer: { firstName: "John", lastName: "Doe", email: "john@example.com" }) {
+    setCustomer(
+        id: "cart-id"
+        input: { isGuest: false, firstName: "John", lastName: "Doe", email: "john@example.com" }
+    ) {
         id
     }
 }
@@ -551,39 +544,44 @@ mutation {
 `createFromCart` also moves the cart to `ordered` and sets its `orderId`. The order id is the cart id, so
 there is nothing left to link: do not follow it with `fulfill`.
 
-## The Order Store Syncs One Way
+## The Order Store and Core
 
-Shop API orders and Core orders are two stores, and only one direction is reliable.
+Shop API orders and Core orders are the same orders in two stores, synced asynchronously in both
+directions. Where an order was born decides what a Core write does to it.
 
-**Shop → Core works.** An order created here gets its `coreId` in about ten seconds, and `addToStage`
+**Shop → Core.** An order created here gets its `coreId` in about ten seconds, and `addToStage`
 moves the Core stage with it. (`coreId` can still read `null` in the answer of a Shop `create` even after
 the order has reached Core, so don't use it as a sync flag.)
 
-**Core → Shop does not.** Orders registered in Core with `registerOrder` appeared in the Shop store only
-sometimes, carrying the pipelines they had at creation, and a later `updateOrderPipelineStage` or
-`deleteOrder` in Core never reached the Shop store at all (watched for minutes). **Seed demo orders with
-the Shop API, not with `registerOrder`**, if a storefront is going to list them.
+| Born in                               | Core `updateOrder`, `updateOrderPipelineStage`         | Core `deleteOrder`             |
+| ------------------------------------- | ------------------------------------------------------ | ------------------------------ |
+| Shop API (`create`, `createFromCart`) | Rewrites the same Shop order with Core's whole version | Removes it from the Shop store |
+| Core (`registerOrder`)                | **Adds another copy** to the Shop store                | Removes only the latest copy   |
 
-**Worse: editing an order in Core adds another copy of it to the Shop store.** Three `updateOrder`
-calls on one seeded order left three orders in `orders(customerIdentifier:)` — new Shop ids, the same
-`coreId`, different `updatedAt`. A storefront that sums that list counts the same money several times
-over; the Lab Universe build read a department budget of NOK 1,249,299 instead of 411,775. So:
+**Seed demo orders with the Shop API, not with `registerOrder`**, if a storefront is going to list them:
+orders registered in Core showed up in the Shop store only sometimes.
+
+**Editing an order born in Core adds another copy of it to the Shop store.** Such an order has no Shop id
+to come back to, so every change arrives as a new order. Three `updateOrder` calls on one seeded order left
+three orders in `orders(customerIdentifier:)` — new Shop ids, the same `coreId`, different `updatedAt`. A
+storefront that sums that list counts the same money several times over; the Lab Universe build read a
+department budget of NOK 1,249,299 instead of 411,775. So:
 
 - **Change orders through the Shop API** (`setMeta`, `addToStage`, `setPayments`) whenever a storefront
-  reads them.
-- If something must be edited in Core anyway, have the reader **group by `coreId` and keep the most
-  recently updated copy**.
+  reads them. On an order born here, a Core edit also overwrites whatever the Shop wrote just before it.
+- If an order born in Core must be edited there anyway, have the reader **group by `coreId` and keep the
+  most recently updated copy**.
 
-**There is no delete on the Shop API.** Cancelled or mistaken orders stay in the list. Archive them with
-`setMeta` (`archived: true`) and filter them out when reading; deleting the Core order does not remove the
-Shop one.
+**There is no delete on the Shop API.** Cancelled or mistaken orders stay in the list until `deleteOrder`
+on the Core order removes them. Otherwise archive them with `setMeta` (`archived: true`) and filter them
+out when reading.
 
 (Both findings come from the Tools Universe and Lab Universe builds.)
 
 ## Best Practices
 
 1. **Use the correct endpoint** — Cart operations on `/cart`, order operations on `/order`
-2. **Include `order` scope in JWT** — Token must have `order` scope for `/order` endpoint
+2. **Include `order` scope in JWT** — Token must have `order` scope for `/order` endpoint: `"scopes": ["cart", "order"]` when you request it
 3. **Place cart before creating order** — `createFromCart` requires the cart to be in "placed" state
 4. **Always check for errors** — Validate `result?.errors` in responses
 5. **Use `meta` for custom data** — Store fulfillment status, tracking numbers, external references
