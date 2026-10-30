@@ -621,7 +621,7 @@ call; orders are deleted separately. As with items, a list you send replaces the
 ## Order Mutations
 
 > **If a storefront lists these orders, change them on the Shop API instead.** On an order born in Core
-> (`registerOrder`), every `updateOrder` or `updateOrderPipelineStage` adds **another copy** of the order to
+> (`registerOrder`), every `updateOrder` adds **another copy** of the order to
 > the Shop store: three updates on one order left three Shop orders with new ids, the same `coreId` and
 > different `updatedAt`, and a storefront summing that list counted the money three times. On an order born
 > on the Shop API, the same calls rewrite the Shop order with Core's whole version, over whatever the Shop

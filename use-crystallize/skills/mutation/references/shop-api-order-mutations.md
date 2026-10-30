@@ -553,10 +553,15 @@ directions. Where an order was born decides what a Core write does to it.
 moves the Core stage with it. (`coreId` can still read `null` in the answer of a Shop `create` even after
 the order has reached Core, so don't use it as a sync flag.)
 
-| Born in                               | Core `updateOrder`, `updateOrderPipelineStage`         | Core `deleteOrder`             |
+| Born in                               | Core `updateOrder`                                     | Core `deleteOrder`             |
 | ------------------------------------- | ------------------------------------------------------ | ------------------------------ |
 | Shop API (`create`, `createFromCart`) | Rewrites the same Shop order with Core's whole version | Removes it from the Shop store |
 | Core (`registerOrder`)                | **Adds another copy** to the Shop store                | Removes only the latest copy   |
+
+**A stage moved in Core or the App does not reach the Shop store, and the next Shop write puts it back.**
+Every `/order` mutation sends the whole Shop order to Core, and Core makes the order's pipelines match it: a
+stage that differs is moved back, a pipeline that is missing is removed. Before a Shop write to an order whose
+stage may have moved, read the stages from Core and copy them over with `addToStage`. [[payments]] has a helper.
 
 **Seed demo orders with the Shop API, not with `registerOrder`**, if a storefront is going to list them:
 orders registered in Core showed up in the Shop store only sometimes.
