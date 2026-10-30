@@ -69,42 +69,34 @@ No limit on nesting depth. Design for your use case.
 Topics are assigned via:
 
 - Catalogue UI when editing items
-- Topic Relation component in shapes
 - API mutations
+
+`topics` is a built-in field on items and variants. There is no topic component type to add to a shape.
 
 ### Querying Topics
 
-In Discovery API:
+In Discovery API, an item carries the path of each of its topics and of their ancestors, so filtering on a parent topic also matches items tagged with its children:
 
 ```graphql
 {
-    search(filter: { type: PRODUCT, topics: { path: { equals: "/flavour/fruity/citrus" } } }) {
-        edges {
-            node {
-                name
-                topics {
-                    name
-                    path
-                }
-            }
+    search(language: en, filters: { type_in: [product], topics: { equals: "/flavour/fruity/citrus" } }) {
+        hits {
+            name
+            path
         }
     }
 }
 ```
 
-### Topic Aggregations
+### Topic Facets
 
 Get facet counts:
 
 ```graphql
 {
-    search(filter: { type: PRODUCT }) {
-        aggregations {
-            topics {
-                path
-                name
-                count
-            }
+    search(language: en, filters: { type_in: [product] }, facets: { topics: { limit: 20 } }) {
+        summary {
+            facets
         }
     }
 }
