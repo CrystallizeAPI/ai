@@ -44,7 +44,8 @@ meta, and show one line per location.
 
 Use a **capacity** pool instead when the units are interchangeable and nobody needs to know which one
 they got — seats on a course, bikes in a rack. You lose per-unit meta, so if the storefront must say
-_which_ one, use units.
+_which_ one, use units. Capacity is also only exact for bookings that share a window: see
+[policies-and-pools](policies-and-pools.md#the-pool) before using it for hires of varying length.
 
 ## What Discovery serves, and what it does not
 
@@ -86,6 +87,10 @@ Discovery carries the **static** bookable configuration on the item:
     }
 }
 ```
+
+`bookable` also serves `policySnapshot { advanceWindow cancellationWindow … }`, so a calendar can be capped
+at the `advanceWindow` without a Shop call. Product shapes can filter, facet and sort on `bookable_kind`
+and `bookable_poolSize`, as in `filters: { bookable_kind: { equals: "units" } }`.
 
 **Discovery never serves availability.** Listing pages can say "5 machines, 3 depots" from `poolSize` and
 the pool; anything about a date is a Shop API call. Design the page so the calendar loads after the

@@ -3,13 +3,15 @@ name: bookable-resources
 description: >
     Sell Crystallize products that are held in time rather than counted in stock — rentals, services,
     rooms, courses, equipment, appointments. Covers booking policies and bookable pools on the Core API,
-    and the booking flow on the Shop API /cart endpoint: availability, holds, checkout and confirmation.
+    the booking flow on the Shop API /cart endpoint (availability, holds, checkout and confirmation), and
+    the Shop API /booking/admin endpoint (maintenance blocks, reservation calendars, staff cancellations).
     Use when the user wants to rent something out, take bookings or reservations, sell time slots or
-    by the day/weekend/week, show a booking calendar, manage a fleet of machines, rooms or seats, or
-    handle cancellations. Trigger on "bookable", "booking", "reservation", "rental", "rent", "hire",
-    "availability", "time slot", "calendar", "hold", "setBookable", "bookSkuItem",
-    "createBookingPolicy", "confirmCartBooking", "cancelReservation", "rebookReservation",
-    "nearestAvailability", "checkBooking", "booking policy", "cancellation window", "pool", "units".
+    by the day/weekend/week, show a booking calendar, manage a fleet of machines, rooms or seats, take a
+    unit out of service, or handle cancellations. Trigger on "bookable", "booking", "reservation",
+    "rental", "rent", "hire", "availability", "time slot", "calendar", "hold", "setBookable",
+    "bookSkuItem", "createBookingPolicy", "confirmCartBooking", "cancelReservation", "rebookReservation",
+    "nearestAvailability", "checkBooking", "booking/admin", "booking policy", "cancellation window",
+    "pool", "units".
 metadata:
     author: Crystallize
     version: "1.0"
@@ -80,26 +82,31 @@ for the policies to find out whether this session can manage them:
 
 A connection means yes. `FORBIDDEN` means the role lacks the `bookingPolicies` permission. That
 usually happens on a custom role created before bookings existed, and it is fixed on the role, not in
-the query.
+the query. Putting a pool on a product is a second permission: `setBookable`, `reapplyBookablePolicy`
+and `clearBookable` need `productBookable` on top of the right to edit the item.
 
 ## Failure modes
 
 Three of these are silent — a paid booking whose reservation has no order, a pool or policy change that
-has no effect, and a booking that vanishes when two are taken at once. They are the reason this skill
-exists; the rest name themselves.
+has no effect, and a bookable SKU sold with nothing held. They are the reason this skill exists; the
+rest name themselves.
 
 | Symptom                                                      | Cause                                                                            | Fix                                                                                       |
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | Admin shows "No order — not checked out" on a paid booking   | `confirmCartBooking` ran before the cart had its `orderId`                       | Confirm **again** after `createFromCart` — see [booking-flow](references/booking-flow.md) |
+| An order for a bookable product with nothing reserved        | The SKU went through `addSkuItem` or `hydrate` with no `booking`: a plain line   | Book with `bookSkuItem`, or send `booking` on the `hydrate` line                          |
 | `NotBookable` on a product you just made bookable            | The item is not published, or the query's `language` is wrong                    | Publish it; pass the language the item exists in                                          |
 | A pool or policy change has no effect in the Shop            | Bookable edits are drafts; products keep the `policySnapshot` they were set with | `reapplyBookablePolicy` for a policy change, then **publish** the product                 |
 | `FORBIDDEN` from `createBookingPolicy`                       | The role has no `bookingPolicies` permission                                     | Grant it on the role                                                                      |
 | Holds vanish within seconds, or `InvalidRange` on every date | A duration was sent in minutes, hours or days                                    | Every policy duration is **seconds**; read `humanized` back to check                      |
 | `hydrate` throws "A placed cart cannot be hydrated"          | The cart is placed; its contents are frozen                                      | Change bookings before `place`, or through `/booking/admin` after                         |
 | `ReservationConflict` on a unit that looked free             | Someone took it between the availability query and the booking                   | Walk the other `freeUnitIds` and retry                                                    |
-| Two bookings taken at once, one of them missing              | Concurrent `bookSkuItem` on one cart — both answered `Cart`                      | Serialize booking writes per cart, then read the cart back                                |
+| `ReservationConflict` whose `message` says the cart changed  | Another write landed on the same cart first, and nothing was booked              | Read the cart back, then retry; serialize booking writes per cart                         |
+| `ReservationConflict` on a capacity pool with seats free     | Capacity counts every booking overlapping the window, not the busiest moment     | Keep capacity windows uniform, or use units                                               |
+| `Cannot place this cart: <sku> (<reason>)`                   | `place` or `hydrate` could not keep a booking line; see the reason               | Nothing was saved: `hydrate` with another window or without the line                      |
 | `InvalidRange` on a date far ahead                           | The window is past the policy's `advanceWindow`                                  | Widen the policy, or cap the calendar at the shortest `advanceWindow` in the basket       |
 | `CancellationWindowClosed` when removing a basket line       | The window applies to holds that were never bought                               | Re-hydrate the cart without that line instead                                             |
+| `Unexpected error.` from `addCartItem` or `removeCartItem`   | They refuse a booking line                                                       | `hydrate` with the new quantity, or without the line                                      |
 | `BookablePoolKindChangeError`                                | Capacity → units while a capacity pool is published                              | `clearBookable`, publish, cancel or wait out open reservations, then set units            |
 | `BookingPolicyInUseError` on delete                          | Products still reference the policy (`stats.referencingProductCount`)            | Move those products to another policy and publish them                                    |
 
@@ -109,6 +116,8 @@ exists; the rest name themselves.
   capacity pools, snapshots and reapplying, deleting and clearing.
 - [references/booking-flow.md](references/booking-flow.md) — Shop API `/cart`: availability, holds,
   checkout, the double confirmation, cancelling and moving a booking.
+- [references/booking-admin.md](references/booking-admin.md) — Shop API `/booking/admin`: maintenance
+  blocks, the reservation calendar and list, moving a reservation to another unit.
 - [references/modelling.md](references/modelling.md) — periods as variants, units as real machines,
   what Discovery serves, and how a rental relates to the product it is a rental of.
 
