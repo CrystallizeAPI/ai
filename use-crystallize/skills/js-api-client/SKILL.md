@@ -99,19 +99,19 @@ All callers share the same signature:
 <T>(query: string, variables?: Record<string, unknown>) => Promise<T>;
 ```
 
-| Caller                        | Purpose                                                               |
-| ----------------------------- | --------------------------------------------------------------------- |
-| `catalogueApi`                | Catalogue GraphQL                                                     |
-| `discoveryApi`                | Discovery GraphQL (search/browse)                                     |
-| `pimApi`                      | PIM GraphQL (legacy — prefer `nextPimApi`)                            |
-| `nextPimApi`                  | PIM Next GraphQL (scoped to tenant, recommended)                      |
-| `meApi`                       | Per-user GraphQL (`@me`) — call on behalf of the authenticated viewer |
-| `shopCartApi`                 | Shop API `/cart` GraphQL (token auto-handled)                         |
-| `shopOrderApi`                | Shop API `/order` GraphQL (7.5+)                                      |
-| `shopCustomerApi`             | Shop API `/customer` GraphQL (7.5+)                                   |
-| `shopLockApi`                 | Shop API `/lock` GraphQL (7.5+)                                       |
-| `shopSubscriptionContractApi` | Shop API `/subscription-contract` GraphQL (7.5+)                      |
-| `shopBookingApi`              | Shop API `/booking` GraphQL (7.5+)                                    |
+| Caller                        | Purpose                                                                                                                                                                                   |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `catalogueApi`                | Catalogue GraphQL                                                                                                                                                                         |
+| `discoveryApi`                | Discovery GraphQL (search/browse)                                                                                                                                                         |
+| `pimApi`                      | PIM GraphQL (legacy — prefer `nextPimApi`)                                                                                                                                                |
+| `nextPimApi`                  | PIM Next GraphQL (scoped to tenant, recommended)                                                                                                                                          |
+| `meApi`                       | Per-user GraphQL (`@me`) — call on behalf of the authenticated viewer                                                                                                                     |
+| `shopCartApi`                 | Shop API `/cart` GraphQL (token auto-handled)                                                                                                                                             |
+| `shopOrderApi`                | Shop API `/order` GraphQL (7.5+)                                                                                                                                                          |
+| `shopCustomerApi`             | Shop API `/customer` GraphQL (7.5+)                                                                                                                                                       |
+| `shopLockApi`                 | Shop API `/lock` GraphQL (7.5+)                                                                                                                                                           |
+| `shopSubscriptionContractApi` | Shop API `/subscription-contract` GraphQL (7.5+)                                                                                                                                          |
+| `shopBookingApi`              | Shop API `/booking` (7.5+). That path has no GraphQL endpoint and answers 404; the booking admin API is at `/booking/admin`, which this caller does not reach. See [[bookable-resources]] |
 
 ## High-Level Helpers
 
