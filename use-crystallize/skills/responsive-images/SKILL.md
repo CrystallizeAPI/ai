@@ -18,9 +18,9 @@ metadata:
 
 # Responsive Images with Crystallize
 
-Crystallize pre-generates every image at a ladder of widths in three formats and serves them from its
-own CDN at `media.crystallize.com`. **The optimization has already happened.** Your job on the frontend
-is to pick the smallest file that still looks right — not to re-encode anything.
+Crystallize pre-generates every image at a ladder of widths in up to three formats and serves them
+from its own CDN at `media.crystallize.com`. **The optimization has already happened.** Your job on the
+frontend is to pick the smallest file that still looks right — not to re-encode anything.
 
 Almost all wasted image bandwidth on a Crystallize storefront comes from two mistakes, both covered
 below: shipping AVIF because it is newer, and omitting `sizes`.
@@ -47,8 +47,9 @@ Use a plain `<picture>` / `<img>` pointing straight at `media.crystallize.com`. 
 component below emits.
 
 If a project is already committed to `next/image`, pass `unoptimized`, or give it a custom loader that
-returns the `@{width}` URL — but at that point it is doing strictly less than the Crystallize `Image`
-component, with more configuration.
+snaps the requested width to one in that image's `variants` and returns that variant's `url`, because
+any other `@{width}` has no file behind it — but at that point it is doing strictly less than the
+Crystallize `Image` component, with more configuration.
 
 ## What the API actually returns
 
@@ -61,15 +62,26 @@ https://media.crystallize.com/{tenant}/{path}/@{width}/{filename}.{ext}
 |             |                                                               |
 | ----------- | ------------------------------------------------------------- |
 | **Widths**  | drawn from `100, 200, 500, 768, 1024, 1366, 1600, 1920, 3200` |
-| **Formats** | `avif` and `webp` always, plus the original (`jpeg` or `png`) |
-| **Fields**  | `url`, `key`, `width`, `height`, `size`                       |
+| **Formats** | `avif` and `webp` always, plus original if `jpeg` or `png`    |
+| **Fields**  | `url`, `key`, `width`, `height`, `size` (bytes)               |
+
+**Read URLs from the API, never compose them.** On a tenant with a custom media domain, Catalogue and
+Discovery return that host and drop the `{tenant}` segment.
+
+**Original-format variants exist only for JPEG and PNG sources, and a `.jpg` source gets `.jpeg`
+variants.** A WebP, AVIF or TIFF source gets `webp` and `avif` only.
 
 **The width ladder is capped at the source image's own width, so it differs per image.** A 1200px
-original yields `100/200/500/768/1024`; a 500px original yields only `100/200/500`. In a sample of 80
-images, eight distinct width sets appeared.
+original yields `100/200/500/768/1024`; a 500px original yields only `100/200/500`. A source under
+100px wide gets no variants at all. In a sample of 80 images, eight distinct width sets appeared.
 
 **Never hardcode the ladder.** Build `srcset` from the variants the API returned for _that_ image, or
 you will emit URLs that 404 and a browser that picks them will show nothing.
+
+**`variants` can be empty, so keep `url` as the fallback.** They are generated after upload: until then
+Catalogue returns `null` and Discovery `[]`. Discovery captures them when the item is indexed and does
+not pick them up by itself, so an item published too early keeps `[]` until it is published again. See
+[[mutation]].
 
 ## Query the fields you need — including `size`
 
@@ -92,6 +104,10 @@ firstImage {
 worth emitting (see below). Omit it and the component silently ships both formats, which on measured
 data is the more expensive outcome.
 
+**After an image is replaced, Catalogue's image-level `width` and `height` still describe the first
+upload**, while `url` and `variants` are the new file's. If a replacement can change the aspect ratio,
+drop them from a Catalogue selection: the component then uses the largest variant.
+
 On **Discovery** you can also trim the payload server-side — `variants` takes arguments:
 
 ```graphql
@@ -102,8 +118,10 @@ variants(types: "webp", minWidth: 400, maxWidth: 1600) {
 }
 ```
 
-Useful for a listing page that will never render a 3200px hero. Catalogue's `variants` takes no
-arguments — filter client-side there.
+Useful for a listing page that will never render a 3200px hero. `width` picks one exact width. `types`
+matches the end of the variant key, so ask for `"jpeg"`, never `"jpg"`. An image with nothing in range
+returns `[]`, not a smaller variant, so keep `url` selected. Catalogue's `variants` takes no arguments —
+filter client-side there.
 
 ## Format: measure, do not assume AVIF
 
@@ -143,24 +161,34 @@ What it does for you:
 - emits `<source type="image/avif">` **only when the first AVIF variant is smaller than the first WebP
   variant** — the comparison needs `size`, and falls back to emitting both when it is missing
 - keeps a `<source>` for the original format and a plain `src` on the `<img>` as the fallback
-- sets `width`/`height` from the largest variant, which is what prevents layout shift
+- sets `width`/`height` from the props you pass (the spread image's own, when selected), else from the
+  largest variant, which is what prevents layout shift
 - resolves `alt` as `alt` → `altText` (from the API) → `fallbackAlt` → `""`
 
 What it does **not** do, and you must:
 
 - **pass `sizes`** — it has no default, see below
-- pass `loading` and `fetchPriority` — they forward to the `<img>`, but nothing is set automatically
+- pass `loading` and `fetchPriority` — they forward to the `<img>`, but nothing is set automatically.
+  `fetchPriority` is missing from `ImageProps`, so as a JSX attribute it fails type-checking. In
+  TypeScript, spread it instead: `{...{ fetchPriority: "high" }}`
 
-Two surprises worth knowing before you style it:
+Surprises worth knowing before you style it:
 
 - It always renders `<figure>` wrapping `<picture>`, **plus a `<figcaption>` even when empty**. Budget
   for that in CSS, or use the render-prop escape hatch.
+- `className` lands on the `<figure>`, not the `<img>`: target `.product-image img`. `style` and any prop
+  the component does not know land on the `<img>`, so keep `focalPoint`, `meta` and the like out of the
+  object you spread.
+- `caption` needs the Catalogue shape, and only `caption { json }` renders as rich text: `html` prints
+  its tags as text. Discovery's `caption` is a scalar, so the `<figcaption>` stays empty unless you pass
+  the text as `captionPassed`.
 - `_availableSizes` / `_availableFormats` synthesize URLs from the `@{width}` scheme instead of using
   `variants`. Because the ladder is per-image, this can invent URLs that do not exist. Prefer passing
   real `variants`.
 
 For full markup control, pass a function as `children` and receive
-`{ srcSet, srcSetWebp, srcSetAvif, useAvif, useWebP, sizes, media, src, alt, width, height, originalFileExtension }`.
+`{ srcSet, srcSetWebp, srcSetAvif, useAvif, useWebP, className, sizes, media, src, alt, width, height, originalFileExtension }`,
+plus any other prop you passed.
 
 Not using React? See [references/without-react.md](references/without-react.md).
 
@@ -201,8 +229,8 @@ When `sizes` and the CSS disagree, the CSS wins visually and `sizes` wins on ban
   `loading="lazy"` — lazy-loading the LCP image reliably makes the score worse.
 - **Everything below the fold gets `loading="lazy"`.**
 - **Always render `width` and `height`** so the browser can reserve the box. The component does this
-  from the largest variant; if you hand-roll, do it yourself. This is the entire fix for image-driven
-  layout shift.
+  from the props you pass, else the largest variant; if you hand-roll, do it yourself. This is the
+  entire fix for image-driven layout shift.
 - **Do not lazy-load images already in the viewport** on first paint — the request starts later than
   it needs to.
 
@@ -214,6 +242,7 @@ When `sizes` and the CSS disagree, the CSS wins visually and `sizes` wins on ban
 | Both AVIF and WebP `<source>` emitted    | `size` not selected in the GraphQL query          | Add `size` to `variants`                    |
 | Images heavier after "upgrading" to AVIF | AVIF is usually larger here                       | Ship WebP; keep the original as fallback    |
 | Some `srcset` URLs 404                   | Width ladder hardcoded, or `_availableSizes` used | Build `srcset` from the returned `variants` |
+| `variants` is `null` or `[]`             | Variants not generated yet, or source under 100px | Use `url`; republish once they exist        |
 | Page jumps as images load                | No `width`/`height` on the `<img>`                | Render both; they set the aspect ratio      |
 | Poor LCP on the product page             | Hero is `loading="lazy"`                          | `eager` + `fetchPriority="high"`            |
 | Image bill higher than expected          | Images routed through a framework optimizer       | Serve straight from `media.crystallize.com` |
