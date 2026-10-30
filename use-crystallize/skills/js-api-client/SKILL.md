@@ -283,13 +283,13 @@ needs the five new callers. Cart and Shop customer `birthDate` is now sent as an
 
 ## Authentication
 
-| Auth Type                             | Header sent                                                           | Use Case                                                                       |
-| ------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `staticAuthToken`                     | `X-Crystallize-Static-Auth-Token: <token>`                            | Read-only catalogue/discovery                                                  |
-| `accessTokenId` + `accessTokenSecret` | `X-Crystallize-Access-Token-Id` + `X-Crystallize-Access-Token-Secret` | PIM/Shop operations                                                            |
-| `sessionId`                           | `Cookie: connect.sid=<sessionId>`                                     | Alternative to token pair                                                      |
-| `bearerToken`                         | `Authorization: Bearer <jwt>`                                         | Plugins forward `envelope.backendToken`, the only JWT accepted; Core APIs only |
-| `shopApiToken`                        | `Authorization: Bearer <token>` (Shop API only)                       | Optional; fetched with the access token pair or `sessionId` if omitted         |
+| Auth Type                             | Header sent                                                           | Use Case                                                                               |
+| ------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `staticAuthToken`                     | `X-Crystallize-Static-Auth-Token: <token>`                            | Read-only catalogue/discovery                                                          |
+| `accessTokenId` + `accessTokenSecret` | `X-Crystallize-Access-Token-Id` + `X-Crystallize-Access-Token-Secret` | PIM/Shop operations                                                                    |
+| `sessionId`                           | `Cookie: connect.sid=<sessionId>`                                     | Alternative to token pair                                                              |
+| `bearerToken`                         | `Authorization: Bearer <jwt>`                                         | Plugins forward `envelope.backendToken`, the only JWT accepted; Core and PIM APIs only |
+| `shopApiToken`                        | `Authorization: Bearer <token>` (Shop API only)                       | Optional; fetched with the access token pair or `sessionId` if omitted                 |
 
 **Priority** when multiple are set on the same client: `sessionId` > `bearerToken` > `staticAuthToken` > `accessTokenId`/`accessTokenSecret`. Only one is sent per request. Per-caller restrictions:
 
