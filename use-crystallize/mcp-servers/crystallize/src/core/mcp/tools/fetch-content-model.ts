@@ -27,6 +27,7 @@ export const createFetchContentModelToolWrapper = ({ tenantMatcher, authContextR
         handler: async ({ tenant, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const client = createClient({
+                origin: authContext.origin,
                 tenantIdentifier: matchedTenant.identifier,
                 tenantId: matchedTenant.id,
                 ...authContextResolver.getClientCredentials(authContext),

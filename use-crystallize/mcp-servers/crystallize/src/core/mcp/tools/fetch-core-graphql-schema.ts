@@ -8,6 +8,7 @@ import { fetchIntrospection } from "../../services/compact-schema-builder";
 import { tenantSchema, sanitizeErrorMessage, buildAtApiUrl } from "../../security";
 import { buildSelectionEvent, selectionOutcome } from "../../analytics";
 import type { AnalyticsEvent } from "../../../contracts/analytics-tracker";
+import { apiBaseUrl } from "../../api-origin";
 
 type Deps = {
     coreSchemaDomainSplitter: CoreSchemaDomainSplitter;
@@ -95,7 +96,7 @@ export const createFetchCoreGraphqlSchemaToolWrapper = ({
         },
         handler: async ({ tenant, domain, intent, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
-            const url = buildAtApiUrl("https://api.crystallize.com", matchedTenant.identifier, "");
+            const url = buildAtApiUrl(apiBaseUrl("api", authContext.origin), matchedTenant.identifier, "");
             const headers: Record<string, string> = authContextResolver.getAuthHeaders(authContext);
             const text = (value: string) => ({ content: [{ type: "text" as const, text: value }] });
             try {

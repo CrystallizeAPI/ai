@@ -6,6 +6,7 @@ import { QueryExecutor } from "../../../contracts/query-executor";
 import { createClient } from "@crystallize/js-api-client";
 import { AuthContextResolver } from "../../../contracts/auth-context-resolver";
 import { tenantSchema, readOnlyQuerySchema, variablesSchema, buildAtApiUrl } from "../../security";
+import { apiBaseUrl } from "../../api-origin";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
@@ -60,6 +61,7 @@ export const createQueryCoreToolWrapper = ({ tenantMatcher, queryExecutor, authC
 
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const client = createClient({
+                origin: authContext.origin,
                 tenantIdentifier: matchedTenant.identifier,
                 tenantId: matchedTenant.id,
                 ...authContextResolver.getClientCredentials(authContext),
@@ -67,7 +69,7 @@ export const createQueryCoreToolWrapper = ({ tenantMatcher, queryExecutor, authC
 
             return queryExecutor({
                 executor: (q, v) => client.nextPimApi(q, v),
-                introspectionUrl: buildAtApiUrl("https://api.crystallize.com", matchedTenant.identifier, ""),
+                introspectionUrl: buildAtApiUrl(apiBaseUrl("api", authContext.origin), matchedTenant.identifier, ""),
                 introspectionHeaders: authContextResolver.getAuthHeaders(authContext),
                 query,
                 variables,

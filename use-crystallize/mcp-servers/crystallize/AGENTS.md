@@ -42,11 +42,13 @@ src/
 │   └── tool.ts                                   # ToolWrapper type (incl. write marker) & defineToolWrapper helper
 ├── core/
 │   ├── analytics.ts                              # Pure analytics event builders (tenant/tool + session paths)
+│   ├── api-origin.ts                             # Production or dev: X-Crystallize-Environment → origin suffix
 │   ├── expose-flags.ts                           # Shared exposeWrite/exposeUi/exposeSkills query-param parsing
 │   ├── mcp-request.ts                            # Detect a session start: `initialize` (2025) / `server/discover` (2026)
 │   ├── container.ts                              # Awilix DI container + services + tool registration
 │   ├── mass-operation.ts                         # Shared mass-operation validation (validateMassOperations)
 │   ├── security.ts                               # Shared input schemas (tenant/query/variables) + error sanitization
+│   ├── ui-resource-meta.ts                       # Add the session's environment to a UI panel's CSP domains
 │   ├── mcp/
 │   │   └── tools/                                # MCP tool wrappers (one file per tool)
 │   │       ├── build-mass-operation.ts           # Validate a mass-operation file (read-only)
@@ -163,7 +165,9 @@ export const createMyToolWrapper = ({}: Deps) => {
             param: z.string(),
         }),
         handler: async ({ param, authContext }) => {
-            // authContext: { accessTokenId, accessTokenSecret }
+            // authContext: credentials + tenants + `origin` (the environment's js-api-client suffix)
+            // Every createClient MUST pass `origin: authContext.origin`, and every hand-built URL MUST come from
+            // `apiBaseUrl("api" | "shop-api", authContext.origin)` — see "Environments" below.
             return { content: [{ type: "text", text: "result" }] };
         },
     });
@@ -459,6 +463,37 @@ retroactive, so create that goal before shipping.
 - `PLAUSIBLE_API_ENDPOINT` drives **both** sides: the server-side POST target, and the landing page's `data-api`
   plus its script origin. Point it at a self-hosted Plausible and the browser follows.
 
+### Environments (production or dev)
+
+Production (`api.crystallize.com`, `shop-api.crystallize.com`, `pim.crystallize.com`) is the default and the only
+environment named anywhere in the repo. A request can switch to dev the way the js-api-client's `shopApiStaging`
+switch works: the caller flips a switch, never types a hostname.
+
+- **Header**: `X-Crystallize-Environment: dev` (case-insensitive). Absent, blank or `production` → production. Any
+  other value is a **400**.
+- **Secret**: `CRYSTALLIZE_DEV_API_ORIGIN` holds the dev js-api-client `origin` *suffix*, e.g. `-dev.example.test`.
+  It is glued straight after `api` / `shop-api` / `pim` (`https://api${suffix}`), so it must start with `.` or `-`
+  and be a plain lowercase host fragment; anything else is a **500** when dev is requested. Unset means the server
+  has no dev environment and a `dev` request is a **400**. It is a **secret**, not a `var`: production
+  `wrangler secret put CRYSTALLIZE_DEV_API_ORIGIN`, locally a line in `.env` (gitignored; Wrangler loads it). The
+  dev hostname therefore never appears in the repo — keep it out of tests and docs too (use `-dev.example.test`).
+- **Resolution** happens first thing in `authMiddleware` (`resolveApiOrigin` in `src/core/api-origin.ts`), before
+  any upstream call. The secret is only read when a request asks for dev, so a bad secret can never take
+  production traffic down.
+- **Threading**: the resolved suffix is stored on the auth context as `origin`, because a credential is only valid
+  on its own environment. The middleware itself uses it for the bearer JWKS (one `createRemoteJWKSet` per
+  environment, cached for the isolate) and for the `me` call. Every tool passes `origin: authContext.origin` to
+  `createClient`, and the hand-built URLs (schema introspection, the Shop API `/auth/token` exchange) come from
+  `apiBaseUrl(prefix, authContext.origin)` in `src/core/api-origin.ts` — never a literal host.
+- **UI panels**: a tool's `ui.meta` CSP lists production hosts. On dev the resource read adds
+  `https://*.<parent domain of the suffix>` (`withEnvironmentResourceDomains`), so images still load in the panel.
+- **Dev bridge**: `CRYSTALLIZE_ENVIRONMENT=dev` in `.env` makes `bun run dev:bridge` send the header.
+- **Analytics** are unaffected: the tenant/tool paths carry no environment segment.
+
+Adding a tool means adding `origin: authContext.origin` to its `createClient` and using `apiBaseUrl` for any URL it
+builds. `grep -n 'crystallize\.com' src` should only ever hit `api-origin.ts`, the landing page and the UI panels'
+static CSP.
+
 ### MCP protocol versions
 
 The endpoint speaks **both** protocol eras on the same `/mcp` URL, through `createMcpHandler` from `agents/mcp/server`:
@@ -480,10 +515,10 @@ declares as its peer — bump them together with `agents`, never on their own. `
 
 ```ts
 type AppContext = {
-    Bindings: CloudflareBindings; // from wrangler types
+    // CRYSTALLIZE_DEV_API_ORIGIN is a secret, so `bun cf-typegen` only emits it when `.env` has it — declared by hand.
+    Bindings: CloudflareBindings & { CRYSTALLIZE_DEV_API_ORIGIN?: string };
     Variables: {
-        accessTokenId: string;
-        accessTokenSecret: string;
+        authContext: AuthContext; // { type: token|session|bearer, credentials, origin, tenants }
         services: Services; // { mcpServer, tenantMatcher, analyticsTracker }
     };
 };
@@ -526,3 +561,6 @@ Use `c.set()` / `c.get()` in middleware/handlers. Extend `Variables` when adding
   events; unset to disable them), `PLAUSIBLE_SCRIPT_URL` (the landing page's `pa-XXXX.js`; unset to drop the
   script) and `PLAUSIBLE_API_ENDPOINT` (override for a self-hosted Plausible or a first-party proxy — it feeds
   both the server-side POST and the browser's `plausible.init({ endpoint })`)
+- **Secrets** (`wrangler secret put`, or `.env` locally — never `vars`): `CRYSTALLIZE_DEV_API_ORIGIN`, the dev
+  origin suffix a request selects with `X-Crystallize-Environment: dev` (see "Environments" above). Unset means
+  production only.

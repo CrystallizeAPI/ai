@@ -4,6 +4,7 @@ import { defineToolWrapper } from "../../../contracts/tool";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { QueryExecutor } from "../../../contracts/query-executor";
 import { tenantSchema, querySchema, variablesSchema, buildApiUrl } from "../../security";
+import { apiBaseUrl } from "../../api-origin";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
@@ -29,6 +30,7 @@ export const createQueryDiscoveryToolWrapper = ({ tenantMatcher, queryExecutor }
         handler: async ({ tenant, query, variables, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const client = createClient({
+                origin: authContext.origin,
                 tenantIdentifier: matchedTenant.identifier,
                 tenantId: matchedTenant.id,
                 staticAuthToken: matchedTenant.staticAuthToken,
@@ -40,7 +42,11 @@ export const createQueryDiscoveryToolWrapper = ({ tenantMatcher, queryExecutor }
 
             return queryExecutor({
                 executor: (q, v) => client.discoveryApi(q, v),
-                introspectionUrl: buildApiUrl("https://api.crystallize.com", matchedTenant.identifier, "/discovery"),
+                introspectionUrl: buildApiUrl(
+                    apiBaseUrl("api", authContext.origin),
+                    matchedTenant.identifier,
+                    "/discovery",
+                ),
                 introspectionHeaders,
                 query,
                 variables,

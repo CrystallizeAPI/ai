@@ -7,6 +7,7 @@
  * http://localhost:5173/mcp), injecting:
  *   - X-Crystallize-Access-Token-Id     from CRYSTALLIZE_TOKEN_ID
  *   - X-Crystallize-Access-Token-Secret from CRYSTALLIZE_TOKEN_SECRET
+ *   - X-Crystallize-Environment         from CRYSTALLIZE_ENVIRONMENT (optional; `dev` to target the dev environment)
  * and adding permissive CORS headers for the loopback host.
  *
  * Usage (loads .env automatically):
@@ -19,6 +20,7 @@ const TARGET = Bun.env.MCP_TARGET ?? "http://localhost:5173/mcp";
 const PORT = Number(Bun.env.BRIDGE_PORT ?? 5174);
 const TOKEN_ID = Bun.env.CRYSTALLIZE_TOKEN_ID;
 const TOKEN_SECRET = Bun.env.CRYSTALLIZE_TOKEN_SECRET;
+const ENVIRONMENT = Bun.env.CRYSTALLIZE_ENVIRONMENT;
 
 if (!TOKEN_ID || !TOKEN_SECRET) {
     console.error("Missing CRYSTALLIZE_TOKEN_ID / CRYSTALLIZE_TOKEN_SECRET in env (.env).");
@@ -31,7 +33,8 @@ const corsHeaders = (origin: string | null): Record<string, string> => ({
     "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
     "Access-Control-Allow-Headers":
         "Content-Type, Accept, Authorization, MCP-Protocol-Version, MCP-Session-Id, " +
-        "X-Crystallize-Access-Token-Id, X-Crystallize-Access-Token-Secret, X-Crystallize-Session-Id",
+        "X-Crystallize-Access-Token-Id, X-Crystallize-Access-Token-Secret, X-Crystallize-Session-Id, " +
+        "X-Crystallize-Environment",
     "Access-Control-Expose-Headers": "MCP-Session-Id, MCP-Protocol-Version",
     "Access-Control-Max-Age": "86400",
 });
@@ -53,6 +56,7 @@ Bun.serve({
         const fwdHeaders = new Headers(req.headers);
         fwdHeaders.set("X-Crystallize-Access-Token-Id", TOKEN_ID);
         fwdHeaders.set("X-Crystallize-Access-Token-Secret", TOKEN_SECRET);
+        if (ENVIRONMENT) fwdHeaders.set("X-Crystallize-Environment", ENVIRONMENT);
         fwdHeaders.delete("host");
 
         const upstreamRes = await fetch(upstream.toString(), {
@@ -75,4 +79,5 @@ Bun.serve({
 });
 
 console.log(`MCP dev-bridge: http://localhost:${PORT}/mcp  ->  ${TARGET}`);
-console.log("Inject auth headers from env. CORS open for any origin.");
+const environmentNote = ENVIRONMENT ? ` (environment: ${ENVIRONMENT})` : "";
+console.log(`Inject auth headers from env${environmentNote}. CORS open for any origin.`);

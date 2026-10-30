@@ -296,4 +296,126 @@ describe("authMiddleware", () => {
         expect(body.authContext.bearerToken).toBe("my-jwt-token");
         expect(mockCreateClient).not.toHaveBeenCalled();
     });
+
+    describe("environment selection", () => {
+        const tokenHeaders = {
+            "X-Crystallize-Access-Token-Id": "test-id",
+            "X-Crystallize-Access-Token-Secret": "test-secret",
+        };
+        const env = { CRYSTALLIZE_DEV_API_ORIGIN: "-dev.example.test" };
+        const okMe = () => {
+            const tenantData = [{ tenant: { id: "t1", identifier: "shop", name: "Shop" } }];
+            const pimApi = mock().mockResolvedValue({ me: { tenants: tenantData } });
+            mockCreateClient.mockReturnValue({ pimApi } as never);
+        };
+        const jwksHrefs = () =>
+            mockCreateRemoteJWKSet.mock.calls.map((call) => (call as unknown as [URL])[0].href);
+        const bearerDev = () =>
+            app.request(
+                "/test",
+                {
+                    headers: {
+                        Authorization: "Bearer my-jwt-token",
+                        "X-Crystallize-Tenant-Identifier": "shop",
+                        "X-Crystallize-Environment": "dev",
+                    },
+                },
+                env,
+            );
+
+        it("resolves X-Crystallize-Environment: dev into authContext.origin and the me-call client", async () => {
+            okMe();
+            const res = await app.request(
+                "/test",
+                { headers: { ...tokenHeaders, "X-Crystallize-Environment": "dev" } },
+                env,
+            );
+
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { authContext: { origin: string } };
+            expect(body.authContext.origin).toBe("-dev.example.test");
+            expect(mockCreateClient).toHaveBeenCalledWith(expect.objectContaining({ origin: "-dev.example.test" }));
+        });
+
+        it("defaults authContext.origin to production without the header", async () => {
+            okMe();
+            const res = await app.request("/test", { headers: tokenHeaders }, env);
+
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { authContext: { origin: string } };
+            expect(body.authContext.origin).toBe(".crystallize.com");
+            expect(mockCreateClient).toHaveBeenCalledWith(expect.objectContaining({ origin: ".crystallize.com" }));
+        });
+
+        it("rejects an unknown environment with 400 before contacting Crystallize", async () => {
+            okMe();
+            const res = await app.request(
+                "/test",
+                { headers: { ...tokenHeaders, "X-Crystallize-Environment": "staging" } },
+                env,
+            );
+
+            expect(res.status).toBe(400);
+            const body = (await res.json()) as { error: string };
+            expect(body.error).toContain("X-Crystallize-Environment");
+            expect(mockCreateClient).not.toHaveBeenCalled();
+        });
+
+        it("rejects dev with 400 when CRYSTALLIZE_DEV_API_ORIGIN is unset", async () => {
+            okMe();
+            const res = await app.request(
+                "/test",
+                { headers: { ...tokenHeaders, "X-Crystallize-Environment": "dev" } },
+                {},
+            );
+
+            expect(res.status).toBe(400);
+            const body = (await res.json()) as { error: string };
+            expect(body.error).toContain("not configured");
+            expect(mockCreateClient).not.toHaveBeenCalled();
+        });
+
+        it("returns 500 when CRYSTALLIZE_DEV_API_ORIGIN is not a valid suffix", async () => {
+            okMe();
+            const res = await app.request(
+                "/test",
+                { headers: { ...tokenHeaders, "X-Crystallize-Environment": "dev" } },
+                { CRYSTALLIZE_DEV_API_ORIGIN: "dev.example.test/evil" },
+            );
+
+            expect(res.status).toBe(500);
+            const body = (await res.json()) as { error: string };
+            expect(body.error).toContain("CRYSTALLIZE_DEV_API_ORIGIN");
+            expect(mockCreateClient).not.toHaveBeenCalled();
+        });
+
+        it("verifies dev bearer tokens against the dev environment's JWKS", async () => {
+            mockJwtVerify.mockResolvedValue({ payload: { act: { tenantId: "t42" } } } as never);
+            const res = await bearerDev();
+
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { authContext: { origin: string } };
+            expect(body.authContext.origin).toBe("-dev.example.test");
+            expect(jwksHrefs()).toContain("https://api-dev.example.test/.well-known/jwks.json");
+        });
+
+        it("verifies production bearer tokens against api.crystallize.com", async () => {
+            mockJwtVerify.mockResolvedValue({ payload: { act: { tenantId: "t42" } } } as never);
+            const res = await app.request("/test", {
+                headers: { Authorization: "Bearer my-jwt-token", "X-Crystallize-Tenant-Identifier": "shop" },
+            });
+
+            expect(res.status).toBe(200);
+            expect(jwksHrefs()).toContain("https://api.crystallize.com/.well-known/jwks.json");
+        });
+
+        it("builds one JWKS per environment and reuses it", async () => {
+            mockJwtVerify.mockResolvedValue({ payload: { act: { tenantId: "t42" } } } as never);
+            await bearerDev();
+            await bearerDev();
+
+            const devHref = "https://api-dev.example.test/.well-known/jwks.json";
+            expect(jwksHrefs().filter((href) => href === devHref)).toHaveLength(1);
+        });
+    });
 });

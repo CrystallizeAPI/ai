@@ -41,6 +41,7 @@ describe("fetch-core-graphql-schema", () => {
         ((await call(input)).events ?? []).map((e) => e.path);
 
     beforeEach(() => {
+        mockFetchIntrospection.mockClear();
         mockFetchIntrospection.mockImplementation(async () => buildIntrospectionFromSDL(SDL));
         select = mock(async () => ({ picked: [], qualified: 0 }));
         tool = createFetchCoreGraphqlSchemaToolWrapper({
@@ -128,6 +129,11 @@ describe("fetch-core-graphql-schema", () => {
             log.mockRestore();
             expect(calls).toBe(0);
         });
+    });
+
+    it("fetches the introspection from the auth context's environment", async () => {
+        await tool.handler({ tenant: "shop", authContext: { ...testAuthContext, origin: "-dev.example.test" } });
+        expect(mockFetchIntrospection.mock.calls[0][0]).toBe("https://api-dev.example.test/@shop");
     });
 
     it("prefers an exact domain over an intent", async () => {

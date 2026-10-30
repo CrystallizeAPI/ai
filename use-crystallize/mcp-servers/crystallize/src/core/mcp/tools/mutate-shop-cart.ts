@@ -72,6 +72,7 @@ export const createMutateShopCartToolWrapper = ({ tenantMatcher, mutationExecuto
 
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const client = createClient({
+                origin: authContext.origin,
                 tenantId: matchedTenant.id,
                 tenantIdentifier: matchedTenant.identifier,
                 ...authContextResolver.getClientCredentials(authContext),

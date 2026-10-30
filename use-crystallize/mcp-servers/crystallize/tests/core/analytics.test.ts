@@ -15,6 +15,7 @@ import { testAuthContext, testTenants } from "../utils/fixtures";
 const singleTenantAuth: AuthContext = {
     type: "bearer",
     bearerToken: "jwt",
+    origin: ".crystallize.com",
     tenants: [testTenants[0]],
 };
 
@@ -22,6 +23,7 @@ const singleTenantAuth: AuthContext = {
 const bearerWithIdentifier = (identifier: string): AuthContext => ({
     type: "bearer",
     bearerToken: "jwt",
+    origin: ".crystallize.com",
     tenants: [{ id: "t", identifier, name: "n" }],
 });
 
