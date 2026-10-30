@@ -372,7 +372,8 @@ export async function POST(req: Request) {
     const { order } = await api.nextPimApi<{
         order: { payment?: { properties?: { property: string; value: string | null }[] }[] };
     }>(
-        `query($id: ID!) { order(id: $id) { ... on Order { payment { ... on CustomPayment { properties { property value } } } } } }`,
+        // BasicError makes a refused read reject and answer 500, so the failure shows up. Without it this reads as "nothing to capture".
+        `query($id: ID!) { order(id: $id) { ... on Order { payment { ... on CustomPayment { properties { property value } } } } ... on BasicError { errorName message } } }`,
         { id: orderId },
     );
     const records = (order.payment ?? []).map((p) =>

@@ -12,6 +12,7 @@ import {
     createClient,
     createShopCustomerManager,
     createShopOrderManager,
+    JSApiClientCallError,
 } from "@crystallize/js-api-client";
 
 export const api = createClient(
@@ -149,24 +150,41 @@ export const readOrder = (id: string) => orders.fetch<OrderRead>(id, ORDER).catc
 
 /**
  * Every Shop write sends the order's `pipelines` to Core, and Core moves the order to match. Stage moves made in the
- * App or the Core API do not reach that list, so a payment write would undo them: copy Core's stages over first.
+ * App or the Core API do not reach that list, so a payment write would undo them: copy Core's stages over first, and
+ * drop the pipelines Core no longer has.
+ *
+ * Each call here is a Shop write too, and no mutation sets the whole list at once. On an order in several pipelines,
+ * the ones not synced yet move back until their turn comes, and every move fires the stage webhook, so that handler
+ * must stay idempotent.
  */
 export async function syncStages(order: OrderRead) {
     if (!order.coreId) return; // Core has not answered yet: nothing can have moved
+    // Selecting BasicError makes a refused read reject. Without it the answer is `{}`: an order in no pipeline.
     const { order: core } = await api.nextPimApi<{
         order: { pipelines?: { pipelineId: string; stageId: string }[] | null } | null;
-    }>(`query($id: ID!) { order(id: $id) { ... on Order { pipelines { pipelineId stageId } } } }`, {
-        id: order.coreId,
-    });
-    for (const { pipelineId, stageId } of core?.pipelines ?? []) {
+    }>(
+        `query($id: ID!) { order(id: $id) { ... on Order { pipelines { pipelineId stageId } } ... on BasicError { errorName message } } }`,
+        { id: order.coreId },
+    );
+    if (!core) throw new RetryLater(`order ${order.coreId} not readable on Core yet`);
+    const settled = async (done: (o: OrderRead | null) => boolean, what: string) => {
+        for (let i = 0; !done(await readOrder(order.id)); i++) {
+            if (i === 9) throw new RetryLater(`order ${order.id} does not show ${what} yet`);
+            await new Promise((r) => setTimeout(r, 300)); // Shop writes persist just after answering
+        }
+    };
+    const stages = core.pipelines ?? [];
+    for (const { pipelineId, stageId } of stages) {
         const known = (o: OrderRead | null) =>
-            o?.pipelines?.some((p) => p.identifier === pipelineId && p.stage === stageId);
+            !!o?.pipelines?.some((p) => p.identifier === pipelineId && p.stage === stageId);
         if (known(order)) continue;
         await orders.addToStage(order.id, pipelineId, stageId);
-        for (let i = 0; !known(await readOrder(order.id)); i++) {
-            if (i === 9) throw new RetryLater(`order ${order.id} does not show stage ${stageId} yet`);
-            await new Promise((r) => setTimeout(r, 300)); // addToStage persists just after answering
-        }
+        await settled(known, `stage ${stageId}`);
+    }
+    for (const { identifier } of order.pipelines ?? []) {
+        if (!identifier || stages.some((s) => s.pipelineId === identifier)) continue;
+        await orders.removeFromPipeline(order.id, identifier);
+        await settled((o) => !!o && !o.pipelines?.some((p) => p.identifier === identifier), `${identifier} removed`);
     }
 }
 
@@ -248,7 +266,11 @@ async function ensureCustomer(customer: CartCustomer | null) {
     if (!customer?.identifier || customer.isGuest) return;
     const exists = await customers.fetch(customer.identifier).then(
         () => true,
-        () => false, // fetch rejects when the customer does not exist
+        (error) => {
+            // Only a real "not found". A timeout or a 5xx says nothing, and upsert replaces the whole customer.
+            if (error instanceof JSApiClientCallError && /not found/i.test(error.message)) return false;
+            throw error;
+        },
     );
     if (exists) return; // never overwrite a known customer with checkout data
     const { isGuest, addresses, ...fields } = customer;
