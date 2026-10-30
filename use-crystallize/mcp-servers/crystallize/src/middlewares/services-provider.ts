@@ -8,6 +8,7 @@ import type { ToolWrapper } from "../contracts/tool";
 import { buildContainer, toolRegistry } from "../core/container";
 import { buildToolCallEvent } from "../core/analytics";
 import { readExposeFlags } from "../core/expose-flags";
+import { withEnvironmentResourceDomains } from "../core/ui-resource-meta";
 import { PLAUSIBLE_EVENTS_ENDPOINT } from "../core/services/plausible-analytics-tracker";
 import { asValue } from "awilix";
 
@@ -89,16 +90,21 @@ export const servicesProvider = createMiddleware<AppContext>(async (c, next) => 
                 name,
                 resourceUri,
                 { description, _meta: meta ? { ui: meta } : undefined },
-                async () => ({
-                    contents: [
-                        {
-                            uri: resourceUri,
-                            mimeType: RESOURCE_MIME_TYPE,
-                            text: html,
-                            ...(meta ? { _meta: { ui: meta } } : {}),
-                        },
-                    ],
-                }),
+                async () => {
+                    // Read inside the MCP request, so the panel's CSP can admit the session's environment.
+                    const origin = (getMcpAuthContext()?.props as AuthContext | undefined)?.origin;
+                    const resourceMeta = origin ? withEnvironmentResourceDomains(meta, origin) : meta;
+                    return {
+                        contents: [
+                            {
+                                uri: resourceUri,
+                                mimeType: RESOURCE_MIME_TYPE,
+                                text: html,
+                                ...(resourceMeta ? { _meta: { ui: resourceMeta } } : {}),
+                            },
+                        ],
+                    };
+                },
             );
         } else {
             mcpServer.registerTool(

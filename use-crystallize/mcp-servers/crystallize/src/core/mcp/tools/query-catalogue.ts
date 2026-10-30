@@ -4,6 +4,7 @@ import { defineToolWrapper } from "../../../contracts/tool";
 import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { QueryExecutor } from "../../../contracts/query-executor";
 import { tenantSchema, querySchema, variablesSchema, buildApiUrl } from "../../security";
+import { apiBaseUrl } from "../../api-origin";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
@@ -41,6 +42,7 @@ export const createQueryCatalogueToolWrapper = ({ tenantMatcher, queryExecutor }
             }
 
             const client = createClient({
+                origin: authContext.origin,
                 tenantIdentifier: matchedTenant.identifier,
                 tenantId: matchedTenant.id,
                 ...(authContext.type === "token"
@@ -59,7 +61,11 @@ export const createQueryCatalogueToolWrapper = ({ tenantMatcher, queryExecutor }
 
             return queryExecutor({
                 executor: (q, v) => client.catalogueApi(q, v),
-                introspectionUrl: buildApiUrl("https://api.crystallize.com", matchedTenant.identifier, "/catalogue"),
+                introspectionUrl: buildApiUrl(
+                    apiBaseUrl("api", authContext.origin),
+                    matchedTenant.identifier,
+                    "/catalogue",
+                ),
                 introspectionHeaders,
                 query,
                 variables,

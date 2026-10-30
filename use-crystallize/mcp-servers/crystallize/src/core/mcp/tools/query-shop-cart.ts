@@ -7,6 +7,7 @@ import { QueryExecutor } from "../../../contracts/query-executor";
 import { AuthContextResolver } from "../../../contracts/auth-context-resolver";
 import { AuthContext } from "../../../contracts/app-context";
 import { tenantSchema, readOnlyQuerySchema, variablesSchema, buildAtApiUrl } from "../../security";
+import { apiBaseUrl } from "../../api-origin";
 
 type Deps = {
     tenantMatcher: TenantMatcher;
@@ -19,7 +20,7 @@ const fetchShopApiToken = async (
     authContext: AuthContext,
     authContextResolver: AuthContextResolver,
 ): Promise<string> => {
-    const response = await fetch(buildAtApiUrl("https://shop-api.crystallize.com", tenant, "/auth/token"), {
+    const response = await fetch(buildAtApiUrl(apiBaseUrl("shop-api", authContext.origin), tenant, "/auth/token"), {
         method: "POST",
         headers: {
             "Content-Type": "application/json; charset=UTF-8",
@@ -82,6 +83,7 @@ export const createQueryShopCartToolWrapper = ({ tenantMatcher, queryExecutor, a
 
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const client = createClient({
+                origin: authContext.origin,
                 tenantId: matchedTenant.id,
                 tenantIdentifier: matchedTenant.identifier,
                 ...authContextResolver.getClientCredentials(authContext),
@@ -89,7 +91,7 @@ export const createQueryShopCartToolWrapper = ({ tenantMatcher, queryExecutor, a
 
             const shopApiToken = await fetchShopApiToken(matchedTenant.identifier, authContext, authContextResolver);
             const introspectionUrl = buildAtApiUrl(
-                "https://shop-api.crystallize.com",
+                apiBaseUrl("shop-api", authContext.origin),
                 matchedTenant.identifier,
                 "/cart",
             );

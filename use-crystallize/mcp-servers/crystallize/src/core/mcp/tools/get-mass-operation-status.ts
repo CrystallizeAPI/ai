@@ -31,6 +31,7 @@ export const createGetMassOperationStatusToolWrapper = ({
         handler: async ({ tenant, taskId, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const client = createClient({
+                origin: authContext.origin,
                 tenantIdentifier: matchedTenant.identifier,
                 tenantId: matchedTenant.id,
                 ...authContextResolver.getClientCredentials(authContext),

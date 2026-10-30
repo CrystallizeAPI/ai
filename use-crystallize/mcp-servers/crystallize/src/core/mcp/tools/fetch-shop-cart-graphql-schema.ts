@@ -5,6 +5,7 @@ import { TenantMatcher } from "../../../contracts/tenant-matcher";
 import { AuthContextResolver } from "../../../contracts/auth-context-resolver";
 import { AuthContext } from "../../../contracts/app-context";
 import { tenantSchema, sanitizeErrorMessage, buildAtApiUrl } from "../../security";
+import { apiBaseUrl } from "../../api-origin";
 
 type Deps = {
     graphqlSchemaCompacter: GraphqlSchemaCompacter;
@@ -17,7 +18,7 @@ const fetchShopApiToken = async (
     authContext: AuthContext,
     authContextResolver: AuthContextResolver,
 ): Promise<string> => {
-    const response = await fetch(buildAtApiUrl("https://shop-api.crystallize.com", tenant, "/auth/token"), {
+    const response = await fetch(buildAtApiUrl(apiBaseUrl("shop-api", authContext.origin), tenant, "/auth/token"), {
         method: "POST",
         headers: {
             "Content-Type": "application/json; charset=UTF-8",
@@ -56,7 +57,7 @@ export const createFetchShopCartGraphqlSchemaToolWrapper = ({
         handler: async ({ tenant, authContext }) => {
             const matchedTenant = tenantMatcher(authContext.tenants, { identifier: tenant });
             const shopApiToken = await fetchShopApiToken(matchedTenant.identifier, authContext, authContextResolver);
-            const url = buildAtApiUrl("https://shop-api.crystallize.com", matchedTenant.identifier, "/cart");
+            const url = buildAtApiUrl(apiBaseUrl("shop-api", authContext.origin), matchedTenant.identifier, "/cart");
             const headers: Record<string, string> = {
                 Authorization: `Bearer ${shopApiToken}`,
             };

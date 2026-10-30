@@ -12,6 +12,7 @@ export const testAuthContext: AuthContext = {
     type: "token",
     accessTokenId: "test-id",
     accessTokenSecret: "test-secret",
+    origin: ".crystallize.com",
     tenants: testTenants,
 };
 
