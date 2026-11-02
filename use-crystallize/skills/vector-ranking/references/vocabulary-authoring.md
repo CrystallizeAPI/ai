@@ -53,7 +53,10 @@ weight: [1.0, 0.6, 0.3]    1st entry  1.0
 ## 2. Create the vocabulary
 
 `upsertVocabulary` creates or replaces a vocabulary **in full**. It is a full replace, not a patch —
-send the whole dimension list every time. **Any dimension you omit is gone.**
+send the whole dimension list every time. **Any dimension you omit is gone**, and the entries items still
+hold for it are skipped, without error, the next time their vectors are built.
+
+A vocabulary needs at least one dimension, dimension ids must be unique, and every weight must be positive.
 
 ```graphql
 mutation UpsertVocabulary($input: UpsertVocabularyInput!) {
@@ -89,6 +92,10 @@ GraphqlInputVocabularyDimension { id: String!, weight: [Float!]! }
 GraphqlVocabulary       { name: String!, dimensions: [GraphqlVocabularyDimension!]!, lastUpdated: Date }
 ```
 
+Discovery exposes the name normalized for GraphQL (`coffee-taste` becomes the enum value `coffeeTaste`),
+and `upsertVocabulary` refuses a new name that normalizes to the same value as an existing one. Core keeps
+taking the name as you wrote it.
+
 Read it back with the `vocabulary` query — useful as an idempotency check before a bulk re-author:
 
 ```graphql
@@ -106,8 +113,8 @@ query {
 
 ## 3. Attach taste to items
 
-`setItemTaste` writes the ordered entries for **one item, one language, one vocabulary**. Two
-vocabularies means two calls per item.
+`setItemTaste` writes the ordered entries for **one item, one language, one vocabulary**, replacing what
+that vocabulary held on the item. Two vocabularies means two calls per item.
 
 ```graphql
 mutation SetItemTaste($input: SetItemTasteInput!) {
@@ -162,27 +169,29 @@ SetItemTasteResult (union)   Product | Folder | Document
                              | UnauthorizedError | UnknownError
 ```
 
-`ExperimentalFeaturesNotAvailableError` is in the result union and is **not** in the public docs. It
-means vectors are not enabled for the tenant at all — read `errorName` off the `BasicError` fragment to
-tell it apart from the others.
+`ExperimentalFeaturesNotAvailableError` is a standard member of Core result unions, not a signal about
+vectors: nothing in vocabulary or taste authoring raises it, and ranking is switched on by the ignition in
+step 5. The validation rejections below come back as `UnknownError`, with the reason in `message`.
 
 ### Order is the input to positional weights
 
 Entries are read **in array order, per dimension**. Above, `flavor:berry` takes 1.0,
 `flavor:blackcurrant` 0.6 and `flavor:caramel` 0.3. The optional per-entry `weight` overrides the
 vocabulary weight for that entry only — and **still consumes its positional slot**, so it does not shift
-the entries that follow.
+the entries that follow. Overrides are not range-checked: keep them positive, because a negative one puts
+every query that reaches the item on the windowed path.
 
 ### The key format is validated
 
 Every key is `<dimensionId>:<value>`. Everything before the first colon must be a **declared dimension
-in that vocabulary**. Either mistake rejects the whole call, so there are **no partial writes** — fix
-the key and resend the full set of entries.
+in that vocabulary**, and the vocabulary must exist. Any of these mistakes rejects the whole call, so there
+are **no partial writes** — fix it and resend the full set of entries.
 
 | Bad entry              | Rejection message                                                                       |
 | ---------------------- | --------------------------------------------------------------------------------------- |
 | `{ key: "chocolate" }` | `Malformed taste entry key "chocolate": expected "<dimensionId>:<value>"`               |
 | `{ key: "mood:cozy" }` | `Unknown dimension "mood" in vocabulary "taste". Known dimensions: roast, flavor, body` |
+| `vocabulary: "nope"`   | `Vocabulary "nope" not found for this tenant`                                           |
 
 ### Read taste back
 
@@ -192,11 +201,13 @@ It is **not** exposed on Discovery hits.
 ```graphql
 query {
     item(id: "<ITEM_ID>", language: "en") {
-        taste {
-            vocabulary
-            entries {
-                key
-                weight
+        ... on Item {
+            taste {
+                vocabulary
+                entries {
+                    key
+                    weight
+                }
             }
         }
     }
@@ -216,8 +227,8 @@ See [[taxonomy]] for the topic side.
 
 ## 4. Publish
 
-`setItemTaste` writes to the **draft** version. The indexer reads the **published** version. If your
-items were published before you attached taste, publish them again or the served documents carry no
+`setItemTaste` writes to the **draft** version. Discovery serves the **published** version by default. If
+your items were published before you attached taste, publish them again or the served documents carry no
 vectors.
 
 ```graphql
@@ -235,25 +246,34 @@ mutation Publish($id: ID!, $language: String!) {
 }
 ```
 
-Publish **per item and per language**. `publishItem` answers with the published version or an error
-for that item. `publishItems` returns a `PublishItemsRequest` instead, and its return is not proof that
-the items are published yet — index right after it and the index may read the old versions.
+Publish **per item and per language**. `publishItem` and `publishItems` both run in the background, so
+neither return is proof that the items are published yet — index right after them and the index may read
+the old versions. Wait for `item(id:, language:, versionLabel: published)` to show the new taste first.
+
+On a tenant already served for ranking, each publish re-indexes that item in the background, vectors
+included, so a taste change needs no ignition.
 
 **Skipping this step produces no error.** Queries still return results, and the order may even change —
 it just has no relation to taste. The check in step 6 is the only thing that catches it.
 
 ## 5. Index
 
-`igniteDiscoApi` rebuilds the tenant's Discovery index and materializes the vectors. Run it after **any**
-change to vocabularies or taste entries, not only the first time.
+`igniteDiscoApi` rebuilds the tenant's Discovery index and materializes the vectors. Run it the first
+time, and again after **any** `upsertVocabulary`: new weights reach existing items only at an index run, and
+a new vocabulary only joins the Discovery enum then.
+
+Only a tenant admin can ignite, and a tenant runs one ignition at a time. Either refusal comes back as a
+`BasicError`. The Discovery page in the app's settings runs the same mutation, with `stacks: opensearch`.
 
 **Ignite last.** Run it once the shapes exist, each with at least one component, and the content is
 published, not as an early setup step. A tenant with no shapes that Discovery can index is refused: the
 task ends in `error`.
 
 **Pass `stacks: opensearch`.** The argument is optional in the schema but it selects which index stack
-is built, and vector ranking is only served from the `opensearch` stack — an ignition without it
-produces a working Discovery index with no vectors in it, and no error.
+is built, and vector ranking is only served from the `opensearch` stack. Without it, a tenant not yet
+served gets a working Discovery index, no ranking arguments and no error. `both` builds the stack but
+leaves reads where they are, so it does not turn ranking on either. A tenant already served for ranking
+refuses an ignition that leaves the stack out: the task ends in `error`.
 
 ```graphql
 mutation Index {
@@ -307,9 +327,9 @@ ignition that failed, unchanged, fails the same way. Before reporting success, p
 Anything but `{"data":{"__typename":"Query"}}` means the tenant is not serving, whatever the task said.
 
 From then on the tenant's Discovery schema includes `context`, `rankBy` and `nearestTo`, and every
-vocabulary you created becomes a value of the `TenantVocabularyIdentifier` enum. **A vocabulary is only
-a valid enum value after the next index run** — until then, queries referencing it fail schema
-validation.
+vocabulary you created becomes a value of the `TenantVocabularyIdentifier` enum, under its normalized
+name. **A vocabulary is only a valid enum value after the next index run** — until then, queries
+referencing it fail schema validation.
 
 Before a tenant has any indexed vocabulary, the same arguments (`nearestTo.vocabulary`,
 `userTaste.vocabulary`) are typed `String`, and a query fails with `Vocabulary <name> not found`. After
@@ -341,6 +361,7 @@ b) Run the same query with and without `context` and compare the order.
 
 ## Authoring at scale
 
-`setItemTaste` is one call per item per vocabulary, so a full catalogue is a bulk job. Drive it from
-[[mass-operations]] or a script over [[js-api-client]], and **index once at the end** rather than per
-item. Order matters: vocabulary → taste → publish → index.
+`setItemTaste` is one call per item per vocabulary, so a full catalogue is a bulk job. Mass operations
+have no taste intent, so drive it from a script over [[js-api-client]]. The `item/publish` intent of
+[[mass-operations]] covers the publish step. **Index once at the end** rather than per item. Order
+matters: vocabulary → taste → publish → index.

@@ -71,6 +71,7 @@ mutation {
                     type: contentChunk
                     config: {
                         contentChunk: {
+                            repeatable: false
                             components: [
                                 {
                                     id: "width"
@@ -157,8 +158,8 @@ Components are the atomic fields that make up shapes.
 
 | Component   | Description                 | API Type     |
 | ----------- | --------------------------- | ------------ |
-| Single Line | Short text (max ~256 chars) | `singleLine` |
-| Rich Text   | Formatted HTML content      | `richText`   |
+| Single Line | Short text                  | `singleLine` |
+| Rich Text   | Formatted content           | `richText`   |
 | Numeric     | Numbers with optional units | `numeric`    |
 | Boolean     | True/false values           | `boolean`    |
 | Datetime    | Date and time picker        | `datetime`   |
@@ -178,7 +179,7 @@ Images are automatically optimized and served in WebP/AVIF formats with responsi
 
 #### Chunk
 
-Groups related fields together. Can be marked as repeatable.
+Groups related fields together. Repeatable unless you set `repeatable: false`.
 
 ```
 Specifications (Chunk, Repeatable)
@@ -193,10 +194,10 @@ Polymorphic field where editors select ONE option from predefined choices.
 
 ```
 Guitar Specs (Choice)
-├── Electric Specs
+├── Electric Specs (Piece)
 │   ├── Pickup Type (Single Line)
 │   └── Wattage (Numeric)
-└── Acoustic Specs
+└── Acoustic Specs (Piece)
     ├── Body Wood (Single Line)
     └── Soundhole Style (Single Line)
 ```
@@ -207,11 +208,12 @@ Like Choice, but multiple options can be selected simultaneously.
 
 ### Relation Components
 
-| Component      | Description              | Use Case                      |
-| -------------- | ------------------------ | ----------------------------- |
-| Item Relation  | Links to catalogue items | Related products, cross-sells |
-| Grid Relation  | Links to grids           | Featured collections          |
-| Topic Relation | Links to topics          | Categories, tags              |
+| Component     | Description              | Use Case                      |
+| ------------- | ------------------------ | ----------------------------- |
+| Item Relation | Links to catalogue items | Related products, cross-sells |
+| Grid Relation | Links to grids           | Featured collections          |
+
+Topics are not a component: `topics` is a built-in field on items and variants.
 
 ## Component Settings
 
@@ -219,26 +221,26 @@ Like Choice, but multiple options can be selected simultaneously.
 
 Unique key used in API queries. Auto-generated from name but customizable.
 
-- Use camelCase: `productDescription`
+- Use lowercase with hyphens: `product-description`
 - Keep stable once in production
-- Must be unique within the shape
+- Must be unique within its component list
 
 ### Localization
 
 Enable to allow translation into multiple languages. When enabled:
 
 - Content can be entered per language
-- API queries require language parameter
+- Queries pick the language with the `language` argument
 - Missing translations return null
 
 ### Discoverability
 
-Controls whether the field appears in Discovery API:
+Controls whether the field appears in Discovery API. It is on unless you set `discoverable: false`:
 
 - **Enabled**: Field is searchable and filterable
 - **Disabled**: Field only in Catalogue API
 
-Use for fields that need search/filter capabilities.
+Disable it for internal fields that should stay out of the Discovery API.
 
 ### Repeatability (in Chunks)
 
@@ -268,9 +270,9 @@ Result:
 ## Shape Best Practices
 
 1. **Plan before building** - Sketch your data model first
-2. **Use semantic names** - `productDescription` not `field1`
+2. **Use semantic names** - `product-description` not `field1`
 3. **Group with chunks** - Keep related fields together
-4. **Make fields discoverable** - Enable for searchable attributes
+4. **Keep internal fields out of Discovery** - Set `discoverable: false` on them
 5. **Consider localization** - Enable early if multilingual
 6. **Keep shapes focused** - One shape per content type
 7. **Version carefully** - Changing shapes affects existing content

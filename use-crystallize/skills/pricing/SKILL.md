@@ -1,6 +1,6 @@
 ---
 name: pricing
-description: Design and implement pricing strategies in Crystallize using Price Variants, Price Lists, Promotions, and Markets. Use when recommending pricing structures, setting up multi-currency support, configuring B2B/B2C pricing, planning promotional campaigns, defining markets, or advising on pricing architecture for commerce projects. Also use when the user asks about currencies, multi-market setup, was/now pricing, strikethrough prices, wholesale pricing, coupon codes, discount campaigns, tiered pricing, cart discounts, tax-inclusive/exclusive pricing, or any question about how prices work in Crystallize — even if they don't explicitly mention "pricing".
+description: Design and implement pricing strategies in Crystallize using Price Variants, Price Lists, Promotions, and Markets. Use when recommending pricing structures, setting up multi-currency support, configuring B2B/B2C pricing, planning promotional campaigns, defining markets, or advising on pricing architecture for commerce projects. Also use when the user asks about currencies, multi-market setup, was/now pricing, strikethrough prices, wholesale pricing, contract prices, coupon codes, discount campaigns, tiered or volume pricing, cart discounts, tax-inclusive/exclusive pricing, or any question about how prices work in Crystallize — even if they don't explicitly mention "pricing".
 metadata:
     author: Crystallize
     version: "2.0"
@@ -33,7 +33,7 @@ Crystallize resolves prices through a layered hierarchy. Each layer can override
 **Resolution order:** When a customer checks out, the system evaluates:
 
 1. Which price variant applies (based on context)
-2. Whether a price list overrides that variant (based on market, customer group, time period)
+2. Whether a price list overrides that variant (based on market, customer, customer group, time period). When several match, the lowest price wins
 3. Whether any promotions apply (based on cart contents, coupon codes, triggers)
 
 ## Quick Start Decision Tree
@@ -42,14 +42,15 @@ Crystallize resolves prices through a layered hierarchy. Each layer can override
 START: You need to set up pricing.
 
 Q1: Do you sell in a single currency with one price per product?
-  → Yes → Create 1 price variant (e.g. "default" in your currency)
+  → Yes → Use the built-in "default" price variant, in your currency
   → No → Continue
 
 Q2: Do you need different price *types* (retail vs wholesale, regular vs sale)?
   → Yes → Create a price variant per type (see Price Variant Patterns below)
 
 Q3: Do you sell in multiple currencies or regions?
-  → Yes → Create Markets + Price Lists (see Markets & Price Lists below)
+  → Multiple currencies → Create a price variant per currency: a price list cannot change the currency
+  → Regional adjustments → Create Markets + Price Lists (see Markets & Price Lists below)
 
 Q4: Do you need temporary discounts, coupon codes, or "buy X get Y" deals?
   → Yes → Set up Promotions (see Promotions below)
@@ -78,18 +79,18 @@ Price variants are **global definitions** — they define the _types_ of prices 
 
 ### The Default Price Variant
 
-Every Crystallize tenant comes with a `default` price variant. It **must always exist** — it is the system's fallback and cannot be deleted.
+Every Crystallize tenant comes with a `default` price variant. It **must always exist** — it cannot be deleted.
 
-**Best practice: Rename it to match your primary use case.**
+**Best practice: Rename it to match your primary use case.** Only the display **name** changes: the identifier stays `default` for good, because `updatePriceVariant` takes `name`, `currency` and `tierConfig` and no identifier. Set its `currency` too: it is created without one and answers the tenant's default currency.
 
-| Business Type     | Rename `default` to             | Currency             | Rationale                         |
-| ----------------- | ------------------------------- | -------------------- | --------------------------------- |
-| B2C single market | `retail`                        | Your main currency   | The standard consumer price       |
-| B2C multi-market  | `retail` (main market currency) | Main market currency | The primary market's retail price |
-| B2B single market | `b2b` or `wholesale`            | Your main currency   | Your main B2B list price          |
-| B2B + B2C         | `retail` (main market)          | Main market currency | Retail is the most common base    |
+| Business Type     | Name `default`         | Currency             | Rationale                         |
+| ----------------- | ---------------------- | -------------------- | --------------------------------- |
+| B2C single market | "Retail"               | Your main currency   | The standard consumer price       |
+| B2C multi-market  | "Retail" (main market) | Main market currency | The primary market's retail price |
+| B2B single market | "B2B" or "Wholesale"   | Your main currency   | Your main B2B list price          |
+| B2B + B2C         | "Retail" (main market) | Main market currency | Retail is the most common base    |
 
-The default variant serves as the **fallback** everywhere — if no price list override or more specific variant applies, this is the price the system resolves to. So it should represent your most common, primary price type for your main market.
+`default` is what a cart selects when `selectedVariantIdentifier` is not sent, and what the Catalogue API's `price` answers without an identifier. So it should represent your most common, primary price type for your main market. It is **not** a fallback for a missing price: see [Pricing a Cart](#pricing-a-cart).
 
 ### Naming Conventions
 
@@ -103,6 +104,8 @@ Use clear, consistent names that encode **purpose** and **currency**:
 | Combined       | `usd-retail`, `eur-b2b`  | USD Retail, EUR B2B              | respective |
 
 ### Recommended Patterns by Business Type
+
+In the patterns below, `retail` stands for the primary price type. That is either the `default` variant named "Retail", in which case every API call still says `default`, or a `retail` variant you created alongside it.
 
 #### Simple B2C (single market)
 
@@ -123,13 +126,13 @@ Price Variants:
 
 **When:** You show was/now or strikethrough pricing. **Retail** is the reference price — the "compare at" price displayed crossed out. **Sales** is the actual selling price. When no sale is active, the storefront falls back to the Retail price (Sales is left empty or equal to Retail).
 
-**Key rule:** Retail is always set. Sales is only set when the product is on sale. The storefront checks: if Sales exists and is lower than Retail → show strikethrough. Otherwise → show Retail as the current price.
+**Key rule:** Retail is always set. Sales is only set when the product is on sale. The storefront checks: if Sales exists and is lower than Retail → show strikethrough. Otherwise → show Retail as the current price. The cart needs the same rule spelled out in its context: see [Pricing a Cart](#pricing-a-cart).
 
 #### B2C Per-Market (the most typical B2C pattern)
 
 ```
 Price Variants:
-  ├── retail (USD)  — US retail (the default variant, renamed)
+  ├── retail (USD)  — US retail (the default variant, named "Retail")
   ├── sales (USD)   — US sales / marked-down price
   ├── retail-eur (EUR) — EU retail
   ├── sales-eur (EUR)  — EU sales
@@ -137,7 +140,7 @@ Price Variants:
   └── sales-gbp (GBP)  — UK sales
 ```
 
-**When:** Multi-market B2C with was/now pricing per market. Each market gets a Retail + Sales pair. The default variant is renamed to `retail` for the primary market. Secondary markets use `retail-{currency}` / `sales-{currency}` suffixes.
+**When:** Multi-market B2C with was/now pricing per market. Each market gets a Retail + Sales pair. The default variant, named "Retail", serves the primary market. Secondary markets use `retail-{currency}` / `sales-{currency}` suffixes.
 
 **Resolution per market:**
 
@@ -173,7 +176,7 @@ Price Variants:
 
 ```
 Price Variants:
-  ├── retail (USD)      — US consumer price (default, renamed)
+  ├── retail (USD)      — US consumer price (default, named "Retail")
   ├── sales (USD)       — US consumer sale price
   ├── b2b (USD)         — US wholesale price
   ├── retail-eur (EUR)  — EU consumer price
@@ -215,7 +218,7 @@ Price Variants:
 ### Common Mistakes
 
 1. **Creating a variant per country** — Use Price Lists for regional adjustments instead
-2. **Leaving "default" named as "default"** — Always rename it to reflect its purpose (e.g. `retail` for B2C, `b2b` for B2B). The name "default" tells nobody what the price represents.
+2. **Leaving "default" named as "default"** — Always set its display name to reflect its purpose (e.g. "Retail" for B2C, "B2B" for B2B). The name "default" tells nobody what the price represents.
 3. **Confusing retail and sales** — Retail is the reference/compare-at price (always set). Sales is the marked-down price (only set during a sale). The storefront falls back to Retail when Sales is empty.
 4. **Using promotions when you need persistent sales pricing** — Promotions are for cart-level, time-limited campaigns. If you always show a was/now price on the product page, use a `sales` price variant instead.
 5. **Inconsistent naming** — Pick a convention (`{purpose}-{currency}` or `{purpose}`) and stick with it across all variants
@@ -277,7 +280,7 @@ Price Lists:
 
 ## Markets
 
-Markets define selling contexts. They group together the rules for who gets which prices, promotions, and configurations.
+Markets define selling contexts. They group together the rules for who gets which prices, promotions, and configurations. A market is only a name and an identifier: it holds no currency, tax or price of its own, and a price list cannot change the currency of the price variant it adjusts.
 
 ### What Markets Represent
 
@@ -290,12 +293,9 @@ A market can be:
 
 ### Market Setup Recommendations
 
-#### Simple: One Market
+#### Simple: No Market
 
-```
-Markets:
-  └── "default" — Your only selling context
-```
+A tenant starts with no markets, and a single selling context needs none: a cart's `markets` defaults to `[]`, and a price list aimed at `EVERYONE` applies regardless.
 
 #### Multi-Region
 
@@ -304,7 +304,7 @@ Markets:
   ├── "us" — United States
   ├── "eu" — European Union
   ├── "uk" — United Kingdom
-  └── "row" — Rest of World (fallback)
+  └── "row" — Rest of World (there is no automatic fallback: the storefront sends it)
 ```
 
 #### B2B + B2C per Region
@@ -325,25 +325,27 @@ Market ──→ Price Lists (which prices apply)
        ──→ Checkout context (resolved at purchase time)
 ```
 
-Markets are set in the **checkout context** — at cart/checkout time, the active market determines which price lists and promotions are evaluated.
+Markets are set in the **checkout context** — at cart/checkout time, `context.price.markets` determines which price lists and promotions are evaluated.
 
 ## Promotions
 
-Promotions apply at the **cart level** — they only become visible during checkout, not on product pages. This keeps your base pricing clean while enabling flexible campaigns.
+Promotions apply at the **cart level** — they only become visible during checkout, not on product pages. This keeps your base pricing clean while enabling flexible campaigns. They are managed in the app under Special prices, or through the Shop API's `cart/admin` endpoint: see [references/promotions.md](references/promotions.md).
 
 ### Promotion Mechanisms
 
-| Mechanism      | Description       | Example                   |
-| -------------- | ----------------- | ------------------------- |
-| **Percentage** | % off the price   | "20% off all shoes"       |
-| **Fixed**      | Flat amount off   | "$10 off orders over $50" |
-| **X for Y**    | Buy X, pay for Y  | "Buy 3, pay for 2"        |
-| **Cart**       | Reduce cart total | "$20 off the entire cart" |
+The app and the API use different names. "Fixed" means a different thing in each:
+
+| In the app     | API `mechanism.type` | What `value` is                                 | Example                                       |
+| -------------- | -------------------- | ----------------------------------------------- | --------------------------------------------- |
+| **Percentage** | `Percentage`         | % off the price                                 | "20% off all shoes"                           |
+| **Cart**       | `Fixed`              | Amount off, spread across the targeted lines    | "$10 off orders over $50", "$20 off the cart" |
+| **Fixed**      | `DynamicFixed`       | New unit price, applied when lower than current | "All T-shirts at $15"                         |
+| **X for Y**    | `XforY`              | `0`: X and Y go in `triggers.xForY`             | "Buy 3, pay for 2"                            |
 
 ### Promotion Components
 
-1. **Mechanism** — How the discount is calculated (percentage, fixed, X-for-Y, cart)
-2. **Period** (optional) — When the promotion is active (start/end dates, can recur)
+1. **Mechanism** — How the discount is calculated (see above)
+2. **Period** (optional) — When the promotion is active (one or more start/end windows)
 3. **Trigger** (optional) — What activates it (e.g. "3 items of product X in cart")
 4. **Target** (optional) — Which products are affected (if empty, applies to all)
 5. **Limitations** — Cumulative rules, max usage, per-customer limits
@@ -401,15 +403,48 @@ After discovery, structure your recommendation as:
 
 Always recommend starting with the minimum viable setup and adding layers as the business requires them.
 
+## Pricing a Cart
+
+The Shop API `hydrate` mutation prices a cart from `input.context.price`. The storefront sends it on **every** hydrate: an omitted field goes back to its default, it does not keep the previous value.
+
+| `context.price`                        | Default   | Effect                                                                                     |
+| -------------------------------------- | --------- | ------------------------------------------------------------------------------------------ |
+| `selectedVariantIdentifier`            | `default` | The price variant that sets the price                                                      |
+| `fallbackVariantIdentifiers`           | none      | Tried in order when the selected variant has no price for the SKU                          |
+| `compareAtVariantIdentifier`           | none      | The "was" price, read before price lists. A gap to the selected price lands in `discounts` |
+| `markets`                              | `[]`      | Which market-targeted price lists and promotions can match                                 |
+| `customerGroups`                       | `[]`      | The same for groups. Not read from the customer record                                     |
+| `voucherCodes`                         | `[]`      | Coupon codes. `voucherCode` is deprecated                                                  |
+| `currency`                             | `eur`     | A label, and what `triggers.currencies` tests. It selects no variant and converts nothing  |
+| `decimals`                             | `0`       | Rounds every amount returned. **Left at 0, 39.99 comes back as 40**                        |
+| `pricesHaveTaxesIncludedInCrystallize` | `false`   | Whether the stored price is gross, see below                                               |
+| `taxRate`                              | none      | 0–1, overrides the product's tax group                                                     |
+| `discountOnNetPrices`                  | `false`   | Promotions and `minValue` work on net instead of gross                                     |
+
+A SKU with no value on the selected variant or on any fallback silently takes its **first** price variant, possibly in another currency. Was/now in a cart:
+
+```graphql
+context: {
+    price: {
+        selectedVariantIdentifier: "sales"
+        fallbackVariantIdentifiers: ["default"]
+        compareAtVariantIdentifier: "default"
+        currency: "USD"
+        decimals: 2
+        markets: ["us-retail"]
+    }
+}
+```
+
 ## Tax & Pricing
 
 Prices in Crystallize are stored as raw numbers — the system does not enforce whether they are tax-inclusive or tax-exclusive. This is a business decision:
 
-- **B2C (most of Europe, Australia):** Prices typically include VAT. Store gross prices in your variants.
-- **B2B / US B2C:** Prices are typically tax-exclusive. Store net prices and calculate tax at checkout.
+- **B2C (most of Europe, Australia):** Prices typically include VAT. Store gross prices in your variants, and hydrate with `pricesHaveTaxesIncludedInCrystallize: true`.
+- **B2B / US B2C:** Prices are typically tax-exclusive. Store net prices and leave it at `false`, so that gross = price × (1 + rate).
 - **Mixed:** Use price variants or price lists to maintain both. For example, EU retail variants hold gross prices while US retail variants hold net prices.
 
-Tax calculation itself happens at the checkout/order layer — configure tax rates in your checkout flow or use an external tax service. The pricing hierarchy (variants → price lists → promotions) resolves the price; tax is applied on top of (or extracted from) that resolved price.
+The Shop API calculates the tax. The rate is the first of: `taxRate` on the cart item, `context.price.taxRate` (both 0–1), the percentage of the product's tax group. To use an external tax service, pass its rate as `taxRate`. The pricing hierarchy (variants → price lists → promotions) resolves the price; tax is applied on top of (or extracted from) that resolved price.
 
 ## Migration Paths
 
@@ -422,7 +457,7 @@ Before: default (USD)
 After:  retail (USD) + sales (USD)
 ```
 
-Rename `default` to `retail`. Create a new `sales` variant in the same currency. Only set `sales` on products that are currently on sale.
+Name the `default` variant "Retail" (its identifier stays `default`). Create a new `sales` variant in the same currency. Only set `sales` on products that are currently on sale.
 
 ### Single currency → Multi-currency
 
@@ -453,6 +488,6 @@ Keep your variant structure unchanged. Add Promotions for time-limited, cart-lev
 
 ## Further Reading
 
-- [Price Variants Reference](references/price-variants.md) — Detailed technical reference for variant setup
+- [Price Variants Reference](references/price-variants.md) — Detailed technical reference for variant setup, reading prices, and volume tiers
 - [Price Lists & Markets Reference](references/price-lists-and-markets.md) — Price list configuration and market architecture
-- [Promotions Reference](references/promotions.md) — Promotion types, mechanisms, and limitations
+- [Promotions Reference](references/promotions.md) — Promotion types, mechanisms, limitations, and the admin API

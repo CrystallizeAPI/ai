@@ -63,7 +63,7 @@ You have product attributes that are shared across many products, and those attr
 4. Configure the Item Relation component:
     - **Accepted shapes**: restrict to only the classification document shape (e.g., only "Allergen" documents)
     - **Min relations**: enforce minimum links (e.g., at least 1 brand required)
-    - **Max relations**: limit how many (e.g., max 3 materials, or unlimited for allergens)
+    - **Max relations**: limit how many (e.g., max 3 materials, or leave it out for allergens; the ceiling is 75)
 5. Products link to the relevant classification documents
 
 These configuration options act like foreign key constraints in a relational database, enforcing data integrity and guiding editors.
@@ -118,9 +118,11 @@ Product ──(Item Relation)──→ Classification Document
             "name": "Brand",
             "type": "itemRelations",
             "config": {
-                "acceptedShapeIdentifiers": ["brand"],
-                "minItems": 1,
-                "maxItems": 1
+                "itemRelations": {
+                    "acceptedShapeIdentifiers": ["brand"],
+                    "minItems": 1,
+                    "maxItems": 1
+                }
             }
         },
         {
@@ -128,9 +130,10 @@ Product ──(Item Relation)──→ Classification Document
             "name": "Allergens",
             "type": "itemRelations",
             "config": {
-                "acceptedShapeIdentifiers": ["allergen"],
-                "minItems": 0,
-                "maxItems": 999
+                "itemRelations": {
+                    "acceptedShapeIdentifiers": ["allergen"],
+                    "minItems": 0
+                }
             }
         }
     ]
@@ -141,7 +144,7 @@ Product ──(Item Relation)──→ Classification Document
 
 - `acceptedShapeIdentifiers` — array of shape identifiers that can be linked. Enforces type safety.
 - `minItems` — minimum required links (0 = optional, 1+ = required)
-- `maxItems` — maximum allowed links (use high number like 999 for "unlimited")
+- `maxItems` — maximum allowed links. Leave it out for no configured limit: a component holds at most 75 items either way, and a `maxItems` above 75 is rejected
 
 Without `acceptedShapeIdentifiers`, editors could accidentally link any shape type, breaking the semantic meaning of the relationship.
 
@@ -207,7 +210,7 @@ Parent Product
     "type": "product",
     "components": [
         {
-            "id": "nutritionInfo",
+            "id": "nutrition-info",
             "name": "Nutrition Info",
             "type": "propertiesTable"
         },
@@ -215,7 +218,7 @@ Parent Product
             "id": "allergens",
             "name": "Allergens",
             "type": "itemRelations",
-            "config": { "acceptedShapeIdentifiers": ["allergen"] }
+            "config": { "itemRelations": { "acceptedShapeIdentifiers": ["allergen"] } }
         }
     ]
 }
@@ -491,21 +494,21 @@ A single semantic concept can take **one of several mutually exclusive structura
 
 ### How it works
 
-Add a **Choice** component to the shape. Define multiple named structures within the Choice, each with its own set of components. The editor selects exactly one.
+Add a **Choice** (`componentChoice`) component to the shape. Each option that needs several fields is a **Piece** holding that set of components: an option cannot define components inline. An option that is a single field can be that component directly. The editor selects exactly one.
 
 ```
 Product Shape
   └── product-type (Choice)
-        ├── Guitar
+        ├── Guitar (Piece)
         │     ├── body-type (Selection: Solid, Semi-hollow, Hollow)
         │     ├── strings (Numeric)
         │     ├── scale-length (Numeric, cm)
         │     └── pickup-config (Selection: SSS, HSS, HH)
-        ├── Amplifier
+        ├── Amplifier (Piece)
         │     ├── wattage (Numeric, W)
         │     ├── channels (Numeric)
         │     └── speaker-size (Numeric, inches)
-        └── Pedal
+        └── Pedal (Piece)
               ├── effect-type (Selection: Overdrive, Delay, Reverb, ...)
               ├── power-draw (Numeric, mA)
               └── true-bypass (Switch)
@@ -532,16 +535,9 @@ Product Shape
 - You just need a dropdown value, not different field sets → use **Selection**
 - The variation is about relationships, not field structure → use a bridge pattern
 
-### Advanced: Polymorphic Choice with Pieces
+### Polymorphic Choice with Pieces
 
-For large or reusable field sets, reference **Pieces** inside choice options instead of defining components inline. This makes variants more maintainable and reusable across shapes.
-
-**When to use this variant:**
-
-- Choice variants have many components (10+ fields each)
-- The same variant appears in multiple choice components or shapes
-- You want to update variant fields in one place
-- You're building reusable patterns across your model
+Reference **Pieces** inside choice options for any option with more than one field. This makes variants more maintainable and reusable across shapes.
 
 **Structure:**
 
@@ -549,9 +545,9 @@ For large or reusable field sets, reference **Pieces** inside choice options ins
 {
     "id": "flower-type",
     "name": "Flower Type",
-    "type": "choice",
+    "type": "componentChoice",
     "config": {
-        "choice": {
+        "componentChoice": {
             "choices": [
                 {
                     "id": "rose",

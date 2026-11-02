@@ -1,9 +1,11 @@
 # Ranking Signals (`rankBy`)
 
-Discovery API, `https://api.crystallize.com/<tenant>/discovery`, no auth.
+Discovery API, `https://api.crystallize.com/<tenant>/discovery`, no auth unless the tenant requires a
+static token.
 
-By default Search orders hits by full-text relevance — a BM25-based score. `rankBy` blends several
-weighted signals into one score instead:
+On a tenant served for ranking, a query with no `sorting` is **not** in relevance order: hits come back by
+`itemId` descending, even with a `term`. `sorting: { score: desc }` gives relevance order. `rankBy` blends
+several weighted signals into one score instead:
 
 ```text
 rankScore = Σ (weight × signal)
@@ -40,22 +42,29 @@ the order stays stable across pages.
 | `relevance`    | —                       | —           | Text match against `term`. **Contributes 0 when there is no `term`.**                                                                    |
 | `fieldBoost`   | `field`                 | `normalize` | A rankable number on the item, used directly as a boost.                                                                                 |
 | `inStockBoost` | `field`                 | —           | Binary: contributes **1** when the named numeric field is `> 0`. Ignores quantity.                                                       |
-| `recency`      | `field`, `halfLifeDays` | —           | Exponential time-decay on the age of a date field.                                                                                       |
+| `recency`      | `field`, `halfLifeDays` | —           | Exponential time-decay on the age of a date field: `0.5 ^ (ageInDays / halfLifeDays)`.                                                   |
 | `tasteCosine`  | `vocabulary`, `from`    | —           | Cosine to the shopper vector (`from: userTaste`) or to an anchor item (`from: nearestTo`). See [personalization.md](personalization.md). |
+
+`recency` needs a date field; `fieldBoost` and `inStockBoost` need a number field. `TenantRankByField`
+holds both kinds, so the wrong one passes schema validation and the query fails with
+`Field <name> not found`.
+
+An item without the value scores 0 on all three. That is the worst value under a positive weight and the
+best under a negative one, so a penalty on, say, return rate lifts every item that has no return rate.
 
 ## The field enums are per tenant
 
 `field` and `tieBreaker` are **not free-form strings** — they are enums generated from the tenant's
 index settings. Introspect them; do not guess.
 
-| Enum                         | Built from                                                                |
-| ---------------------------- | ------------------------------------------------------------------------- |
-| `TenantRankByField`          | NUMBER and DATE **filterable** attributes, **with facet fields excluded** |
-| `TenantRankByTieBreaker`     | sortable fields (token, number and date)                                  |
-| `TenantVocabularyIdentifier` | the tenant's vocabularies, **only after the next index run**              |
+| Enum                         | Built from                                                              |
+| ---------------------------- | ----------------------------------------------------------------------- |
+| `TenantRankByField`          | NUMBER and DATE **sortable** attributes, **with facet fields excluded** |
+| `TenantRankByTieBreaker`     | sortable fields (token, number and date)                                |
+| `TenantVocabularyIdentifier` | the tenant's vocabularies, **only after the next index run**            |
 
-`TenantRankByField` being facet-excluded is the trap: a number you can facet on is not necessarily a
-number you can boost on.
+Following `sortable` is the trap: a number you can filter or facet on drops out of both enums when its
+component sets `sortable: false`, so it is not necessarily a number you can boost on.
 
 ```graphql
 {
@@ -72,15 +81,17 @@ number you can boost on.
 }
 ```
 
-Typical values on a commerce tenant: `price_default`, `price_sales`, `stock_default`, `stock_oslo`,
-`publishedAt`, `createdAt`, `updatedAt`, `position`, `depth`, and any numeric component
-(`dimensions_weight_number`, `sold_30d_number`, `margin_number`, `rating_number`, …).
+Typical values on a commerce tenant: `price_default`, `price_sales`, `defaultVariantPrice_default`,
+`lowestVariantPrice_default`, `highestVariantPrice_default`, `stock_default`, `stock_oslo`, `publishedAt`,
+`createdAt`, `updatedAt`, `position`, `depth`, and any numeric component (`dimensions_weight_number`,
+`sold_30d_number`, `margin_number`, `rating_number`, …). A numeric component is always `<id>_number`, never
+the bare `<id>`.
 
 ## Example
 
 ```graphql
 query Catalogue($rankBy: RankByInput!) {
-    search(term: "espresso", rankBy: $rankBy, pagination: { limit: 24 }) {
+    search(term: "espresso", rankBy: $rankBy, sorting: { score: desc }, pagination: { limit: 24 }) {
         hits {
             ... on product {
                 name
@@ -102,8 +113,8 @@ query Catalogue($rankBy: RankByInput!) {
     "rankBy": {
         "terms": [
             { "signal": "relevance", "weight": 1.0 },
-            { "signal": "fieldBoost", "weight": 0.6, "field": "margin", "normalize": true },
-            { "signal": "fieldBoost", "weight": 0.5, "field": "sold_30d", "normalize": true },
+            { "signal": "fieldBoost", "weight": 0.6, "field": "margin_number", "normalize": true },
+            { "signal": "fieldBoost", "weight": 0.5, "field": "sold_30d_number", "normalize": true },
             { "signal": "inStockBoost", "weight": 0.4, "field": "stock_default" },
             { "signal": "recency", "weight": 0.3, "field": "publishedAt", "halfLifeDays": 60 }
         ],
@@ -119,14 +130,16 @@ rankScore = 1.0·relevance + 0.6·margin + 0.5·sold_30d + 0.4·inStock + 0.3·r
 
 ## Zero weights are dropped
 
-A term with `weight: 0` is removed **before** scoring. If _every_ term is 0, the query falls back to
-plain relevance and **skips the rerank window entirely** — no rerank runs, and `rankScore` comes back
-`null`. Turning a signal off by zeroing it is fine; zeroing all of them silently disables ranking.
+A term with `weight: 0` is removed **before** scoring. If _every_ term is 0, the query runs unranked and
+**skips the rerank window entirely** — no rerank runs, `rankScore` comes back `null`, and a `context` or
+`nearestTo` sent beside it no longer ranks either. Turning a signal off by zeroing it is fine; zeroing all
+of them silently disables ranking.
 
 ## Normalization
 
 `normalize` applies **min–max normalization across the rerank window**, so signals on wildly different
-scales can share a weight. The default depends on the signal — set `normalize` explicitly to override.
+scales can share a weight. A term whose value is the same across the window normalizes to 0. The default
+depends on the signal — set `normalize` explicitly to override.
 
 | Signal         | `normalize` default | Why                 |
 | -------------- | ------------------- | ------------------- |
@@ -151,20 +164,26 @@ is fixed and cannot be overridden:**
 | `inStockBoost` | **highest**  | buyable in any variant counts as in stock |
 | `recency`      | **highest**  | the most recent date wins                 |
 
+To boost on another end of a product's prices, use the single-valued `defaultVariantPrice_<id>`,
+`lowestVariantPrice_<id>` or `highestVariantPrice_<id>` fields.
+
 ## `rankScore` and `rankExplain`
 
-`rankScore` on each hit is the **raw, un-normalized value the hits were ordered by** — the actual sort
-key. It is distinct from `score`, which stays text relevance. `rankScore` is `null` whenever no rerank
-ran: no `rankBy`, or every term dropped.
+`rankScore` on each hit is the **raw, un-normalized value the hits were ordered by** — `Σ weight × term`
+under `rankBy`, the summed per-vocabulary cosine under `context` or `nearestTo`. It is the actual sort key,
+which `score` is not guaranteed to be. `rankScore` is `null` whenever no rerank ran: no `rankBy`, `context`
+or `nearestTo`, or every `rankBy` term dropped.
 
-With `explain: true` each hit carries one `rankExplain` entry per term, **in `rankBy.terms` order**:
+With `explain: true` each hit carries one `rankExplain` entry per **scored** term, **in `rankBy.terms`
+order**. A `weight: 0` term has no entry, so join on `index`, never on an entry's position in the list:
 
 ```text
 RankExplainEntry { signal: RankBySignal, index: Int, contribution: Float }
 ```
 
-`index` disambiguates a repeated signal — two `fieldBoost` terms, say — and the contributions **sum to
-`rankScore` by construction**, which makes it a usable self-check.
+`index` is the term's position in the `terms` you sent. It disambiguates a repeated signal — two
+`fieldBoost` terms, say — and the contributions **sum to `rankScore` by construction**, which makes it a
+usable self-check.
 
 ```json
 {
@@ -187,23 +206,44 @@ Ship `explain: true` behind a merchandiser flag, not in the hot storefront path 
 
 ## The rerank window
 
-`options.rerankWindow` is the **single knob shared by all three rerank paths** (`rankBy`, `context` and
-`nearestTo`). The top-N candidates are scored and re-sorted; results beyond N keep plain relevance
-order.
+`options.rerankWindow` sets how many documents a windowed query reranks: the **first N under the query's
+effective sort** — the `sorting` you sent, or `itemId` descending when you sent none. Those N are scored and
+re-sorted among themselves. **That is not the N best matches unless you ask for it**: `sorting: { score: desc }`
+selects candidates by relevance. On a catalogue larger than the window, a `rankBy` with no `sorting` never
+sees the rest.
 
 - default **500**
-- hard server cap **2000**
+- hard server cap **2000**; a larger value is clamped
 - rerank cost is per candidate, so a larger window costs more
 
 ```graphql
 search(
   term: "espresso",
   rankBy: $rankBy,
+  sorting: { score: desc },
   options: { rerankWindow: 1000 }
 ) { hits { ... on product { name rankScore } } }
 ```
 
-**Paging happens inside the window.** Under ranking, `skip` offsets into the reranked window, and a
-`skip` past the window returns nothing. Size the window for the depth you intend to page, not just for
-the first page. Cursor tokens (`after`/`before`) fall back to offset pagination when a rerank is active,
-so use `skip` + `limit` on ranked queries.
+**Which queries are windowed.** `context.userTaste` or `nearestTo` with no `rankBy` and no `sorting` are
+ranked over the **whole result set**: no window applies, `skip` and `after`/`before` page the ranked set as
+usual (`summary.endToken` is the cursor for the next page), and `rerankWindow` only caps `nearestTo.k`.
+Every other ranked query takes the window:
+
+- any query with a `rankBy`
+- any query with a `sorting`, including `Folder.children` and `Topic.items`, which default to
+  `sorting: { position: asc }` — pass `sorting: {}` to clear it
+- `autocomplete`
+- a `userTaste` weight below zero, or an anchor vector holding one
+- more than about 800 weights across the vocabularies
+- an item in scope whose taste holds a negative weight
+- an index from an older ignition; `igniteDiscoApi(stacks: opensearch)` rebuilds it for the whole-set path
+
+**Paging happens inside the window.** On a windowed query `skip` offsets into the reranked window. A `skip`
+past the window returns no hits, while `totalHits` still counts every match and `summary.hasMoreHits`
+reports `false`. Size the window for the depth you intend to page, not just for the first page.
+
+**`after`/`before` move the window, not the page.** A hit's token is its position under the effective sort,
+not its reranked rank, so a cursor taken from a reranked page selects the next N documents past that
+position and reranks those. Items the page pulled up from later positions come back again, and items from
+earlier positions that missed the page are never reached. Use `skip` + `limit` on windowed queries.

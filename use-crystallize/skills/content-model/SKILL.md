@@ -1,6 +1,6 @@
 ---
 name: content-model
-description: Design content models in Crystallize using Shapes, Pieces, Components, Topic Maps, and Grids. Create product structures, define document types, build taxonomies, organize catalogue items, design relationships between items, implement classification bridges, configure item relations with shape restrictions, model brand and product colours with the Colors component (hex, RGB, HSL, CMYK, Pantone, RAL, colour presets, swatches), and architect scalable data models. Use when modeling content, creating shapes, defining components, building taxonomies, designing relationship patterns, implementing semantic bridges, configuring product variants, choosing between a Colors component and a Selection for colour, or structuring catalogue hierarchies.
+description: Design content models in Crystallize using Shapes, Pieces, Components, and Grids, and decide when a classification is a Topic Map, a Selection or a document. Create product structures, define document types, design relationships between items, implement classification bridges, configure item relations with shape restrictions, model brand and product colours with the Colors component (hex, RGB, HSL, CMYK, Pantone, RAL, colour presets, swatches), and architect scalable data models. Use when modeling content, creating shapes or pieces, defining components, designing relationship patterns, implementing semantic bridges, configuring variant components, building a page builder, setting component validation, localization or Discovery flags, or choosing between a Colors component and a Selection for colour. For the topic tree itself use taxonomy, and for folder hierarchies use information-architecture.
 metadata:
     author: Crystallize
     version: "3.0"
@@ -28,7 +28,7 @@ Use the answers to choose shape types, decide on classification patterns (topics
 
 The output of this skill is a **mass operations JSON file** — a structured document that creates all shapes and pieces in the correct order.
 
-After generating the mass operations JSON, **always validate it** using the `build-mass-operation` MCP tool. This tool validates against the official `@crystallize/schema` and returns either valid JSON or detailed error feedback. Fix any validation errors before presenting the result.
+After generating the mass operations JSON, **always validate it** using the `build-mass-operation` MCP tool. This tool validates against the official `@crystallize/schema` and returns either valid JSON or detailed error feedback. Fix any validation errors before presenting the result. It checks structure only: the rules marked in the [Validation Checklist](#validation-checklist) fail later, when the operation runs.
 
 The mass operations file follows the **4-phase ordering** described in the [Mass Operations section](#mass-operations--4-phase-ordering) below.
 
@@ -61,9 +61,9 @@ The mass operations file follows the **4-phase ordering** described in the [Mass
 
 ### Built-in vs Custom Fields
 
-Every item has built-in fields: `name`, `id`, `language`, `tree`, `topics`, `createdAt`, `updatedAt`.
+Every item has built-in fields: `name`, `id`, `language`, `tree`, `topics`, `externalReference`, `createdAt`, `updatedAt`.
 
-Product variants have additional built-ins: `sku`, `images`, `videos`, `price`, `stock`, `attributes`.
+Product variants have additional built-ins: `sku`, `images`, `videos`, `price`, `stock`, `attributes`, `externalReference`.
 
 **Components are the additional fields you define** beyond these built-ins. For product shapes, use `variantComponents` in the shape definition to add custom components directly to product variants (e.g., custom certifications, variant-level specs).
 
@@ -73,7 +73,7 @@ Product variants have additional built-ins: `sku`, `images`, `videos`, `price`, 
 
 **IMPORTANT:** Do NOT add components for price or stock - these are native properties managed through the product variant's built-in fields. Only create custom price/stock components for specific edge cases (e.g., tiered pricing models, subscription pricing, price modifiers for configurators).
 
-**Product Identification:** The built-in `sku` field on product variants is the primary product identifier — use it for GTIN, EAN, ISBN, or any single identifier. Do NOT add a separate `gtin` or `ean` single-line component on the variant. If a product needs **multiple identifiers** (e.g., both ISBN-10 and ISBN-13, or a GTIN plus a legacy system ID), add an **identifiers chunk** with named fields to the shape:
+**Product Identification:** The built-in `sku` field on product variants is the primary product identifier — use it for GTIN, EAN, ISBN, or any single identifier. Do NOT add a separate `gtin` or `ean` single-line component on the variant. If a product needs **multiple identifiers** (e.g., both ISBN-10 and ISBN-13, or a GTIN plus a legacy system ID), add a non-repeatable **identifiers chunk** with named fields to the shape:
 
 ```
 Product Shape: Book
@@ -90,7 +90,7 @@ Product Shape: Consumer Electronics
         └── legacy-id (Single Line)
 ```
 
-Each identifier gets its own named component — not a generic key/value pattern. This keeps the data typed, queryable, and self-documenting. Also useful during migrations to preserve old system identifiers alongside the new SKU.
+Each identifier gets its own named component — not a generic key/value pattern. This keeps the data typed, queryable, and self-documenting. Also useful during migrations to preserve old system identifiers alongside the new SKU. For a single external system ID, use the built-in `externalReference` on the item or variant.
 
 See [Shapes Reference](references/shapes.md) and [Content Modelling Guide](references/content-modelling.md) for details.
 
@@ -117,7 +117,7 @@ See [Shapes Reference](references/shapes.md) and [Content Modelling Guide](refer
 ### "I need controlled options"
 
 - **Selection** → Dropdown/checkboxes with predefined options. Every option needs `key` and `value`; also set `label` (optional, but good practice — the App UI displays it; default: same text as `value`)
-- **Switch** → Boolean flag
+- **Switch** → Boolean flag (type: `boolean`)
 - **Datetime** → Date/timestamp (type: `datetime`)
 - **Location** → Geographic coordinates
 
@@ -127,7 +127,7 @@ See [Shapes Reference](references/shapes.md) and [Content Modelling Guide](refer
     - **Use chunk when:** Fields are specific to one location and won't be reused elsewhere
     - **Repeatable chunk:** For lists (ingredients, specifications, USP items, CTA buttons)
         - Examples: Width/Height/Depth (repeating for multiple dimensions), Street/City/Zip (repeating addresses)
-    - **Non-repeatable chunk:** For one-time field groups (metadata, settings, single address)
+    - **Non-repeatable chunk:** For one-time field groups (metadata, settings, single address). **Set `repeatable: false` explicitly** — a chunk that omits `repeatable` is repeatable.
         - Examples: SEO fields (title/description/keywords as one group), single shipping address, contact info block
     - **Decision:** If the group only occurs once in the entire content model → use non-repeatable chunk
     - Can be used inside pieces for nested grouping
@@ -138,17 +138,15 @@ See [Shapes Reference](references/shapes.md) and [Content Modelling Guide](refer
     - Think: "Will this exact structure be used in 2+ locations?"
     - **Rule:** If only used once → use chunk instead of piece
     - Perfect for componentMultipleChoice options (page builder pattern)
-- **Choice** → One of N mutually exclusive forms (polymorphic)
-    - **MUST have at least 2 choices** - Single option is invalid
-- **Component Choice (componentChoice)** → Similar to choice but for component-level choices
+- **Choice (componentChoice)** → One of N mutually exclusive forms (polymorphic). The API type is `componentChoice`, and its options go in `config.componentChoice.choices`. There is no `choice` type.
     - **MUST have at least 2 choices** - Single option is invalid
     - **EVERY choice item MUST have a `type` field** - choices with no `type` or with a raw `components` array are invalid API structures
     - When each choice needs multiple fields → create a `piece/upsert` operation for each, then reference with `{ "type": "piece", "config": { "piece": { "identifier": "..." } } }`
 - **Multiple Choice (componentMultipleChoice)** → Multiple coexisting forms (page builders)
-    - **MUST have at least 2 choices** - Single option is invalid
+    - **MUST have at least 1 choice** - One choice with `allowDuplicates` is a valid way to repeat a single piece
     - Use when: Editors choose between different content types at the same location
     - **Valid children**: Piece references (`type: "piece"`) or single regular components (images, singleLine, etc.)
-    - **NEVER as children**: contentChunk, choice, componentChoice, or nested componentMultipleChoice
+    - **NEVER as children**: contentChunk, componentChoice, or nested componentMultipleChoice
     - **NEVER**: anonymous objects with only a `components` array and no `type` field — these are not valid API structures
     - Common pattern: Page sections where each option is a piece (Banner, Hero, USP, Gallery)
     - Examples: Blocks (banner piece, hero piece, usp piece), Content areas (text piece, video piece)
@@ -178,7 +176,7 @@ componentChoice/componentMultipleChoice
 
 ```json
 {
-    "id": "type",
+    "id": "product-type",
     "name": "Product Type",
     "type": "componentChoice",
     "config": {
@@ -204,6 +202,21 @@ componentChoice/componentMultipleChoice
 
 For complete component reference with nesting rules, validation, and localization, see [Components Reference](references/components.md).
 
+### Defaults That Surprise
+
+Leaving a config key out is a decision. This is what you get:
+
+| Key                                                  | Left out                                                                                       | Set it when                                                                                        |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `repeatable` on `contentChunk`                       | `true`: the chunk repeats                                                                      | `false` for a group that occurs once                                                               |
+| `allowDuplicates` on `componentMultipleChoice`       | `true`: a choice can be picked several times                                                   | `false` when each choice may be picked once                                                        |
+| `discoverable`                                       | `true`: the component is indexed and returned by the Discovery API                             | `false` for internal data (ERP ids, notes, integration keys)                                       |
+| `required`                                           | Not the same as `false`: an empty component is still held to its `min`, `pattern` and `units`  | `false` on an optional field that has one of those rules                                           |
+| `multilingual` on a field                            | `singleLine`, `richText` and `colors` are stored per language; every other component is shared | `false` on `colors` that are universal, `true` on other fields that translate                      |
+| `multilingual` on a chunk, choice or multiple choice | Structure is shared; each component inside follows its own setting                             | `true` to vary the structure per language. `false` forces everything inside to shared, so avoid it |
+
+Details and the App's own defaults are in [Components Reference](references/components.md#multilingual--localization).
+
 ## Design Patterns for Relationships
 
 ### When to use each pattern?
@@ -225,6 +238,7 @@ For complete component reference with nesting rules, validation, and localizatio
 ```json
 {
     "id": "brand",
+    "name": "Brand",
     "type": "itemRelations",
     "config": {
         "itemRelations": {
@@ -238,502 +252,34 @@ For complete component reference with nesting rules, validation, and localizatio
 
 **Key point:** `acceptedShapeIdentifiers` enforces type safety - only "brand" documents can be linked.
 
-### Quantised Classification Bridge
-
-**Problem:** Relationships have measurable quantities (200g flour, 4 screws).
-
-**Solution:** Repeating contentChunk with numeric + item relation.
-
-```json
-{
-    "id": "ingredients",
-    "type": "contentChunk",
-    "config": {
-        "contentChunk": {
-            "repeatable": true,
-            "components": [
-                { "id": "quantity", "type": "numeric" },
-                { "id": "unit", "type": "selection" },
-                {
-                    "id": "ingredient",
-                    "type": "itemRelations",
-                    "config": {
-                        "itemRelations": {
-                            "acceptedShapeIdentifiers": ["ingredient"],
-                            "minItems": 1,
-                            "maxItems": 1
-                        }
-                    }
-                }
-            ]
-        }
-    }
-}
-```
+Quantised, Composite and Conditional bridges all use a repeating `contentChunk` that holds the Item Relation next to a Numeric, a role Selection or a rule Selection.
 
 ### Critical: Always Use acceptedShapeIdentifiers
 
-**Without shape restrictions:**
-
-```json
-// ❌ Bad - editors can link ANY shape
-{
-    "type": "itemRelations",
-    "config": { "itemRelations": {} }
-}
-```
-
-**With shape restrictions:**
-
-```json
-// ✅ Good - enforces semantic meaning
-{
-    "type": "itemRelations",
-    "config": {
-        "itemRelations": {
-            "acceptedShapeIdentifiers": ["brand"],
-            "minItems": 1,
-            "maxItems": 1
-        }
-    }
-}
-```
-
-This acts like foreign key constraints in relational databases, preventing data integrity issues.
+Without shape restrictions, editors can link ANY shape. With them, a link to any other shape is rejected, for items and for SKUs alike. This acts like foreign key constraints in relational databases, preventing data integrity issues.
 
 ### Page Builder Pattern (componentMultipleChoice with Pieces)
 
 **Problem:** Editors need flexible page layouts with different section types.
 
-**Solution:** componentMultipleChoice with piece references, each piece containing repeating chunks for items.
+**Solution:** componentMultipleChoice with piece references, each piece containing repeating chunks for items. Chunks (CTAs, USP items) are inside pieces, not direct children of componentMultipleChoice.
 
-```json
-// Folder Shape: Landing Page (folders can have children, documents cannot)
-{
-  "components": [
-    {
-      "id": "blocks",
-      "name": "Page Sections",
-      "type": "componentMultipleChoice",
-      "config": {
-        "componentMultipleChoice": {
-          "allowDuplicates": true,
-          "choices": [
-            { "type": "piece", "config": { "piece": { "identifier": "banner-section" } } },
-            { "type": "piece", "config": { "piece": { "identifier": "usp-section" } } },
-            { "type": "piece", "config": { "piece": { "identifier": "hero-section" } } }
-          ]
-        }
-      }
-    }
-  ]
-}
-
-// Piece: banner-section
-{
-  "identifier": "banner-section",
-  "name": "Banner Section",
-  "components": [
-    { "id": "title", "type": "singleLine" },
-    { "id": "description", "type": "richText" },
-    { "id": "background", "type": "images" },
-    {
-      "id": "ctas",
-      "name": "Call to Actions",
-      "type": "contentChunk",
-      "config": {
-        "contentChunk": {
-          "repeatable": true,
-          "components": [
-            { "id": "text", "type": "singleLine" },
-            { "id": "url", "type": "singleLine" }
-          ]
-        }
-      }
-    }
-  ]
-}
-
-// Piece: usp-section
-{
-  "identifier": "usp-section",
-  "name": "USP Section",
-  "components": [
-    { "id": "title", "type": "singleLine" },
-    {
-      "id": "items",
-      "name": "USP Items",
-      "type": "contentChunk",
-      "config": {
-        "contentChunk": {
-          "repeatable": true,
-          "components": [
-            { "id": "icon", "type": "images" },
-            { "id": "title", "type": "singleLine" },
-            { "id": "description", "type": "richText" }
-          ]
-        }
-      }
-    }
-  ]
-}
-```
-
-**Key points:**
-
-- componentMultipleChoice contains pieces (banner-section, usp-section, hero-section)
-- Each piece contains regular components and repeating chunks for items
-- Chunks (CTAs, USP items) are inside pieces, not direct children of componentMultipleChoice
-- This allows editors to build pages with flexible, reusable sections
+See [Page Builder Pattern](references/page-builder-pattern.md) for the complete example, the shared `layout` piece and localized structure.
 
 For complete pattern details with examples, see [Design Patterns Reference](references/design-patterns.md).
 
 ## Shape Consolidation Strategy
 
-### Minimizing Product and Folder Shapes
-
 **Principle:** Keep the number of product and folder shapes to a minimum by using polymorphic patterns instead of creating separate shapes for similar items.
 
-### When to Consolidate Shapes
+- **Consolidate** when shapes share 50%+ of their components, have the same foundational components but differ in specialized attributes, or represent variations of the same concept.
+- **Keep separate** when items serve different business functions, share less than 30% of their components, need distinct workflows, permissions or integrations, or when the merged shape would confuse editors.
 
-**Use the polymorphic product/folder pattern when:**
-
-1. **Similarity threshold**: Two or more product/folder shapes share 50%+ of their components
-    - Example: Plant and Vase both have description and SEO components
-
-2. **Common base components**: Shapes have the same foundational components but differ in specialized attributes
-    - Common: description, SEO, images, pricing
-    - Differ: plant-specific fields (care-level, light-requirement) vs vase-specific fields (material, dimensions)
-
-3. **Semantic similarity**: Items represent variations of the same concept rather than fundamentally different entities
-    - Example: Guitar, Amplifier, and Pedal are all music equipment (consolidate into "Music Product")
-    - Example: Plant and Vase are both home decor items (consolidate into "Home Decor Product")
-
-### When NOT to Consolidate
-
-**Keep shapes separate when:**
-
-1. **Fundamentally different purposes**: Items serve completely different business functions
-    - Product vs Folder (different shape types)
-    - Apparel vs Digital Download (different fulfillment, no pricing overlap)
-
-2. **Low component overlap**: Less than 30% of components are shared
-    - Consolidation would create a confusing, bloated shape
-
-3. **Different business logic**: Items require distinct workflows, permissions, or integrations
-    - Separate checkout flows
-    - Different inventory systems
-    - Distinct pricing models
-
-4. **Editor clarity**: The consolidated shape would confuse content editors
-    - Too many conditional fields make editing difficult
-
-### Consolidation Approach
-
-**Step 1: Identify common components**
-
-- Extract all shared components (description, SEO, images, etc.)
-- These become the base components of the consolidated shape
-
-**Step 2: Create a type selector**
-
-- Add a selection component to distinguish between variants
-- Example: `product-type` with options "plant", "vase", "bundle"
-
-**Step 3: Extract variant-specific attributes into pieces**
-
-- Create separate pieces for each variant's unique components
-- Example: `plant-attributes` piece, `vase-attributes` piece
-
-**Step 4: Use choice component for polymorphic structure**
-
-- Add a choice component that conditionally shows the appropriate piece based on the type selection
-
-### Example: Consolidating Plant and Vase into Product
-
-**Before consolidation (2 shapes):**
-
-```
-Shape: Plant (product)
-  ├── description (richText)
-  ├── care-level (itemRelations → care-level docs)
-  ├── light-requirement (selection)
-  ├── mature-size (selection)
-  └── seo (piece)
-
-Shape: Vase (product)
-  ├── description (richText)
-  ├── material (itemRelations → material docs)
-  ├── dimensions (contentChunk)
-  └── seo (piece)
-```
-
-**After consolidation (1 shape + 2 pieces):**
-
-```json
-{
-    "intent": "shape/upsert",
-    "identifier": "product",
-    "name": "Product",
-    "type": "product",
-    "components": [
-        {
-            "id": "product-type",
-            "name": "Product Type",
-            "type": "selection",
-            "config": {
-                "selection": {
-                    "options": [
-                        { "key": "plant", "value": "Plant", "label": "Plant" },
-                        { "key": "vase", "value": "Vase", "label": "Vase" }
-                    ]
-                }
-            }
-        },
-        { "id": "description", "name": "Description", "type": "richText" },
-        {
-            "id": "variant-attributes",
-            "name": "Product Details",
-            "type": "choice",
-            "config": {
-                "choice": {
-                    "choices": [
-                        {
-                            "id": "plant",
-                            "name": "Plant Details",
-                            "type": "piece",
-                            "config": {
-                                "piece": { "identifier": "plant-attributes" }
-                            }
-                        },
-                        {
-                            "id": "vase",
-                            "name": "Vase Details",
-                            "type": "piece",
-                            "config": {
-                                "piece": { "identifier": "vase-attributes" }
-                            }
-                        }
-                    ]
-                }
-            }
-        },
-        {
-            "id": "seo",
-            "name": "SEO",
-            "type": "piece",
-            "config": { "piece": { "identifier": "seo" } }
-        }
-    ]
-}
-```
-
-**Supporting pieces:**
-
-```json
-{
-    "intent": "piece/upsert",
-    "identifier": "plant-attributes",
-    "name": "Plant Attributes",
-    "components": [
-        {
-            "id": "care-level",
-            "name": "Care Level",
-            "type": "itemRelations",
-            "config": {
-                "itemRelations": {
-                    "acceptedShapeIdentifiers": ["care-level"],
-                    "minItems": 1,
-                    "maxItems": 1
-                }
-            }
-        },
-        {
-            "id": "light-requirement",
-            "name": "Light Requirement",
-            "type": "selection",
-            "config": {
-                "selection": {
-                    "options": [
-                        { "key": "low", "value": "Low Light", "label": "Low Light" },
-                        { "key": "medium", "value": "Medium Light", "label": "Medium Light" },
-                        { "key": "bright", "value": "Bright Light", "label": "Bright Light" },
-                        { "key": "direct", "value": "Direct Sunlight", "label": "Direct Sunlight" }
-                    ]
-                }
-            }
-        },
-        {
-            "id": "mature-size",
-            "name": "Mature Size",
-            "type": "selection",
-            "config": {
-                "selection": {
-                    "options": [
-                        { "key": "small", "value": "Small (under 12\")", "label": "Small (under 12\")" },
-                        { "key": "medium", "value": "Medium (12-24\")", "label": "Medium (12-24\")" },
-                        { "key": "large", "value": "Large (24-48\")", "label": "Large (24-48\")" },
-                        { "key": "xl", "value": "Extra Large (48\"+)", "label": "Extra Large (48\"+)" }
-                    ]
-                }
-            }
-        }
-    ]
-}
-```
-
-```json
-{
-    "intent": "piece/upsert",
-    "identifier": "vase-attributes",
-    "name": "Vase Attributes",
-    "components": [
-        {
-            "id": "material",
-            "name": "Material",
-            "type": "itemRelations",
-            "config": {
-                "itemRelations": {
-                    "acceptedShapeIdentifiers": ["material"],
-                    "minItems": 1,
-                    "maxItems": 3
-                }
-            }
-        },
-        {
-            "id": "dimensions",
-            "name": "Dimensions",
-            "type": "contentChunk",
-            "config": {
-                "contentChunk": {
-                    "components": [
-                        {
-                            "id": "height",
-                            "name": "Height",
-                            "type": "numeric",
-                            "config": { "numeric": { "units": ["cm", "in"] } }
-                        },
-                        {
-                            "id": "diameter",
-                            "name": "Diameter",
-                            "type": "numeric",
-                            "config": { "numeric": { "units": ["cm", "in"] } }
-                        }
-                    ]
-                }
-            }
-        }
-    ]
-}
-```
-
-**Benefits:**
-
-- Single product shape instead of multiple
-- Shared components (description, SEO) defined once
-- Type-specific attributes cleanly separated into pieces
-- Easier to maintain and extend
-- Clearer information architecture
-
-**Trade-offs:**
-
-- Slightly more complex for editors (choice component requires selecting variant type)
-- Frontend may need to handle polymorphic structure
-- Only worthwhile when shapes share significant overlap
-
-### Mass Operations Pattern for Consolidated Shapes
-
-When using the 4-phase ordering with consolidated shapes:
-
-1. **Phase 1**: Create variant-specific pieces (plant-attributes, vase-attributes)
-2. **Phase 2**: Create consolidated shape container
-3. **Phase 3**: Add components to variant pieces
-4. **Phase 4**: Add components (including choice with piece references) to consolidated shape
-
-This ensures all piece references in the choice component resolve correctly.
+See [Shape Consolidation](references/shape-consolidation.md) for the approach, a worked example with the shape and pieces in JSON, the trade-offs, and how it fits the 4-phase ordering.
 
 ## Common Use Cases
 
-### Standard SEO Piece
-
-A reusable piece for SEO metadata, commonly added to products, folders (landing pages), and documents (articles):
-
-```json
-{
-    "identifier": "seo",
-    "name": "SEO",
-    "components": [
-        { "id": "title", "name": "Title", "type": "singleLine" },
-        { "id": "description", "name": "Description", "type": "richText" },
-        { "id": "image", "name": "Image", "type": "images" }
-    ]
-}
-```
-
-Usage in a shape:
-
-```json
-{
-    "id": "seo",
-    "name": "SEO",
-    "type": "piece",
-    "config": { "identifier": "seo" }
-}
-```
-
-### E-commerce Product with Variants
-
-```
-Product Shape: Clothing
-  ├── Description (Rich Text, translatable)
-  ├── Material (Item Relations → material documents, acceptedShapeIdentifiers: ["material"])
-  ├── Brand (Item Relations → brand document, acceptedShapeIdentifiers: ["brand"], min:1, max:1)
-  └── Care Instructions (Rich Text, translatable)
-
-Variant-level (built-in):
-  ├── Size (attribute)
-  ├── Color (attribute)
-  ├── SKU (built-in)
-  ├── Images (built-in)
-  └── Price (built-in)
-```
-
-### Recipe with Ingredients
-
-```
-Document Shape: Recipe
-  ├── Description (Rich Text)
-  ├── Ingredients (contentChunk, repeating)
-  │     ├── Quantity (Numeric)
-  │     ├── Unit (Selection: g, ml, pcs)
-  │     └── Ingredient (Item Relations → ingredient products, acceptedShapeIdentifiers: ["ingredient"])
-  └── Allergens (Item Relations → allergen documents, acceptedShapeIdentifiers: ["allergen"])
-```
-
-### Blog Post with Topics
-
-```
-Document Shape: Blog Post
-  ├── Hero Image (Images)
-  ├── Content (Paragraph Collection)
-  ├── Author (Item Relations → author document, acceptedShapeIdentifiers: ["author"])
-  ├── SEO (Piece → seo-metadata)
-  └── topics → Category topic map, Tags topic map
-```
-
-### Product Configurator
-
-```
-Product Shape: Configurable Product
-  └── Options (contentChunk, repeating)
-        ├── Option (Item Relations → option products, acceptedShapeIdentifiers: ["option"])
-        └── Quantity (Numeric)
-
-Document Shape: Configuration Rule
-  ├── If Option (Item Relations → option, acceptedShapeIdentifiers: ["option"])
-  ├── Rule Type (Selection: requires, excludes, optional)
-  └── Then Option (Item Relations → option, acceptedShapeIdentifiers: ["option"])
-```
+Ready-made outlines live in the references: the standard SEO piece in [Pieces Reference](references/pieces.md), and the e-commerce product, recipe, blog post, configurator and per-industry models in [Content Modelling Guide](references/content-modelling.md).
 
 ## Best Practices
 
@@ -765,8 +311,8 @@ Piece: "SEO"  (not "SEO Metadata")
 6. **Consolidate similar shapes** - When classification documents share the same structure (e.g., "Coffee Origin" and "Tea Origin" both need name, description, image), combine them into a single shape ("Origin") and differentiate via folder placement or topic tags
 7. **Use chunks for grouping** - Related fields that repeat together
 8. **Choose topics vs documents wisely** - Simple labels → topics, rich content → documents
-9. **Plan localization early** - Enable `isTranslatable` from the start
-10. **Mark fields discoverable** - Enable for filtering/search in Discovery API
+9. **Plan localization early** - Set `multilingual` from the start
+10. **Decide what Discovery sees** - Components are indexed by default. Set `discoverable: false` on internal fields
 11. **Apply design patterns** - Use established patterns for scalable models
 
 ## Anti-Patterns to Avoid
@@ -791,21 +337,25 @@ Piece: "SEO"  (not "SEO Metadata")
 
 ❌ **Using contentChunk as direct child of componentMultipleChoice** - Chunks should be inside pieces, not direct children
 
-❌ **Using choice/componentChoice as direct children of componentMultipleChoice** - Choices cannot be nested directly
+❌ **Using componentChoice as a direct child of componentMultipleChoice** - Choices cannot be nested directly
 
 ❌ **Nesting structural components directly** - componentChoice, componentMultipleChoice, and contentChunk can only have pieces or regular components as direct children, never other structural components. Use pieces as intermediaries.
 
-❌ **Choice items without a `type` field** - Every item in a `choices` / `componentConfigs` array MUST have a `type` field. Objects like `{ "id": "smartphone", "name": "Smartphone", "components": [...] }` are INVALID — the `components` key does not exist on a choice item and `type` is missing. If a choice needs multiple fields, create a separate piece and reference it with `{ "type": "piece", "config": { "piece": { "identifier": "smartphone-spec" } } }`.
+❌ **Choice items without a `type` field** - Every item in a `choices` array MUST have a `type` field. Objects like `{ "id": "smartphone", "name": "Smartphone", "components": [...] }` are INVALID — the `components` key does not exist on a choice item and `type` is missing. If a choice needs multiple fields, create a separate piece and reference it with `{ "type": "piece", "config": { "piece": { "identifier": "smartphone-spec" } } }`.
 
 ❌ **Polymorphic Choice with inline component groups** - When different choice variants (e.g. Smartphone, Laptop, Headphones) each need their own set of fields, **do NOT** embed a `components` array directly on the choice object. This is the most common componentChoice mistake. **Always** create a `piece/upsert` operation for each variant and reference the piece. Example: `{ "type": "piece", "config": { "piece": { "identifier": "smartphone-spec" } } }` where `smartphone-spec` is a separate piece containing Screen Size, Storage, OS fields.
 
 ❌ **CTA/USP items as componentMultipleChoice choices** - These should be repeating chunks inside a piece, not top-level choices
 
-❌ **Single-choice configurations** - Choice components (choice, componentChoice, componentMultipleChoice) MUST have at least 2 options. Single option is invalid. If you only have one option, use a direct piece reference instead of wrapping it in a componentChoice.
+❌ **Single-choice configurations** - `componentChoice` MUST have at least 2 options. Single option is invalid. If you only have one option, use a direct piece reference instead of wrapping it in a componentChoice. `componentMultipleChoice` needs at least 1.
 
 ❌ **Wrapping single piece in componentChoice** - If a component only needs one piece (e.g., CTA), add the piece directly. Don't use `componentChoice` with one option.
 
 ❌ **Empty contentChunk (no components)** - A `contentChunk` with zero child components is meaningless and invalid. Always define at least 1 component inside a chunk. If you find yourself creating an empty chunk, reconsider the design.
+
+❌ **`maxItems` as "unlimited"** - An Item Relation holds at most 75 items and 75 SKUs. A `maxItems` or `maxSkus` above 75 is rejected, so a high number like 999 fails. Leave it out for "as many as allowed". For more than 75, invert the relation or use a topic.
+
+❌ **Internal fields left discoverable** - Discovery indexes every component unless it says `discoverable: false`, and the Discovery API is typically public.
 
 See [Content Modelling Guide](references/content-modelling.md) for detailed anti-patterns and migration strategies.
 
@@ -822,125 +372,19 @@ When creating shapes and pieces via mass operations (Bulk Task API), use a **4-p
 
 **REQUIRED FIELDS**:
 
-- All upsert operations MUST include `identifier` and `name`
+- All upsert operations MUST include `identifier` (2 to 64 characters) and `name`
 - Shape upserts MUST include `type`
+- Every component definition, including each entry of `choices`, MUST include `id` and `name`
 
 **How upsert works:** Multiple operations with the same `identifier` will update the same resource. Phase 1-2 create containers, phase 3-4 populate them with components.
 
+**An upsert replaces the whole definition.** On a shape or piece that already exists, `shape/upsert`, `shape/update`, `piece/upsert` and `piece/update` set `components` to exactly what you send, and leaving it out empties it. On a product shape the same goes for `variantComponents`, so an upsert that sends only `components` deletes them. When the tenant already has the shape or piece, skip phases 1-2 for it and send the complete definition in phases 3-4. Otherwise a run that stops between phases leaves it empty.
+
 ### Why This Order?
 
-Components can reference pieces (via `type: "piece"`) and shapes (via `itemRelations` with `acceptedShapeIdentifiers`). By creating containers first (phases 1-2), then populating them with components that may contain references (phases 3-4), all references resolve correctly.
+Components can reference pieces (via `type: "piece"`) and shapes (via `itemRelations` with `acceptedShapeIdentifiers`). A reference to a piece or shape that does not exist yet fails the operation. By creating containers first (phases 1-2), then populating them with components that may contain references (phases 3-4), all references resolve correctly.
 
-### Example Operations File
-
-```json
-{
-    "version": "1.0.0",
-    "operations": [
-        // Phase 1: Create piece containers (no components)
-        {
-            "intent": "piece/upsert",
-            "identifier": "seo",
-            "name": "SEO"
-        },
-        {
-            "intent": "piece/upsert",
-            "identifier": "hero",
-            "name": "Hero Section"
-        },
-        // Phase 2: Create shape containers (no components)
-        {
-            "intent": "shape/upsert",
-            "identifier": "product",
-            "name": "Product",
-            "type": "product"
-        },
-        {
-            "intent": "shape/upsert",
-            "identifier": "brand",
-            "name": "Brand",
-            "type": "document"
-        },
-        // Phase 3: Update pieces with components (same identifier - upsert updates existing)
-        {
-            "intent": "piece/upsert",
-            "identifier": "seo",
-            "name": "SEO",
-            "components": [
-                { "id": "title", "name": "SEO Title", "type": "singleLine" },
-                { "id": "description", "name": "SEO Description", "type": "singleLine" }
-            ]
-        },
-        {
-            "intent": "piece/upsert",
-            "identifier": "hero",
-            "name": "Hero Section",
-            "components": [
-                { "id": "headline", "name": "Headline", "type": "singleLine" },
-                { "id": "image", "name": "Hero Image", "type": "images" }
-            ]
-        },
-        // Phase 4: Update shapes with components (can now safely reference pieces)
-        {
-            "intent": "shape/upsert",
-            "identifier": "product",
-            "name": "Product",
-            "type": "product",
-            "components": [
-                { "id": "description", "name": "Description", "type": "richText" },
-                {
-                    "id": "seo",
-                    "name": "SEO",
-                    "type": "piece",
-                    "config": { "piece": { "identifier": "seo" } }
-                },
-                {
-                    "id": "brand",
-                    "name": "Brand",
-                    "type": "itemRelations",
-                    "config": {
-                        "itemRelations": {
-                            "maxItems": 1,
-                            "acceptedShapeIdentifiers": ["brand"]
-                        }
-                    }
-                }
-            ],
-            "variantComponents": [
-                {
-                    "id": "weight",
-                    "name": "Weight",
-                    "type": "numeric",
-                    "config": { "numeric": { "units": ["g", "kg"], "discoverable": true } }
-                },
-                {
-                    "id": "color",
-                    "name": "Color",
-                    "type": "selection",
-                    "config": {
-                        "selection": {
-                            "options": [
-                                { "key": "black", "value": "Black", "label": "Black" },
-                                { "key": "white", "value": "White", "label": "White" }
-                            ]
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "intent": "shape/upsert",
-            "identifier": "brand",
-            "name": "Brand",
-            "type": "document",
-            "components": [
-                { "id": "description", "name": "Description", "type": "richText" },
-                { "id": "logo", "name": "Logo", "type": "images" }
-            ]
-        }
-    ]
-}
-```
+See [Mass Operation Example](references/mass-operation-example.md) for a complete operations file.
 
 **Note:** Using `piece/upsert` or `shape/upsert` in a single operation (without the 4-phase split) will work ONLY if there are no cross-references. When pieces reference other pieces or shapes reference pieces/other shapes, the 4-phase order is required.
 
@@ -948,99 +392,31 @@ Components can reference pieces (via `type: "piece"`) and shapes (via `itemRelat
 
 Before presenting the mass operations JSON, verify:
 
-1. **Validate with `build-mass-operation` tool** — Run the operations array through the MCP tool and fix any schema errors. This is the source of truth.
-2. **`acceptedShapeIdentifiers`** on every `itemRelations` component — no untyped relations
-3. **No structural nesting violations** — `contentChunk`, `componentChoice`, `componentMultipleChoice` cannot be direct children of each other
-4. **Every `contentChunk` has at least 1 component** — empty chunks are invalid
-5. **Every `componentChoice`/`componentMultipleChoice` has at least 2 choices** — single-choice is invalid
+1. **Validate with `build-mass-operation` tool** — Run the operations array through the MCP tool and fix any schema errors. It settles field names and types. It does not check the rules marked _(run time)_ below: those pass validation and fail in the operation logs.
+2. **`acceptedShapeIdentifiers`** on every `itemRelations` component — no untyped relations. `maxItems` and `maxSkus` stay at 75 or below _(run time)_
+3. **No structural nesting violations** — `contentChunk`, `componentChoice`, `componentMultipleChoice` cannot be direct children of each other, and nesting stops at 4 structural levels _(run time)_
+4. **Every `contentChunk` has at least 1 component** — empty chunks are invalid _(run time)_. Set `repeatable: false` on a group that occurs once
+5. **Every `componentChoice` has at least 2 choices, every `componentMultipleChoice` at least 1** _(run time)_
 6. **No custom price/stock components** on product shapes — these are built-in on variants
 7. **`paragraphCollection` config always has `multilingual` array** — this is required, not optional (use `[]` for no localization, `["title", "body", "images", "videos"]` for full localization)
-8. **`datetime` config uses only valid fields** — `required`, `discoverable`, `multilingual` only. There is no `format` field.
-9. **`files` config**: if `acceptedContentTypes` is provided, each entry needs `contentType` (required). If `maxFileSize` is provided, both `size` and `unit` are required.
+8. **`datetime` config has no `format` field in mass operations** — the schema rejects it. A datetime created this way uses the default `date` format. `format` is only accepted by the `createShape` and `updateShape` mutations.
+9. **`files` config**: if `acceptedContentTypes` is provided, each entry needs `contentType` (required). In mass operations, any `files` config must include `maxFileSize` with both `size` and `unit`.
 10. **Naming conventions** — all identifiers use lowercase-with-hyphens (no camelCase, no underscores)
 11. **Reusable SEO piece** — create an SEO piece and reference it from multiple shapes
 12. **Localization strategy** — translatable for marketing text, non-translatable for universal data (codes, dimensions)
+13. **Colors components** — set `customColorSpaces` or `colorPresets`, or editors have nothing to enter in the App. Set `multilingual: false` when the values are universal
+14. **`discoverable: false`** on internal fields
 
 ## References
 
 - [Create Shape API Reference](references/create-shape-api.md) - **Full mutation type reference with all required fields, config structures, and validation rules for `createShape`**
-- [Content Modelling Guide](references/content-modelling.md) - Comprehensive design framework, industry patterns, validation
+- [Mass Operation Example](references/mass-operation-example.md) - Complete operations file following the 4-phase ordering
+- [Content Modelling Guide](references/content-modelling.md) - Comprehensive design framework, use cases, industry patterns, validation
 - [Components Reference](references/components.md) - All 15+ component types, nesting rules, localization
 - [Design Patterns Reference](references/design-patterns.md) - 5 bridge patterns with complete JSON examples
+- [Page Builder Pattern](references/page-builder-pattern.md) - Block slot, block pieces, shared `layout` piece, localized structure
+- [Shape Consolidation](references/shape-consolidation.md) - When and how to merge similar shapes
 - [Shapes Reference](references/shapes.md) - Shape types, variantComponents, and creation process
-- [Pieces Reference](references/pieces.md) - Reusable field sets
+- [Pieces Reference](references/pieces.md) - Reusable field sets, standard SEO piece
 - [Taxonomies Reference](references/taxonomies.md) - Topic Maps and Grids
-- [[taxonomy]] — Use this skill to design topic maps (hierarchical taxonomies with `displayColor`, `pathIdentifier`, nesting) before referencing them from shapes here.
-
-## Examples by Industry
-
-**Fashion:** Product with variants (size/color), material classifications, brand documents, care instructions
-
-**Food/Recipe Domain:** Complete model using Quantised Bridge pattern:
-
-```
-Product Shape: Ingredient
-  ├── Description (Rich Text)
-  ├── Nutrition (Piece → nutrition)
-  └── Allergens (Item Relations → allergen docs, acceptedShapeIdentifiers: ["allergen"])
-
-Product Shape: Recipe
-  ├── Description (Rich Text)
-  ├── Prep Time (Numeric, unit: minutes)
-  ├── Cook Time (Numeric, unit: minutes)
-  ├── Servings (Numeric)
-  ├── Ingredients (contentChunk, repeating) ← Quantised Bridge
-  │     ├── Quantity (Numeric)
-  │     ├── Unit (Selection: g, ml, pcs, tbsp, tsp, cup)
-  │     └── Ingredient (Item Relations → ingredient, acceptedShapeIdentifiers: ["ingredient"])
-  ├── Instructions (Paragraph Collection)
-  └── Allergens (Item Relations → allergen docs, computed from ingredients)
-
-Product Shape: Meal Kit
-  ├── Description (Rich Text)
-  ├── Recipes (contentChunk, repeating) ← Quantised Bridge
-  │     ├── Servings (Numeric)
-  │     └── Recipe (Item Relations → recipe, acceptedShapeIdentifiers: ["recipe"])
-  └── Dietary Tags (Item Relations → dietary docs)
-
-Document Shape: Allergen
-  ├── Icon (Images)
-  ├── Warning Text (Rich Text)
-  └── Severity (Selection: mild, moderate, severe)
-
-Piece: nutrition
-  ├── Calories (Numeric, unit: kcal)
-  ├── Protein (Numeric, unit: g)
-  ├── Carbs (Numeric, unit: g)
-  └── Fat (Numeric, unit: g)
-```
-
-This pattern enables: ingredient → recipe → meal kit composition with quantity tracking at each level, automatic allergen rollup, and nutrition calculation.
-
-**Electronics:** Product with configuration options, compatibility rules, technical specs, brand classifications
-
-**Music/Instruments:** Guitar store example using Semantic Bridge pattern:
-
-```
-Product Shape: Guitar
-  ├── Description (Rich Text)
-  ├── Body Type (Item Relations → body-type docs, acceptedShapeIdentifiers: ["body-type"])
-  ├── Pickup Configuration (Item Relations → pickup docs, acceptedShapeIdentifiers: ["pickup"])
-  ├── Wood Type (Item Relations → wood docs, acceptedShapeIdentifiers: ["wood"])
-  ├── Brand (Item Relations → brand doc, acceptedShapeIdentifiers: ["brand"], min:1, max:1)
-  └── SEO (Piece → seo)
-
-Classification Documents:
-  ├── body-type: Stratocaster, Les Paul, Telecaster, SG...
-  ├── pickup: Single Coil, Humbucker, P90, Active...
-  ├── wood: Alder, Mahogany, Maple, Rosewood...
-  └── brand: Fender, Gibson, PRS, Ibanez...
-```
-
-This pattern allows rich content for each classification (e.g., brand logo, wood tone characteristics) while maintaining type safety through `acceptedShapeIdentifiers`.
-
-**B2B:** Service packages with tiers, case studies, industry classifications, expertise levels
-
-**Publishing:** Books with contributors (composite bridge), series, publishers, multi-format variants
-
-See [Content Modelling Guide](references/content-modelling.md) for complete industry-specific patterns.
+- [[taxonomy]] — Use this skill to design topic maps (hierarchical taxonomies with `displayColor`, `pathIdentifier`, nesting). Topics are a built-in field on every item, so a shape does not reference them.

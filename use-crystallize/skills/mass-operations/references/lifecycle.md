@@ -1,6 +1,6 @@
 # Lifecycle: upload, run, monitor
 
-Verified against runner and Core API behaviour as of 2026-08-18.
+Verified against the CLI, runner and Core API behaviour as of 2026-10-29.
 
 ## Contents
 
@@ -22,26 +22,36 @@ crystallize mass-operation dump-content-model <tenant> <file>
 ```
 
 Generates a starter file containing the tenant's current shapes and pieces. Use this to ground shape
-identifiers and component IDs instead of guessing them.
+identifiers and component IDs instead of guessing them. The file is written with `version: "0.0.1"`: change
+it to `"1.0.0"` before adding operations. `--no-item-ids` removes references to existing item IDs, and
+`--force` overwrites an existing file.
+
+```
+crystallize mass-operation validate <file>
+```
+
+Checks the file against the schema locally, with no network call, and lists each issue per operation.
 
 ```
 crystallize mass-operation run <tenant> <file>
 ```
 
-Validates → requests presigned upload → pushes the file → creates the bulk task with `autoStart` →
-waits for completion while tailing logs.
+Validates → requests presigned upload → pushes the file → creates and starts the bulk task → waits for
+completion while tailing logs. It only exits on `complete`: a task that ends in `error` keeps it polling
+forever, so put a timeout around it in CI.
 
 ```
-crystallize mass-operation execute-mutations <tenant> <file> [image-mapping-file]
+crystallize mass-operation execute-mutations <tenant> <file> [image-mapping-file] [file-mapping-file]
 ```
 
 Runs client-side GraphQL mutations alongside mass operations, for steps the runner doesn't cover.
 
-All commands support `--no-interactive` for CI and reuse stored credentials. `--legacy-spec` converts
-an old Spec File into a mass operation file.
+`crystallize mass-operation add-operation <file>` appends operation skeletons to a file.
 
-The CLI lives in `CrystallizeAPI/tools` — a different repo, so these command signatures are **not**
-verified against the runner source and may drift. `crystallize mass-operation --help` is authoritative.
+Commands that reach the API support `--no-interactive` for CI, take `--token_id` and `--token_secret`, and
+reuse stored credentials. `run --legacy-spec` converts an old Spec File into a mass operation file.
+
+`crystallize mass-operation --help` is authoritative.
 
 ## Raw API path
 
@@ -62,7 +72,7 @@ X-Crystallize-Access-Token-Secret: <your-token-secret>
 
 ```graphql
 mutation GeneratePresignedUpload($filename: String!, $contentType: String!) {
-    generatePresignedUploadRequest(input: { type: MASS_OPERATIONS, filename: $filename, contentType: $contentType }) {
+    generatePresignedUploadRequest(type: MASS_OPERATIONS, filename: $filename, contentType: $contentType) {
         ... on PresignedUploadRequest {
             url
             fields {
@@ -71,19 +81,23 @@ mutation GeneratePresignedUpload($filename: String!, $contentType: String!) {
             }
         }
         ... on BasicError {
-            error
+            message
             errorName
         }
     }
 }
 ```
 
-`MASS_OPERATIONS` routes to a dedicated bucket, separate from `MEDIA` and `STATIC`. Presigned URLs are
-short-lived — upload immediately.
+`MASS_OPERATIONS` routes to dedicated private storage, separate from `MEDIA` and `STATIC`. Presigned URLs
+are short-lived — upload immediately.
+
+On Node, `createBinaryFileManager(client).uploadMassOperationFile(path)` from `@crystallize/js-api-client`
+does steps 1 and 2 and returns the key.
 
 ### 2. Upload the file
 
-Multipart form POST. **Order matters: all presigned fields first, the file last.**
+Multipart form POST. **Order matters: all presigned fields first, the file last.** Send every entry of
+`fields`, whatever its name: the set varies and the upload is refused if one is missing. Success is `201`.
 
 ```typescript
 async function uploadToPresignedUrl(
@@ -114,15 +128,9 @@ Equivalent with curl:
 
 ```bash
 curl -X POST "$PRESIGNED_URL" \
-  -F "key=$KEY" \
-  -F "bucket=$BUCKET" \
-  -F "X-Amz-Algorithm=$ALGORITHM" \
-  -F "X-Amz-Credential=$CREDENTIAL" \
-  -F "X-Amz-Date=$DATE" \
-  -F "X-Amz-Security-Token=$TOKEN" \
-  -F "Policy=$POLICY" \
-  -F "X-Amz-Signature=$SIGNATURE" \
-  -F "file=@operations.json"
+  -F "$FIELD_1_NAME=$FIELD_1_VALUE" \
+  -F "$FIELD_2_NAME=$FIELD_2_VALUE" \
+  -F "file=@operations.json" # one -F per entry of fields, in order, then the file
 ```
 
 ### 3. Register the bulk task
@@ -135,7 +143,7 @@ mutation CreateMassOperationBulkTask($key: String!, $autoStart: Boolean) {
             status
         }
         ... on BasicError {
-            error
+            message
             errorName
         }
     }
@@ -154,7 +162,7 @@ mutation StartMassOperationBulkTask($id: ID!) {
             status
         }
         ... on BasicError {
-            error
+            message
             errorName
         }
     }
@@ -162,7 +170,8 @@ mutation StartMassOperationBulkTask($id: ID!) {
 ```
 
 Note: this resolver reads the task **before** dispatching it, so the `status` in the response is the
-pre-start value (`pending`). Poll `bulkTask` for the real state.
+pre-start value (`pending`). Poll `bulkTask` for the real state. Starting a task that isn't `pending` is
+refused.
 
 Both mutations are flagged `EXPERIMENTAL: the full feature set is not yet complete.` in the schema.
 
@@ -170,16 +179,16 @@ Both mutations are flagged `EXPERIMENTAL: the full feature set is not yet comple
 
 Worth knowing when a task behaves oddly:
 
-1. A task is only picked up while its status is `pending`. Anything else is ignored outright.
-2. The file is fetched from S3 and parsed with `OperationsSchema.safeParse`. On failure the worker logs
-   each issue to **its own** logs and throws `Invalid Operation File`.
-3. `enrichPriceVariantTiers` re-attaches `tierType`/`tiers` that the schema stripped from
-   `priceVariants` (see `intents.md`).
-4. An empty `operations` array stops the task as `error` with cause
-   `No operations retrieved from spec file`.
-5. Files above a configured size threshold are not run in the worker at all — the worker broadcasts a
-   spawn request and a standalone task runs them. Behaviour is identical; only the execution host
-   differs.
+1. A task is only picked up while its status is `pending`. Anything else is ignored outright. A `key`
+   that points at a missing or empty file is dropped too, and the task stays `pending` with no error.
+2. The runner loads the user who created the task, with their current roles. If that user no longer
+   exists or has no role on the tenant, the task stops as `error` with `Cannot run bulk task …`.
+3. The file is fetched and parsed with `OperationsSchema.safeParse`. On failure the issues stay in the
+   runner's own logs and the task gets `Invalid Operation File`.
+4. `tierType`/`tiers` that the schema stripped from `priceVariants` are re-attached from the raw file (see
+   `intents.md`).
+5. An empty `operations` array stops the task as `error`, with
+   `info.cause` set to `No operations retrieved from spec file`.
 6. Operations then run **strictly sequentially** in array order. Queued image uploads for each operation
    run concurrently (up to 10) and are awaited before the next operation starts.
 
@@ -193,19 +202,18 @@ query GetBulkTaskStatus($id: ID!) {
         ... on BulkTaskMassOperation {
             id
             status
-            info {
-                error
-                errorName
-                stack
-            }
+            info
         }
         ... on BasicError {
-            error
+            message
             errorName
         }
     }
 }
 ```
+
+`info` is a JSON scalar, so select it with no sub-fields. On a runtime error it holds `error`, `errorName`
+and `stack`.
 
 Also available: `bulkTasks(filter: { type: massOperation })`.
 
@@ -227,18 +235,24 @@ say.
 ```graphql
 query OperationLogs($id: ID!, $first: Int) {
     operationLogs(filter: { operationId: $id }, first: $first) {
-        edges {
-            node {
-                status
-                statusCode
-                message
-                input
-                output
+        ... on OperationLogConnection {
+            edges {
+                node {
+                    status
+                    statusCode
+                    message
+                    input
+                    output
+                }
+            }
+            pageInfo {
+                hasNextPage
+                endCursor
             }
         }
-        pageInfo {
-            hasNextPage
-            endCursor
+        ... on BasicError {
+            message
+            errorName
         }
     }
 }
@@ -246,11 +260,12 @@ query OperationLogs($id: ID!, $first: Int) {
 
 `operationId` is the **bulk task id**. It's a paginated connection, so page through it — a large import
 will not return every log in one call. The filter also accepts two fields the docs don't mention:
-`status` (`success` | `partial` | `failure`) and `operationTypeStartsWith`. Filtering on
-`status: failure` is the fastest triage.
+`status` (`success` | `partial` | `failure`) and `operationTypeStartsWith`, an intent prefix such as
+`product/`. Filtering on `status: failure` is the fastest triage.
 
 Each entry stores the original input payload, the command executed, the result, a `status`
-(`success` / `partial` / `failure`), and a `statusCode`.
+(`success` / `partial` / `failure`), and a `statusCode`. On a failure `message` is generic: the reason is
+in `output.error.message`.
 
 | status    | statusCode | When                                                       |
 | --------- | ---------- | ---------------------------------------------------------- |
@@ -258,8 +273,7 @@ Each entry stores the original input payload, the command executed, the result, 
 | `partial` | `206`      | `item/publish` only — some items failed, or zero succeeded |
 | `failure` | `500`      | The command threw, or the converter failed to build it     |
 
-Those are the only three the runner emits. The underlying DTO permits `201/400/401/403/404/502/503/504`
-too, but nothing writes them.
+Those are the only three the runner emits.
 
 **Check these even when the task says `complete`.** Operation-level failures are logged and the runner
 moves on to the next operation — there is no implicit rollback.
@@ -281,42 +295,48 @@ operation whose `{{ upload ... }}` queued them.
         "info": {
             "error": "Invalid Operation File",
             "errorName": "Error",
-            "stack": "Error: Invalid Operation File\n    at OperationsFetcherService.fetch..."
+            "stack": "Error: Invalid Operation File\n    at ..."
         }
     }
 }
 ```
 
 Schema violations and unparseable JSON mark the whole task `error` and no operation runs — unlike a
-runtime failure on a single operation, which is logged and stepped over.
+runtime failure on a single operation, which is logged and stepped over. For unparseable JSON, `error`
+holds the parser's message instead.
 
 ## Troubleshooting
 
-| Symptom                                                      | Cause                                                                        | Fix                                                                          |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `Invalid Operation File`, no detail                          | Server logs per-field zod issues to its own logger, not to `info`            | Parse locally with `OperationsSchema`, or run via the CLI                    |
-| Task `error`: `No converter found for intent item/unpublish` | `item/unpublish` is unimplemented in the runner                              | Remove it; use the Core API `unpublishItem` mutation                         |
-| Task `error`: `TypeError: Invalid Version: 1`                | `version` is `1`, `1.0` or `*` — valid per the regex, invalid per semver     | Use `"1.0.0"`                                                                |
-| Task `error`: `No operations retrieved from spec file`       | Empty `operations` array, or an unreadable/empty upload                      | Check the file actually uploaded                                             |
-| Task stuck in `pending`                                      | `autoStart: false` and never started                                         | Call `startMassOperationBulkTask`                                            |
-| Re-run created duplicate products/folders                    | Item `upsert` without `itemId` or `resourceIdentifier` always creates        | Add a `resourceIdentifier` to every item upsert                              |
-| Re-run created duplicate orders/contracts                    | `order/upsert` and `subscription-contract/upsert` only dedupe on a real `id` | Track ids, or accept non-idempotence                                         |
-| `ResourceIdentifier is not implemented yet`                  | That intent doesn't support it                                               | See `intents.md` § "Where `resourceIdentifier` actually works"               |
-| Operation missing entirely from `operationLogs`              | Converter returned no command                                                | See `intents.md` § "Silent skips"                                            |
-| A field literally contains `{{ myRef.id }}`                  | Template render threw; the renderer returns the raw string                   | Fix the reference; check the intent's real `_ref` output                     |
-| Reference resolves to an object, not an ID                   | Running at `version: "0.0.1"`                                                | Use `"1.0.0"`, where upserts are normalised flat                             |
-| `fetch*` returned pre-update data                            | Fetch cache isn't invalidated by that intent                                 | Use an uncached helper (`*ByResourceIdentifier`, `fetchProductVariantBySku`) |
-| Variant `topicIds` didn't apply                              | Stripped by the schema, not re-attached by the runner                        | Assign variant topics via another API                                        |
-| Component content saved but wrong                            | `item/updateComponent/item` runs with content validation disabled            | Verify component IDs against `dump-content-model`                            |
-| `400 Bad Request` on mutations                               | Missing union type fragments                                                 | Add `... on BulkTaskMassOperation` and `... on BasicError`                   |
-| `Failed to fetch` on upload                                  | Browser CORS restriction                                                     | Upload server-side or proxy the S3 request                                   |
-| `key` is undefined                                           | Looking for a top-level `key`                                                | Read it from the fields array: `fields.find(f => f.name === 'key').value`    |
-| Task `error` with no message                                 | Not querying `info`                                                          | Add `info { error errorName stack }` to the `bulkTask` query                 |
-| `Invalid component ID …`                                     | Component doesn't exist on that shape                                        | Re-check against `dump-content-model` output                                 |
+| Symptom                                                      | Cause                                                                         | Fix                                                                          |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `Invalid Operation File`, no detail                          | The per-field issues are not returned in `info`                               | Parse locally with `OperationsSchema`, or run via the CLI                    |
+| Task `error`: `No converter found for intent item/unpublish` | `item/unpublish` is unimplemented in the runner                               | Remove it; use the Core API `unpublishItem` mutation                         |
+| Task `error`: `TypeError: Invalid Version: 1`                | `version` is `1`, `1.0` or `*` — valid per the regex, invalid per semver      | Use `"1.0.0"`                                                                |
+| Task `error`: `info.cause` `No operations retrieved…`        | Empty `operations` array                                                      | Check the file you uploaded                                                  |
+| Task `error`: `Cannot run bulk task …`                       | The task's creator was deleted or has no role on the tenant                   | Recreate the task as a user with a role on the tenant                        |
+| Task stuck in `pending`                                      | `autoStart: false` and never started, or `key` has no uploaded file behind it | Call `startMassOperationBulkTask`, or re-upload and create a new task        |
+| `crystallize mass-operation run` never returns               | The task ended in `error`: `run` only exits on `complete`                     | Read `bulkTask`, and put a timeout around `run`                              |
+| Re-run created duplicate products/folders                    | Item `upsert` without `itemId` or `resourceIdentifier` always creates         | Add a `resourceIdentifier` to every item upsert                              |
+| Re-run created duplicate orders/contracts                    | `order/upsert` and `subscription-contract/upsert` only dedupe on a real `id`  | Track ids, or accept non-idempotence                                         |
+| `ResourceIdentifier is not implemented yet`                  | That intent doesn't support it                                                | See `intents.md` § "Where `resourceIdentifier` actually works"               |
+| Operation missing entirely from `operationLogs`              | Converter returned no command                                                 | See `intents.md` § "Silent skips"                                            |
+| A field literally contains `{{ myRef.id }}`                  | Template render threw (syntax error or failing helper); raw string is stored  | Fix the template or the helper call                                          |
+| A field is blank where a reference should have resolved      | The `_ref` is missing, failed or skipped, or the property is wrong            | Check the `_ref` operation's log and its real `output`                       |
+| Text contains `&amp;` or `&#x27;`                            | `{{ x }}` HTML-escapes its output                                             | Use `{{{ x }}}`                                                              |
+| Reference resolves to an object, not an ID                   | Running at `version: "0.0.1"`                                                 | Use `"1.0.0"`, where upserts are normalised flat                             |
+| `fetch*` returned pre-update data                            | Fetch cache isn't invalidated by that intent                                  | Use an uncached helper (`*ByResourceIdentifier`, `fetchProductVariantBySku`) |
+| Variant `topicIds` didn't apply                              | Stripped by the schema, not re-attached by the runner                         | Assign variant topics via another API                                        |
+| Component content saved but wrong                            | `item/updateComponent/item` runs with content validation disabled             | Verify component IDs against `dump-content-model`                            |
+| `400 Bad Request` on mutations                               | Missing union type fragments                                                  | Add `... on BulkTaskMassOperation` and `... on BasicError`                   |
+| `Failed to fetch` on upload                                  | Browser CORS restriction                                                      | Upload server-side or proxy the upload request                               |
+| `key` is undefined                                           | Looking for a top-level `key`                                                 | Read it from the fields array: `fields.find(f => f.name === 'key').value`    |
+| Task `error` with no message                                 | Not querying `info`                                                           | Add `info` to the `bulkTask` query                                           |
+| `Invalid component id specified: …`                          | `item/updateComponent/*` on a component that isn't on that shape              | Re-check against `dump-content-model` output                                 |
+| `Component type or content not provided.`                    | A component entry has no recognised type key                                  | Fix the key, e.g. `singleLine`                                               |
 
 ## Browser CORS
 
-The S3 bucket may block cross-origin requests from a browser. Options, in order of preference:
+The upload URL may block cross-origin requests from a browser. Options, in order of preference:
 
 1. **Use the CLI** — recommended for production migrations
 2. **Server-side proxy** — route uploads through your backend
@@ -326,10 +346,10 @@ The S3 bucket may block cross-origin requests from a browser. Options, in order 
 export default defineConfig({
     server: {
         proxy: {
-            "/api/s3-upload": {
-                target: "https://crystallize-mass-operations-production.s3.eu-central-1.amazonaws.com",
+            "/api/mass-operation-upload": {
+                target: "<origin of the url from generatePresignedUploadRequest>",
                 changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/api\/s3-upload/, ""),
+                rewrite: (path) => path.replace(/^\/api\/mass-operation-upload/, ""),
             },
         },
     },

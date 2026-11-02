@@ -64,5 +64,30 @@
         "task": "boost high-margin products in category listings",
         "skills": ["vector-ranking"],
         "expected": ["vector-ranking/ranking-signals"]
+    },
+    {
+        "task": "write the shared helper that creates the order once and records a payment for any provider",
+        "skills": ["payments"],
+        "expected": ["payments/crystallize-payments-lib"]
+    },
+    {
+        "task": "build a back-office tool that takes a bookable unit out of service",
+        "skills": ["bookable-resources"],
+        "expected": ["bookable-resources/booking-admin"]
+    },
+    {
+        "task": "merge several near-identical product shapes into one",
+        "skills": ["content-model"],
+        "expected": ["content-model/shape-consolidation"]
+    },
+    {
+        "task": "show me a complete operations file that creates a content model in the right order",
+        "skills": ["content-model"],
+        "expected": ["content-model/mass-operation-example"]
+    },
+    {
+        "task": "create a custom role with the API and assign it to a user",
+        "skills": ["permissions"],
+        "expected": ["permissions/role-api"]
     }
 ]

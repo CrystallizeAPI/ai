@@ -34,31 +34,37 @@ This is the backbone of the page builder. A shape (e.g. `landing-page`, `categor
             "choices": [
                 {
                     "id": "banner",
+                    "name": "Banner",
                     "type": "piece",
                     "config": { "piece": { "identifier": "banner" } }
                 },
                 {
                     "id": "feature-highlights",
+                    "name": "Feature Highlights",
                     "type": "piece",
                     "config": { "piece": { "identifier": "feature-highlights" } }
                 },
                 {
                     "id": "product-slider",
+                    "name": "Product Slider",
                     "type": "piece",
                     "config": { "piece": { "identifier": "product-slider" } }
                 },
                 {
                     "id": "story-slider",
+                    "name": "Story Slider",
                     "type": "piece",
                     "config": { "piece": { "identifier": "story-slider" } }
                 },
                 {
                     "id": "picture-grid",
+                    "name": "Picture Grid",
                     "type": "piece",
                     "config": { "piece": { "identifier": "picture-grid" } }
                 },
                 {
                     "id": "category-slider",
+                    "name": "Category Slider",
                     "type": "piece",
                     "config": { "piece": { "identifier": "category-slider" } }
                 }
@@ -72,7 +78,7 @@ Key flags:
 
 - **`allowDuplicates: true`** — editors can use the same block type multiple times on the same page (e.g. two separate banners)
 - **`multilingual: true`** (localized structure) — different languages/markets can have **completely different blocks selected**. See [Localized Structure](#localized-structure-multilingual) below.
-- **`min` / `max`** — optionally enforce minimum (e.g. `1` — page needs at least one section) and maximum number of blocks
+- **`required: true`** — the page needs at least one section. `componentMultipleChoice` has no `min` or `max`, so the number of blocks cannot be capped
 
 ### 2. Block Pieces — The Reusable Sections
 
@@ -94,9 +100,11 @@ Every block piece embeds the `layout` piece as a component. This gives editors p
 ```json
 {
     "identifier": "layout",
+    "name": "Layout",
     "components": [
         {
             "id": "display-width",
+            "name": "Display Width",
             "type": "selection",
             "config": {
                 "selection": {
@@ -109,6 +117,7 @@ Every block piece embeds the `layout` piece as a component. This gives editors p
         },
         {
             "id": "theme",
+            "name": "Theme",
             "type": "selection",
             "config": {
                 "selection": {
@@ -124,12 +133,13 @@ Every block piece embeds the `layout` piece as a component. This gives editors p
         },
         {
             "id": "background-media",
+            "name": "Background Media",
             "type": "componentChoice",
             "config": {
                 "componentChoice": {
                     "choices": [
-                        { "id": "image", "type": "images" },
-                        { "id": "video", "type": "videos" }
+                        { "id": "image", "name": "Image", "type": "images" },
+                        { "id": "video", "name": "Video", "type": "videos" }
                     ]
                 }
             }
@@ -144,9 +154,96 @@ Every block piece embeds the `layout` piece as a component. This gives editors p
 
 ---
 
+## Minimal Example
+
+**Problem:** Editors need flexible page layouts with different section types.
+
+**Solution:** componentMultipleChoice with piece references, each piece containing repeating chunks for items.
+
+```json
+// Folder Shape: Landing Page (folders can have children, documents cannot)
+{
+  "components": [
+    {
+      "id": "blocks",
+      "name": "Page Sections",
+      "type": "componentMultipleChoice",
+      "config": {
+        "componentMultipleChoice": {
+          "allowDuplicates": true,
+          "choices": [
+            { "id": "banner", "name": "Banner", "type": "piece", "config": { "piece": { "identifier": "banner-section" } } },
+            { "id": "usp", "name": "USP", "type": "piece", "config": { "piece": { "identifier": "usp-section" } } },
+            { "id": "hero", "name": "Hero", "type": "piece", "config": { "piece": { "identifier": "hero-section" } } }
+          ]
+        }
+      }
+    }
+  ]
+}
+
+// Piece: banner-section
+{
+  "identifier": "banner-section",
+  "name": "Banner Section",
+  "components": [
+    { "id": "title", "name": "Title", "type": "singleLine" },
+    { "id": "description", "name": "Description", "type": "richText" },
+    { "id": "background", "name": "Background", "type": "images" },
+    {
+      "id": "ctas",
+      "name": "Call to Actions",
+      "type": "contentChunk",
+      "config": {
+        "contentChunk": {
+          "repeatable": true,
+          "components": [
+            { "id": "text", "name": "Text", "type": "singleLine" },
+            { "id": "url", "name": "URL", "type": "singleLine" }
+          ]
+        }
+      }
+    }
+  ]
+}
+
+// Piece: usp-section
+{
+  "identifier": "usp-section",
+  "name": "USP Section",
+  "components": [
+    { "id": "title", "name": "Title", "type": "singleLine" },
+    {
+      "id": "items",
+      "name": "USP Items",
+      "type": "contentChunk",
+      "config": {
+        "contentChunk": {
+          "repeatable": true,
+          "components": [
+            { "id": "icon", "name": "Icon", "type": "images" },
+            { "id": "title", "name": "Title", "type": "singleLine" },
+            { "id": "description", "name": "Description", "type": "richText" }
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+**Key points:**
+
+- componentMultipleChoice contains pieces (banner-section, usp-section, hero-section)
+- Each piece contains regular components and repeating chunks for items
+- Chunks (CTAs, USP items) are inside pieces, not direct children of componentMultipleChoice
+- This allows editors to build pages with flexible, reusable sections
+
+---
+
 ## Localized Structure (`multilingual`)
 
-The `multilingual: true` flag on `componentMultipleChoice` enables **localized structure** — called "Yes - choice varies per language" in the Crystallize PIM UI. This is the **default and recommended setting** for page builder blocks.
+The `multilingual: true` flag on `componentMultipleChoice` enables **localized structure** — called "Yes - choice varies per language" in the Crystallize PIM UI. This is the **default in the UI and the recommended setting** for page builder blocks. The API default is the opposite, so set it explicitly in mass operations and mutations.
 
 ### What it means
 
@@ -177,7 +274,7 @@ In rare cases, you want all languages to share the same block selection (only tr
 - Technical/documentation pages where structure must be consistent across languages
 - When the editorial team is small and manages all languages from one view
 
-In these cases, set `multilingual: false` — but this is the exception, not the rule.
+In these cases, leave `multilingual` out rather than setting it to `false`: an explicit `false` forces every component inside the blocks to be shared, so their text could no longer be translated. This is the exception, not the rule.
 
 ---
 
@@ -194,12 +291,13 @@ Used when a field should have one value from a set of _structurally different_ t
 ```json
 {
     "id": "background-media",
+    "name": "Background Media",
     "type": "componentChoice",
     "config": {
         "componentChoice": {
             "choices": [
-                { "id": "image", "type": "images" },
-                { "id": "video", "type": "videos" }
+                { "id": "image", "name": "Image", "type": "images" },
+                { "id": "video", "name": "Video", "type": "videos" }
             ]
         }
     }
@@ -219,14 +317,15 @@ Used inside a piece when you need an editor-managed list of structured items tha
 ```json
 {
     "id": "usp",
+    "name": "USP",
     "type": "contentChunk",
     "config": {
         "contentChunk": {
             "repeatable": true,
             "components": [
-                { "id": "headline", "type": "singleLine" },
-                { "id": "description", "type": "richText" },
-                { "id": "icon", "type": "images" }
+                { "id": "headline", "name": "Headline", "type": "singleLine" },
+                { "id": "description", "name": "Description", "type": "richText" },
+                { "id": "icon", "name": "Icon", "type": "images" }
             ]
         }
     }
@@ -295,12 +394,12 @@ category (folder shape)  ← same blocks component as landing-page
 
 ### Frontend Rendering
 
-**Switch on block type to render.** When consuming the `blocks` array via the API or GraphQL, the discriminator is the chosen piece identifier (or the component choice key). Map each identifier to its React/component.
+**Switch on block id to render.** In the Catalogue API the blocks are in `ComponentMultipleChoiceContent.selectedComponents`, and the discriminator is each entry's `id`, which is the `id` of the chosen option. `type` is `piece` for every block, so it tells you nothing. Map each id to its React/component.
 
 ```js
 // Example pattern
-blocks.map((block) => {
-    switch (block.__typename || block.type) {
+selectedComponents.map((block) => {
+    switch (block.id) {
         case "banner":
             return <Banner {...block} />;
         case "feature-highlights":
@@ -324,7 +423,7 @@ blocks.map((block) => {
 </BlockWrapper>
 ```
 
-**Handle `allowDuplicates`.** The same piece type can appear more than once. Use `index` or a stable `id` (e.g. UUID generated at item creation) as the React key, not the block type name.
+**Handle `allowDuplicates`.** The same piece type can appear more than once, and entries of the same type share their `id`. Use the array index as the React key, not the block type name.
 
 ### Schema Governance
 

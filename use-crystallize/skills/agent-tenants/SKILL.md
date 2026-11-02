@@ -62,7 +62,7 @@ curl -s -X POST https://api.crystallize.com/agents/tenants \
 | ------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `name`       | yes      | String, 1 to 100 characters once trimmed. The tenant's display name.                                                                                                     |
 | `identifier` | no       | String, 1 to 100 characters. Lowercased; anything outside `a-z 0-9 -` becomes `-`. Without it (or if nothing usable remains) it comes from `name`, else `agent-<8 hex>`. |
-| `source`     | no       | String, 1 to 100 characters. Who is provisioning (`claude-code`, `cursor`). Shown in Crystallize's Slack and as the agent user's name.                                   |
+| `source`     | no       | String, 1 to 100 characters. Who is provisioning (`claude-code`, `cursor`). Shown as the agent user's name.                                                              |
 
 Any other key is ignored, `omitDefaultShapes` included. Values that are not plain strings are refused with 400.
 
@@ -168,12 +168,14 @@ EOF
 
 - **The claim invite's role must be `tenantAdmin`**, for whoever will own the tenant: the user, or someone they
   name. Only a human `tenantAdmin` claims the tenant. An invite with any other role lets a human in and keeps the
-  tenant from deletion, but never claims it: send one on top of the admin invite, never instead of it.
+  tenant from deletion, but does not claim it: send one on top of the admin invite, never instead of it.
 - **`expiresAt` is optional in the schema; send it anyway**, no later than the tenant's. An invite that
-  outlives the tenant is useless.
+  outlives the tenant is useless. A date in the past is accepted and gives a dead link: if a human has kept the
+  tenant past its deadline, send a future date.
 - **Errors come back in the result, not as HTTP errors.** An unknown role gives `RoleNotFoundError` instead of
   `InviteToken`.
-- You can create a new invite at any time, for instance when one has expired.
+- **An invite works once.** A second human needs a second invite, and a used link only shows an "already
+  redeemed" error. You can create a new invite at any time, for instance when one has expired or been used.
 
 ## 4 · Hand the invite to the human
 
@@ -198,9 +200,8 @@ What happens next needs no call from you:
 
 1. The App redeems the token (`redeemInviteToken`) and the human becomes `tenantAdmin` on the tenant.
 2. At the next cleanup run, within 2 hours, Crystallize sees a human `tenantAdmin` and the tenant is claimed:
-   its provisioning record is deleted, so it can never be removed automatically.
-3. Crystallize's Slack gets a "claimed" message, and the human is subscribed to the newsletter under the usual
-   signup rules.
+   from then on it can never be removed automatically.
+3. The human is subscribed to the newsletter under the usual signup rules.
 
 ## 5 · Check whether the human joined (optional)
 
@@ -236,17 +237,18 @@ they join, a second member appears with `role: "tenantAdmin"` and `kind: "human"
 | Topic               | Rule                                                                                                                                                                                |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Lifetime            | `expiresAt` = provisioning + 72 h. A cleanup runs every 2 hours, so an unclaimed tenant goes between 72 h and about 74 h later, with all its content, the agent user and its token. |
-| What keeps a tenant | Any human with a role on it. A human `tenantAdmin` claims it for good. A human with a lesser role keeps it from deletion but never claims it: it waits for a human admin.           |
+| What keeps a tenant | Any human with a role on it. A human `tenantAdmin` claims it for good. A human with a lesser role keeps it from deletion but does not claim it: it waits for a human admin.         |
+| Promoting a human   | Promoting a lesser-role human to `tenantAdmin` claims the tenant: `setUserRole(userId: "<id from step 5>", role: "tenantAdmin")` on the Core API, or the user list in the App.      |
 | Nothing else        | No call extends the 72 hours. Only a human joining keeps the tenant.                                                                                                                |
 | After the claim     | The agent stays `tenantAdmin` and its token keeps working. The human can remove the agent user in the App; the cleanup then deletes it and its tokens.                              |
 | One tenant per call | An agent cannot create tenants any other way (`createTenant` on `/@me`, PIM `tenant.create`), copy a tenant, or redeem invites. Another tenant is another `POST /agents/tenants`.   |
 | The agent user      | Named `Agent <source>`, no email, and no one can log in as it. It acts only through its token, which works on its own tenant only.                                                  |
-| Rate limit          | None specific to provisioning. The API firewall's per-IP limit applies to every call (429).                                                                                         |
+| Rate limit          | Provisioning has its own limit, per IP and across all callers, on top of the per-IP limit on every call (429). On a shared cloud IP you can hit it with few calls of your own.      |
 
 ## Errors
 
-Provisioning answers plain HTTP errors with a JSON body, `{ "message": "…", "statusCode": 400 }`. GraphQL calls
-answer HTTP 200 with the error inside the result union (`__typename`, `errorName`, `message`).
+Provisioning answers plain HTTP errors with a JSON body, `{ "message": "…", "statusCode": 400 }`. Authenticated
+GraphQL calls answer HTTP 200 with the error inside the result union (`__typename`, `errorName`, `message`).
 
 | Call                                                                   | Status | Message                                                                | What to do                                                                                    |
 | ---------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -256,8 +258,10 @@ answer HTTP 200 with the error inside the result union (`__typename`, `errorName
 | Provision                                                              | 400    | `source must be a string of 1 to 100 characters.`                      | Fix or drop `source`.                                                                         |
 | Provision                                                              | 409    | `That tenant identifier was just taken. Please retry.`                 | Retry the same call once: a new identifier is picked. Nothing was created.                    |
 | Provision                                                              | 500    | `Provisioning failed (trace <id>).`                                    | Retry later; give the trace id to Crystallize support if it repeats. Half-created is cleaned. |
+| Provision                                                              | 503    | `Crystallize cannot provision more agent tenants right now. …`         | At capacity. Retry later, or have the user create a tenant and give you an access token.      |
 | Provision                                                              | 404    | none                                                                   | The endpoint is not deployed on that host. Tell the user.                                     |
-| Any                                                                    | 429    | none                                                                   | Too many requests from this IP: back off and retry.                                           |
+| Any                                                                    | 429    | none                                                                   | Too many requests. Provisioning is also limited across all callers: wait minutes, then retry. |
+| Any call, once the tenant is deleted                                   | 403    | `Invalid access token pair provided`                                   | The tenant, its agent user and its token are gone. Provision again and replay your build.     |
 | `createInviteToken`                                                    | 200    | `RoleNotFoundError`: `Role not found: <role> (tenant id <id>)`         | The claim invite takes `tenantAdmin`; any other role must exist on the tenant.                |
 | Agent-forbidden: `/@me` `createTenant`, invite redemption, tenant copy | 200    | `UnauthorizedError`: `This operation is not available to agent users.` | Do not retry. Create tenants with step 1 only, and let humans redeem invites.                 |
 
@@ -270,7 +274,7 @@ answer HTTP 200 with the error inside the result union (`__typename`, `errorName
 | Calling `/@<the identifier you sent>`                       | The calls fail when the identifier was taken and got a suffix     | Use the returned `identifier` and `apiUrl`                                     |
 | Provisioning again to start over while the tenant is alive  | A second tenant, agent user and token; the first lingers for 72 h | Fix or recreate the shapes in the tenant you have                              |
 | Building only with one-off mutations                        | An expired tenant takes the whole build with it                   | Keep the build as a mass operations file and replay it into a new tenant       |
-| Sending only an invite with another role                    | The human gets in and keeps the tenant, but it is never claimed   | Always create a `tenantAdmin` invite for whoever will own it; others go on top |
+| Sending only an invite with another role                    | The human gets in and keeps the tenant, but it is not claimed     | Always create a `tenantAdmin` invite for whoever will own it; others go on top |
 | An invite with no `expiresAt`, or one past the tenant's     | A link that still looks valid after the tenant is gone            | Pass the tenant's `expiresAt`                                                  |
 | Giving the link without the deadline                        | The user opens it on day four and finds nothing                   | Always state the date and time with the link                                   |
 | Saying "it's yours, nothing to transfer" after provisioning | The user never opens the invite, and the tenant is deleted        | The tenant is the agent's until a human `tenantAdmin` joins                    |

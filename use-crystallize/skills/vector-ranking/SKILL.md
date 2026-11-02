@@ -33,13 +33,15 @@ Nothing is learned; the vocabulary is the model. There is nothing to train and n
 > the Discovery vector-search documentation as of the same day. Where the public docs and the served
 > schema disagree, this skill follows the schema and says so. Ranking is a capability that is enabled
 > per tenant — how it is served is an implementation detail and is deliberately not documented here.
+> Window, paging and indexing behaviour was reviewed again on 2026-10-29.
 
 ## Detect the capability before you write a query
 
 **This is the failure mode that catches agents.** Ranking is enabled **per tenant**. Until it is,
 `rankBy`, `context` and `nearestTo` are **absent from that tenant's Discovery schema** — referencing them
-is a GraphQL validation error, not a query that quietly returns unranked results. The surface can also
-disappear again if ranking is disabled for a tenant.
+is a GraphQL validation error, not a query that quietly returns unranked results. A tenant is served for
+ranking once an ignition with `stacks: opensearch` has completed. The surface can also disappear again
+if ranking is disabled for a tenant.
 
 ```graphql
 # Probe once, cache the answer. Non-null => this tenant is served for ranking.
@@ -62,11 +64,11 @@ the argument in the schema as the capability check.
 
 Three enums are generated **per tenant**, so they are never hardcodable:
 
-| Enum                         | Built from                                                           | Gotcha                                                                                                                  |
-| ---------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `TenantVocabularyIdentifier` | your vocabularies                                                    | a new vocabulary is only a valid value **after the next index run**; until a tenant has one, the argument is a `String` |
-| `TenantRankByField`          | NUMBER and DATE **filterable** attributes, **facet fields excluded** | it is _not_ "any numeric field" — introspect it                                                                         |
-| `TenantRankByTieBreaker`     | sortable fields (token, number, date)                                | `tieBreaker` is **required** on every `rankBy`                                                                          |
+| Enum                         | Built from                                                         | Gotcha                                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `TenantVocabularyIdentifier` | your vocabularies, names normalized for GraphQL                    | a new vocabulary is only a valid value **after the next index run**; until a tenant has one, the argument is a `String` |
+| `TenantRankByField`          | NUMBER and DATE **sortable** attributes, **facet fields excluded** | it is _not_ "any numeric field": `sortable: false` on a component drops it — introspect it                              |
+| `TenantRankByTieBreaker`     | sortable fields (token, number, date)                              | `tieBreaker` is **required** on every `rankBy`                                                                          |
 
 Introspect all three rather than guessing:
 
@@ -95,12 +97,13 @@ Introspect all three rather than guessing:
 | API           | Endpoint                                         | Auth              | Used for                                          |
 | ------------- | ------------------------------------------------ | ----------------- | ------------------------------------------------- |
 | **Core**      | `https://api.crystallize.com/@<tenant>/core`     | access token pair | vocabularies, taste entries, publishing, indexing |
-| **Discovery** | `https://api.crystallize.com/<tenant>/discovery` | none              | querying                                          |
+| **Discovery** | `https://api.crystallize.com/<tenant>/discovery` | none by default   | querying                                          |
 
 Core takes `@tenant` with an at-sign; Discovery takes the bare `tenant`. Vocabulary and index mutations
 live on **Core**, not on the PIM API. Everything before Discovery is authenticated and server-side; the
 queries themselves need no credentials, so a browser can build the shopper vector client-side and call
-Discovery directly.
+Discovery directly. A tenant that protects search answers `401` until each request carries its static
+token in `X-Crystallize-Static-Auth-Token`.
 
 ## Five concepts
 
@@ -133,22 +136,23 @@ Discovery   search(rankBy: + context:)          your rules, plus this shopper
 Discovery   search(nearestTo:)                  ranked by a reference item
 ```
 
-**Re-run the index after any change to vocabularies or taste entries** — not only the first time. An
-unindexed change has no effect and raises no error. `stacks: opensearch` is required for vectors to be
-built; see step 5 in the authoring reference.
+**Ignite the first time, and again after any `upsertVocabulary`.** Vectors are built with the vocabulary's
+weights, so a vocabulary change has no effect until the next index run and raises no error. A taste
+change needs no ignition on a tenant already served for ranking: publishing the item re-indexes it, vectors
+included. `stacks: opensearch` is required for ranking to be served; see step 5 in the authoring reference.
 
 Authoring detail — vocabulary design, positional weights, key validation, publishing and indexing — is
 in [references/vocabulary-authoring.md](references/vocabulary-authoring.md).
 
 ## Choosing the query path
 
-| You want                                                      | Use                                                          | Notes                                                                    |
-| ------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| A house order for everyone (margin, stock, velocity, newness) | `rankBy` alone                                               | The baseline every personalized result builds on                         |
-| Results ordered for this shopper                              | `context.userTaste` alone                                    | Reranks toward taste automatically; no `terms`, so `rankExplain` is null |
-| Your rules **and** this shopper, weighted independently       | `rankBy` + `context`, with a `tasteCosine` term              | The only way to weight vocabularies separately                           |
-| "Similar products", basket pairings                           | `nearestTo`                                                  | `k` replaces `pagination.limit`; anchor is excluded                      |
-| Neighbours that also respect stock/margin                     | `nearestTo` + `rankBy` with `tasteCosine`, `from: nearestTo` | `nearestTo` alone ignores `context.userTaste`                            |
+| You want                                                      | Use                                                          | Notes                                                            |
+| ------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------- |
+| A house order for everyone (margin, stock, velocity, newness) | `rankBy` alone                                               | The baseline every personalized result builds on                 |
+| Results ordered for this shopper                              | `context.userTaste` alone                                    | Ranks the whole result set; no `terms`, so `rankExplain` is null |
+| Your rules **and** this shopper, weighted independently       | `rankBy` + `context`, with a `tasteCosine` term              | The only way to weight vocabularies separately                   |
+| "Similar products", basket pairings                           | `nearestTo`                                                  | `k` replaces `pagination.limit`; anchor is excluded              |
+| Neighbours that also respect stock/margin                     | `nearestTo` + `rankBy` with `tasteCosine`, `from: nearestTo` | `nearestTo` alone ignores `context.userTaste`                    |
 
 Signals, normalization, `rankScore`/`rankExplain` and the rerank window are in
 [references/ranking-signals.md](references/ranking-signals.md). Shopper vectors, `magnitude`, where the
@@ -165,27 +169,31 @@ Verified by introspection on a ranking-enabled tenant — `rankBy`, `context` an
 They are **not** on `Topic.children`, which takes `language` only. Note the naming: the public docs say
 "the children queries on topics and folders", but the field on `Topic` is `items`.
 
+`Folder.children` and `Topic.items` default to `sorting: { position: asc }`, which keeps them on the
+windowed path — see [references/ranking-signals.md](references/ranking-signals.md#the-rerank-window).
+
 ## Failure modes
 
-Four of these produce **no error at all** — they are the reason this skill exists.
+Several of these produce **no error at all** — they are the reason this skill exists.
 
-| Symptom                                 | Cause                                                       | Fix                                                                                                                     |
-| --------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Order unrelated to taste, no errors     | Taste is on the draft only                                  | `publishItem`, index again, retest                                                                                      |
-| Order unchanged after editing taste     | No index run since the change                               | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                               |
-| Index rebuilt, still no vectors         | `igniteDiscoApi` run without `stacks: opensearch`           | Re-run with `stacks: opensearch`                                                                                        |
-| Ignition task ends in `error`           | e.g. ignited before any shape existed                       | Read `bulkTask.info.traces`, fix what it names, then ignite again. Never re-run it unchanged                            |
-| `{ __typename }` fails after `complete` | Discovery cannot build the tenant's schema                  | Do not re-ignite in a loop. Report it with the tenant identifier and the response body                                  |
-| Rankings subtly wrong, no errors        | `magnitude` miscomputed client-side                         | Assert `sqrt(Σ w²)` against a known case                                                                                |
-| `rankScore` comes back `null`           | No rerank ran — no `rankBy`, or every term had `weight: 0`  | Give at least one term a non-zero weight                                                                                |
-| Vocabulary "does not exist in enum"     | No index run since it was created                           | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                               |
-| `Vocabulary <name> not found`           | No vocabulary indexed yet; the argument is still a `String` | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`, then pass the enum value unquoted                            |
-| `context` / `rankBy` unknown in schema  | Ranking not enabled for the tenant, or not indexed          | Confirm ranking is enabled, then index and wait for `complete` plus propagation. Detect the capability, don't assume it |
-| `Malformed taste entry key`             | Key has no colon                                            | Use `dimensionId:value`                                                                                                 |
-| `Unknown dimension`                     | Prefix is not a declared dimension                          | Add it to the vocabulary, or fix the key                                                                                |
-| `tieBreaker` validation error           | Required field missing                                      | Add a `tieBreaker`                                                                                                      |
-| `ExperimentalFeaturesNotAvailableError` | Vectors not enabled for the tenant                          | Enable the feature before authoring taste                                                                               |
-| Page 2 empty under ranking              | `skip` ran past the rerank window                           | Raise `options.rerankWindow` (default 500, cap 2000)                                                                    |
+| Symptom                                  | Cause                                                                                              | Fix                                                                                                                |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Order unrelated to taste, no errors      | Taste is on the draft only                                                                         | `publishItem`, wait until it is published, retest                                                                  |
+| Order unchanged after `upsertVocabulary` | No index run since the change                                                                      | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                          |
+| Ignition `complete`, no ranking args     | `igniteDiscoApi` run without `stacks: opensearch`, or with `both`                                  | Re-run with `stacks: opensearch`                                                                                   |
+| Ignition task ends in `error`            | e.g. ignited before any shape existed, or `stacks` left out on a tenant already served for ranking | Read `bulkTask.info.traces`, fix what it names, then ignite again. Never re-run it unchanged                       |
+| `{ __typename }` fails after `complete`  | Discovery cannot build the tenant's schema                                                         | Do not re-ignite in a loop. Report it with the tenant identifier and the response body                             |
+| Rankings subtly wrong, no errors         | `magnitude` miscomputed client-side                                                                | Assert `sqrt(Σ w²)` against a known case                                                                           |
+| Ranked list misses obvious matches       | The window is the first N by `sorting`, `itemId` descending when none                              | Send `sorting: { score: desc }` with a `term`, or raise `options.rerankWindow`                                     |
+| `rankScore` comes back `null`            | No rerank ran — no `rankBy`, `context` or `nearestTo`, or every `rankBy` term had `weight: 0`      | Give at least one term a non-zero weight                                                                           |
+| Vocabulary "does not exist in enum"      | No index run since it was created                                                                  | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                          |
+| `Vocabulary <name> not found`            | No vocabulary indexed yet; the argument is still a `String`                                        | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`, then pass the enum value unquoted                       |
+| `context` / `rankBy` unknown in schema   | Ranking not enabled for the tenant, or not indexed                                                 | `igniteDiscoApi(stacks: opensearch)`, wait for `complete` plus propagation. Detect the capability, don't assume it |
+| `Malformed taste entry key`              | Key has no colon                                                                                   | Use `dimensionId:value`                                                                                            |
+| `Unknown dimension`                      | Prefix is not a declared dimension                                                                 | Add it to the vocabulary, or fix the key                                                                           |
+| `tieBreaker` validation error            | Required field missing                                                                             | Add a `tieBreaker`                                                                                                 |
+| `Field <name> not found`                 | `recency` on a number, or `fieldBoost` / `inStockBoost` on a date                                  | Point the term at a field of the right kind                                                                        |
+| Page 2 empty under ranking               | `skip` ran past the rerank window                                                                  | Raise `options.rerankWindow` (default 500, cap 2000)                                                               |
 
 ## How ranking composes with the rest of the query
 
@@ -193,15 +201,18 @@ Four of these produce **no error at all** — they are the reason this skill exi
   set; it does not change which items match.
 - **Items without a vector are still returned.** They score 0 on taste and sort after the ones that
   match, rather than disappearing. `tasteCosine` contributes 0 for them, so unmapped products fall back
-  to your other rules.
-- **Ranking happens inside a bounded window** of the top matches — see `rerankWindow` in
-  [references/ranking-signals.md](references/ranking-signals.md).
-- **Cursor pagination degrades under ranking.** When a rerank runs, `after`/`before` fall back to offset
-  pagination — page with `skip` and `limit`, and size the window for the depth you intend to page.
-- **Do not combine `sorting` with ranking.** The public docs contradict themselves here (one page says
-  sorting selects which candidates enter the window, another says it is applied after the ranking
-  score). When `rankBy` or `context` is present the reranked order is what you get back — treat any
-  `sorting` you pass as unspecified behaviour.
+  to your other rules. 0 is the middle of the range, not the bottom: they outrank anything scoring
+  negative, and under a negative `tasteCosine` weight they float to the top.
+- **`rankBy` ranks inside a bounded window**, and it is not the top matches: it is the first N documents
+  under the query's `sorting`, or `itemId` descending when you sent none. `context` or `nearestTo` with no
+  `rankBy` and no `sorting` rank the whole result set. See
+  [references/ranking-signals.md](references/ranking-signals.md#the-rerank-window).
+- **`sorting` selects the window, never the returned order.** The rerank owns the order that comes back.
+  `sorting: { score: desc }` is how you ask for relevance-selected candidates, and any `sorting` you send
+  puts the query on the windowed path.
+- **Cursors depend on the path.** On the whole-set path `after`/`before` page the ranked set as usual,
+  with `summary.endToken`. On a windowed path they move the window, not the page — page with `skip` and
+  `limit`, and size the window for the depth you intend to page.
 
 ## Related skills
 

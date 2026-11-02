@@ -15,10 +15,12 @@ the same validation and side effects as the equivalent GraphQL mutation.
 Use this for: tenant seeding/migration, catalog and customer/order imports, replaying or fixing data
 outside API rate limits, coordinated multi-step changes, and large-scale content updates.
 
-**The runner acts as a tenant admin.** These files are infrastructure artefacts — review them like code.
+**The runner acts as the user who created the task, with that user's current roles**, checked on every
+operation: a missing permission fails that operation, and a creator who was deleted or has no role on the
+tenant fails the whole task. These files are infrastructure artefacts — review them like code.
 
-> Verified against `@crystallize/schema` v6.13.0 and the behaviour of the mass-operations
-> runner as of 2026-08-18. These are observed runtime behaviours, not contractual API
+> Verified against `@crystallize/schema` v6.17.0 and the behaviour of the mass-operations
+> runner as of 2026-10-29. These are observed runtime behaviours, not contractual API
 > guarantees — re-check anything load-bearing before depending on it.
 > Several examples in the public docs do not validate, and several documented behaviours differ
 > from what the runner does — see `references/intents.md` § "Documentation discrepancies".
@@ -28,6 +30,7 @@ outside API rate limits, coordinated multi-step changes, and large-scale content
 | Situation                                                          | Path                                        |
 | ------------------------------------------------------------------ | ------------------------------------------- |
 | User has the Crystallize CLI, or is doing a production migration   | **CLI** (default — recommended)             |
+| Connected to the Crystallize MCP server                            | **MCP** (see step 6)                        |
 | Browser/app context, CI without CLI, or building tooling around it | **Raw API** (see `references/lifecycle.md`) |
 
 ## Workflow
@@ -40,7 +43,9 @@ Do not invent IDs, shape identifiers, component IDs, or languages. Confirm with 
 crystallize mass-operation dump-content-model <tenant> <file>
 ```
 
-Component IDs that don't exist on the target shape are the single most common cause of a failed task.
+Component IDs that don't exist on the target shape are the most common mistake, and most intents won't
+tell you: `item/updateComponent/*` fails with `Invalid component id specified`, but
+`product|document|folder /create|update|upsert` silently drop that content.
 
 ### 2. Write the file
 
@@ -87,10 +92,11 @@ file's `version`. Two sets exist: `0.0.1` (legacy) and `1.0.0` (current).
 
 - `"1.0.0"` — current converters. **Always use this.**
 - `"0.0.1"` — legacy converters with no result normalisation. This is where the "upsert returns a
-  different shape" folklore comes from; see `references/templating.md`.
-- `"1"`, `"1.0"`, `"*"` — **pass schema validation, then crash the whole task at runtime.** The version
-  string is fed to `semver.eq`/`semver.lt`, which throw `TypeError: Invalid Version: 1` on any
-  non-full semver. Verified empirically against semver 7.8.5.
+  different shape" folklore comes from; see `references/templating.md`. `product/variant/create|update|upsert|delete`
+  have no handler at this version, so they crash the whole task. `dump-content-model` writes `"0.0.1"`:
+  change it to `"1.0.0"` before adding operations.
+- `"1"`, `"1.0"`, `"*"` — **pass schema validation, then crash the whole task at runtime** with
+  `TypeError: Invalid Version: 1`. The runner needs a full `major.minor.patch`.
 
 ### 4. Identify items by `resourceIdentifier` where it is actually implemented
 
@@ -104,8 +110,9 @@ Expected at least a resourceIdentifier or an id/itemId/topicID.
 
 **But passing schema validation does not mean the runner honours it.** Only these intents actually
 resolve it: `product|document|folder /update` and `/upsert`, `item/delete`, `topic/update|upsert|delete`,
-`image/register`, and all `item/paths/*`. Everywhere else it is either rejected at runtime or silently
-ignored — the full table is in `references/intents.md` § "Where `resourceIdentifier` actually works".
+and all `item/paths/*`. Everywhere else it is either rejected at runtime or silently ignored, and
+`image/register` only looks it up and never stores it — the full table is in `references/intents.md`
+§ "Where `resourceIdentifier` actually works".
 
 ### 5. Order operations as a dependency tree
 
@@ -130,6 +137,10 @@ content model. There is no deferred resolution and no second pass.
 Chain with `_ref` where there is no natural identifier, and with a shared `identifier` /
 `resourceIdentifier` where there is.
 
+Shapes or pieces that reference each other in a cycle: create them first with `"components": []`
+(`shape/create`, `piece/create`), then send the full definition with `shape/upsert` / `piece/upsert`.
+`dump-content-model` writes files in this form.
+
 **Nothing checks this for you.** The schema validates structure, not existence, so a file referencing
 something that isn't there yet uploads and starts happily — it fails partway through, after earlier
 operations have already been applied, with no rollback. Worse, `item/updateComponent/item` runs with
@@ -140,14 +151,22 @@ array correctly rather than relying on an error.
 ### 6. Validate and run
 
 ```
+crystallize mass-operation validate <file>
 crystallize mass-operation run <tenant> <file>
 ```
 
-Validates, requests presigned upload, pushes the file, creates the bulk task with `autoStart`, and waits
-while tailing logs. Add `--no-interactive` for CI.
+`validate` is a local schema check with per-issue output and no network call. `run` validates, requests
+presigned upload, pushes the file, creates and starts the bulk task, and waits while tailing logs. Add
+`--no-interactive` for CI. `run` only exits on `complete`: a task that ends in `error` keeps it polling
+forever, so put a timeout around it and read `bulkTask` yourself.
 
 To validate without the CLI, parse the file with `OperationsSchema` from `@crystallize/schema/mass-operation`.
 **Do this locally every time** — the server discards per-field detail (see step 7).
+
+With the Crystallize MCP server, `build-mass-operation` validates and also reports keys the schema would
+silently strip, `run-mass-operation` uploads and starts in one call, and `get-mass-operation-status`
+polls. They refuse price tier keys, so a file with volume or graduated tiers needs the CLI or the raw API
+(`references/intents.md` § "Schema quirks worth knowing").
 
 Raw API sequence: `references/lifecycle.md`.
 
@@ -167,9 +186,9 @@ Three ways an operation can leave **no log entry at all**:
 - the whole task died first,
 - schema validation rejected the file, so nothing ran.
 
-A schema violation or unparseable JSON marks the task `error` before any operation runs, and
-`bulkTask.info.error` reads only `Invalid Operation File` — the per-field issues go to the worker's own
-logs, not to you. Validate locally to see them.
+A schema violation marks the task `error` before any operation runs, and `bulkTask.info.error` reads
+only `Invalid Operation File` — the per-field issues are never returned to you. Validate locally to see
+them. Unparseable JSON also marks the task `error`, with the parser's message in `info.error`.
 
 **Seeding a tenant that Discovery will serve:** run `igniteDiscoApi` after the operations that create
 the shapes and content have completed with clean `operationLogs`, never before or alongside them. Poll
@@ -185,21 +204,28 @@ the ignition task like any other bulk task, treat `error` as blocking, and probe
   `order/upsert` and `subscription-contract/upsert` are not unless you pass a real `id`.
 - **`item/unpublish` is accepted by the schema but not supported by the runner.** It validates and
   uploads fine, then fails the whole task at execution and abandons every remaining operation. It is
-  the only one of the 59 intents in this position. Unpublish via the Core API `unpublishItem`
-  mutation instead.
+  the only one of the 61 intents in this position. Unpublish via the Core API `unpublishItem` or
+  `unpublishItems` mutation instead.
 - **Prefer `upsert` for re-runnability — but upserts derive from the _create_ input schema**, so they
   need the _full_ create payload, not a sparse patch. `product/upsert` requires `tree`, `vatTypeId`, and
-  `variants` exactly as `product/create` does. (`product/variant/update` is the exception — it's
-  `.partial()`, so it genuinely accepts a sparse patch.)
-- **At `version: "1.0.0"` there is no upsert return-shape trap.** The v1.0.0 converters normalise every
-  upsert result to a flat `{id}` or `{identifier}`. The `{{#if x.id.id}}…{{else}}…{{/if}}` guard seen in
-  the public docs is legacy `0.0.1` behaviour — harmless but unnecessary. See `references/templating.md`.
+  `variants` exactly as `product/create` does. For a sparse patch use the `update` intent: most need only
+  their key (`references/intents.md`).
+- **`components` and `variants` replace the whole list, on `update` as on `upsert`.** A component you
+  leave out loses its content in that language. A variant you leave out is removed, and a listed variant's
+  omitted `priceVariants`, `stockLocations`, `images`, `videos` and `attributes` reset to empty. To change
+  one component use `item/updateComponent/*`. An upsert also re-applies `tree.parentId`, moving the item
+  back if someone moved it.
+- **At `version: "1.0.0"` there is no upsert return-shape trap for items.** The v1.0.0 converters normalise
+  `product|document|folder /upsert` to a flat `{id}` and `piece|shape|customer /upsert` to `{identifier}`.
+  The `{{#if x.id.id}}…{{else}}…{{/if}}` guard seen in the public docs is legacy `0.0.1` behaviour —
+  harmless but unnecessary. See `references/templating.md`. `topic/upsert` is not normalised: read its id
+  with `fetchTopicByResourceIdentifier`.
 - **`richText.html` is an array of strings**, not a string.
 - **Shape and piece component settings go under `config`**, keyed by type:
   `{"id": "name", "name": "Name", "type": "singleLine", "config": {"singleLine": {"required": true}}}`.
   The inline form the public docs use (`"singleLine": {"required": true}` as a sibling of `type`)
   **validates and is then silently discarded** — the component is created with default settings.
-- **`componentChoice` / `componentMultipleChoice` need ≥2 choices, and each choice needs a `type`.**
+- **`componentChoice` needs ≥2 choices, `componentMultipleChoice` ≥1, and each choice needs a `type`.**
   When a choice carries more than one field, make it a `piece/upsert` and reference it with
   `{"type": "piece", "config": {"piece": {"identifier": "…"}}}` — an inline `components` array on a
   choice is not a valid API structure. Structural components (`contentChunk`, `componentChoice`,
@@ -207,9 +233,13 @@ the ignition task like any other bulk task, treat `error` as blocking, and probe
 - **ID fields accept handlebars.** `IdSchema` is `/^(?:[0-9a-f]{24}|{{.*}})$/` — a 24-char hex ID or a
   `{{ ... }}` expression, nothing else. This is why `{{ defaults.vatTypeIds.[0] }}` and
   `{{ defaults.rootItemId }}` work where a literal placeholder like `"TODO"` fails validation.
-- **A handlebars expression that fails to render is written through literally.** The renderer catches
-  the error, logs it, and returns the _raw template string_ — so a bad reference silently stores
-  `{{ myRef.id }}` as data rather than failing the operation.
+- **A reference that resolves to nothing renders as an empty string, and the operation still runs.** A
+  `_ref` that doesn't exist yet, a failed or skipped operation and a wrong property all give `""`. On a
+  text field that stores a blank; on an upsert's `itemId` it reads as "no id", so the upsert creates; on
+  `tree.parentId` the item is created **outside the catalogue tree**, logged as a success. So one failed
+  parent folder orphans its children. Only a template that throws (a syntax error, a failing helper) is
+  written through literally, storing `{{ myRef.id }}` as data.
+- **`{{ x }}` HTML-escapes its output** (`&` becomes `&amp;`). Copy text between operations with `{{{ x }}}`.
 - **`item/paths/set*` needs two operations to converge.** If anything must be removed, that run _only_
   removes; the add is expected as a separate operation. Not atomic, despite the name.
 - **Respect the domain limits — the schema does not.** A file that exceeds one validates, uploads, and
@@ -224,12 +254,17 @@ the ignition task like any other bulk task, treat `error` as blocking, and probe
   `numeric` `decimalPlaces` floors the stored value; choice/selection values not in the config are
   filtered out; strings are never trimmed. Read `references/limits.md` before writing content at scale.
 - **Chunk large jobs** so a failure doesn't force replaying everything.
-- **Never guess an intent name.** The union in `references/intents.md` is exhaustive as of v6.13.0.
+- **Orders and subscription contracts lose fields the schema accepts.** `payment` keeps only `provider`,
+  and `order/register` is asynchronous, so a later operation in the same file can miss the order. Read
+  `references/intents.md` § "Schema quirks worth knowing" before importing orders.
+- **`item/publish` is one item at a time and only a request.** `includeDescendants` validates and is
+  ignored, and `success` means accepted, not yet published.
+- **Never guess an intent name.** The union in `references/intents.md` is exhaustive as of v6.17.0.
 - **Presigned URLs are short-lived.** Upload immediately after requesting one.
 
 ## Reference files
 
-- `references/intents.md` — all 59 intents, required fields, verified `_ref` outputs, silent skips,
+- `references/intents.md` — all 61 intents, required fields, verified `_ref` outputs, silent skips,
   limits, where `resourceIdentifier` works, corrected examples, docs bugs
 - `references/templating.md` — `_ref`, positional refs, handlebars, `defaults.*`, `upload`, `fetch*`
 - `references/limits.md` — every enforced limit: file-level, batch caps, silent data loss, config

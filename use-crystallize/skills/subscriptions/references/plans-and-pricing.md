@@ -6,8 +6,8 @@ per plan period and per price variant.
 
 ## Plans live in the legacy PIM API
 
-There is no plan surface on the Core API. Create and edit plans on `https://pim.crystallize.com/graphql`,
-which takes the tenant **id**, not the identifier:
+There is no plan surface on the Core API. Create and edit plans in the App's settings or on
+`https://pim.crystallize.com/graphql`, which takes the tenant **id**, not the identifier:
 
 ```graphql
 mutation CreatePlan($input: CreateSubscriptionPlanInput!) {
@@ -59,16 +59,19 @@ mutation CreatePlan($input: CreateSubscriptionPlanInput!) {
 ```
 
 **The ids are generated, and everything downstream points at them.** Period ids and metered-variable ids
-come back from `create` as 24-hex ObjectIds. Variant prices reference a period id; contracts reference a
+come back from `create` as 24-character hex ids. Variant prices reference a period id; contracts reference a
 period id and a metered-variable identifier. Store them in your seed or config.
 
 **`update` mints new ids for anything you send without one.** `update(identifier, tenantId, input: {
 periods: [{ id, … }], meteredVariables: [{ id, … }] })` keeps them; the same lists without `id`s replace
-them, and every variant price and contract pointing at the old ids is orphaned. A name-only update
+them, and every variant price and contract pointing at the old ids is orphaned:
+`updateSubscriptionContract` on those contracts answers `SubscriptionPlanPeriodNotFoundError`, and a
+metered variable dropped from the list is also stripped from every variant. A name-only update
 (`input: { name }`) leaves periods and meters alone. `delete(identifier, tenantId)` succeeds even while
-variants still reference the plan.
+variants still reference the plan; contract updates and usage tracking then answer
+`SubscriptionPlanNotFoundError`.
 
-## Prices go on the variant (write on Core, read on PIM)
+## Prices go on the variant (written on Core)
 
 `createProduct`, `updateProduct` and `updateProductVariant` take `subscriptionPlans` per variant:
 
@@ -92,7 +95,7 @@ variants still reference the plan.
                             { "threshold": 0, "price": 0, "priceVariants": [{ "identifier": "default", "price": 0 }] },
                             {
                                 "threshold": 10,
-                                "price": 0,
+                                "price": 0.5,
                                 "priceVariants": [{ "identifier": "default", "price": 0.5 }]
                             }
                         ]
@@ -104,19 +107,18 @@ variants still reference the plan.
 }
 ```
 
-Four things worth knowing, all from the Screen Universe spike:
+Four things worth knowing:
 
-- **Reading `ProductVariant.subscriptionPlans` back on Core answers "Not implemented"** — one error per
-  variant, even for `subscriptionPlans { identifier }`. The write itself succeeds, so a `createProduct`
-  that _selects_ the plans throws **after** creating the product, and a naive retry duplicates it.
-  Select only `id` on the write, and read the plans back from PIM
-  (`product { get(id, language) { variants { subscriptionPlans { … } } } }`).
-- **A tier's own `price` is ignored.** It is required by the input, but the stored tier price is the one
-  in `priceVariants`. `price: 99` with `default: 0.1` stores 0.1, and an empty `priceVariants` stores
-  `null`.
+- **`ProductVariant.subscriptionPlans` reads back on Core**, merged with the plan: names and period
+  lengths from the plan, prices from the variant, in `periods { id name initial { period unit price
+  priceVariants meteredVariables { tiers } } recurring { … } }`.
+- **A tier's own `price` is not the price most reads show.** It is required by the input, but Core, PIM
+  and Discovery take the tier price from `priceVariants`: `price: 99` with `default: 0.1` reads 0.1, and
+  an empty `priceVariants` reads `null`. Catalogue's tier `price` field does answer the tier's own value,
+  so set it to the default price and every read agrees.
 - **Price variants are optional per period.** Leave `nok` out and only `default` is stored; Discovery
   then answers `nokPrice: null`. A period omitted from the variant is stored as `initial: null,
-recurring: null` and Discovery drops it.
+  recurring: null` and Discovery drops it.
 - **Meters are addressed two ways.** On a variant's tiers, by metered-variable **`id`**. On contracts and
   when tracking usage, by **`identifier`**. Mixing them up gives `MeteredVariableNotFoundError`.
 
@@ -163,15 +165,16 @@ Discovery serves the plan cards, and this is the query that works (verified on a
 
 - `period` comes back as a **string** (`"1"`), `priceVariants` as a hash
   (`{ default: { price, currency }, nok: { … } }`), and `meteredVariables` as `[]` when there are none.
-- **Do not trust `initial`.** It repeats `recurring`: on a tenant whose Monthly period is "14 days free,
-  then 1 month at 7.99", Discovery answered `initial { period: "1", unit: "month", defaultPrice: 7.99 }`,
-  and a re-check on 2026-09-28 again returned `initial` byte-identical to `recurring`. Take the
-  introductory period from the plan (PIM, server-side) or from your own config, and price the trial
-  yourself.
+- **Do not trust `initial`.** It repeats `recurring`'s period, unit and prices (only its
+  `meteredVariables` are its own): on a tenant whose Monthly period is "14 days free, then 1 month at
+  7.99", Discovery answered `initial { period: "1", unit: "month", defaultPrice: 7.99 }`. Its presence
+  is reliable, since it is `null` on a period with no initial phase, but take the introductory period
+  from the plan (PIM, server-side), Catalogue or your own config, and price the trial yourself.
 - `hasSubscriptionPlans` is the cheap filter for "is this a plan variant".
-- On one tenant the **Catalogue API's `variants` came back empty** for every product while
-  `defaultVariant` worked and carried the correct plans, including the trial. If a plan card looks empty,
-  read `defaultVariant`, or use Discovery.
+- **The Catalogue API's `variants` can come back empty** for products whose variants were created
+  through Core, while `defaultVariant` and `productVariants(skus:, language:)` still answer, with the
+  correct plans, including the trial. If a plan card looks empty, read `defaultVariant`, or use
+  Discovery.
 
 Remember that a plan variant is an ordinary variant: markets, price variants, VAT and volume tiers behave
 as they do everywhere else — see [[pricing]].

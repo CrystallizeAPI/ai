@@ -131,7 +131,8 @@ export async function createVippsPayment(
     const existing = await getPayment(reference);
     if (existing) return existing; // the caller decides by its state
     const body = {
-        amount: { currency: placed.total.currency, value: Math.round(placed.total.gross * 100) }, // must match the MSN
+        // the currency must match the MSN
+        amount: { currency: placed.total.currency.toUpperCase(), value: Math.round(placed.total.gross * 100) },
         paymentMethod: { type: "WALLET" }, // or "CARD"
         reference,
         userFlow,

@@ -1,6 +1,8 @@
 # Shop API Queries Reference
 
-The Shop API handles cart and checkout operations at the edge for low-latency commerce experiences.
+The Shop API handles cart and checkout operations at the edge for low-latency commerce experiences. It is one
+GraphQL endpoint per concern, each with its own schema: `/cart`, `/order`, `/customer`, `/subscription-contract`
+and `/lock`.
 
 ## Base URL
 
@@ -29,15 +31,21 @@ curl -X POST 'https://shop-api.crystallize.com/YOUR_TENANT/auth/token' \
   -d '{"scopes":["cart","cart:admin","order"],"expiresIn":18000}'
 ```
 
+`expiresIn` is in seconds and defaults to one day. The response is `{ "success": true, "token": "..." }`.
+
 ### Token Scopes
 
-| Scope        | Description                                  |
-| ------------ | -------------------------------------------- |
-| `cart`       | Manage a single cart                         |
-| `cart:admin` | Manage multiple carts                        |
-| `order`      | Create and manage orders (`/order` endpoint) |
-| `usage`      | Access usage/metrics API                     |
-| `lock`       | Acquire/release locks                        |
+A token needs the scope named after the endpoint it calls. An `/admin` sub-path needs `<scope>:admin` **as well**.
+
+| Scope                   | Description                                               |
+| ----------------------- | --------------------------------------------------------- |
+| `cart`                  | Read and manage carts (`/cart` endpoint)                  |
+| `cart:admin`            | Cart administration and promotions (`/cart/admin`)        |
+| `order`                 | Create and manage orders (`/order` endpoint)              |
+| `customer`              | Read and manage customers (`/customer` endpoint)          |
+| `subscription-contract` | Read and manage contracts (`/subscription-contract`)      |
+| `lock`                  | Acquire/release locks                                     |
+| `booking:admin`         | Booking administration (`/booking/admin`, with `booking`) |
 
 ### Using the Token
 
@@ -48,6 +56,8 @@ Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
 ## Cart Queries
+
+An unknown `id` answers a GraphQL error, not `null`.
 
 ### Retrieve Cart
 
@@ -61,11 +71,13 @@ query {
         createdAt
         updatedAt
         items {
-            sku
+            lineId
             name
             quantity
-            managed
-            origin
+            context
+            variant {
+                sku
+            }
             images {
                 url
             }
@@ -84,36 +96,86 @@ query {
 }
 ```
 
-### Cart as Order Intent
+- The SKU sits on `variant`, not on the item.
+- `items.price` is the **line** total (quantity × unit price). The unit price is `items.variant.price`.
+- `items.context` is a `HashMap` holding `taxRate`, `origin` (`crystallize` or `external`) and `managed`, so it
+  takes no sub-selection.
 
-Retrieve cart formatted for order creation:
+### List Carts
+
+`carts` lists carts and wishlists. Like `orders`, it answers for whatever `customerIdentifier` it is given, so
+take the identifier from the session.
 
 ```graphql
 query {
-    cartAsOrderIntent(id: "cart-id-here") {
-        customer {
-            firstName
-            lastName
-            email
-        }
-        cart {
-            sku
+    carts(types: [wishlist], customerIdentifier: "customer@example.com", limit: 20) {
+        hits {
+            id
             name
-            quantity
-            price {
-                gross
-                net
-            }
+            updatedAt
         }
-        total {
-            gross
-            net
+        summary {
+            totalHits
+            hasMoreHits
         }
     }
 }
 ```
 
-This format can be pushed directly to the Order API without transformation.
+`limit` defaults to 20 and `skip` to 0. It also takes `states`, `name`, `nameContains`, `updatedAfter`,
+`updatedBefore`, `createdAfter` and `createdBefore`.
+
+### Cart as Order Intent
+
+Retrieve a placed cart formatted for order creation:
+
+```graphql
+query {
+    orderIntent(id: "cart-id-here", format: shop) {
+        order
+        cart {
+            id
+            total {
+                gross
+                net
+            }
+        }
+    }
+}
+```
+
+`order` is a `HashMap`, so it takes no sub-selection, and it can be pushed to the matching API without
+transformation. `format` names that API and defaults to `legacy`: pass `shop` for the Shop API `create`, or
+`core` or `coreWithOrderV2` for the Core API. A cart that is not in the `placed` state is refused.
+
+## Customer and Subscription Contract Queries
+
+Both follow the same pattern on their own endpoint, with their own scope. The JWT is per tenant, so take the
+identifier from the session here too.
+
+```graphql
+# POST https://shop-api.crystallize.com/{tenant-identifier}/customer
+query {
+    customer(identifier: "customer@example.com") {
+        identifier
+        firstName
+        lastName
+        email
+        addresses {
+            type
+            street
+            city
+            postalCode
+            country
+        }
+        meta
+    }
+}
+```
+
+`/subscription-contract` serves `subscriptionContract(id:)` and
+`subscriptionContracts(customerIdentifier:, limit:, skip:)`, which answers an empty list when no
+`customerIdentifier` is given. See [[subscriptions]].
 
 ## Cart Concepts
 
@@ -137,8 +199,10 @@ SKU items start as managed but become unmanaged if you override properties like 
 
 ### Expiration
 
-- You can set cart expiration time
-- Carts without updates for 3+ months are automatically deleted
+- You can set cart expiration time with `context.ttl` (30 days by default); every write pushes `expiresAt` back
+- A cart in the `cart` state goes stale after `context.staleTtl` without a write (1 hour by default), and turns
+  `abandoned` within five minutes
+- Carts are automatically deleted three months after `expiresAt`. Wishlists never expire
 
 ## Related Links
 

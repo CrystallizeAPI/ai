@@ -60,7 +60,8 @@ function pickModernFormat(variants: Variant[]): "webp" | "avif" {
 This mirrors what the React component does. It needs `size` in the query — without it, default to
 `webp`, which wins the large majority of the time.
 
-The original format is whatever the source was, `jpeg` or `png`. Derive it rather than assuming:
+Original-format variants exist only for `jpeg` and `png` sources, and a `.jpg` source gets `.jpeg`
+variants. Derive the format rather than assuming:
 
 ```ts
 const originalExt = (image: { url: string }) => {
@@ -72,20 +73,32 @@ const originalExt = (image: { url: string }) => {
 ### Putting it together
 
 ```ts
-function pictureHtml(image: { url: string; altText?: string; variants: Variant[] }, sizes: string) {
-    const modern = pickModernFormat(image.variants);
+function pictureHtml(
+    image: { url: string; altText?: string; width?: number; height?: number; variants?: Variant[] | null },
+    sizes: string,
+) {
+    const variants = image.variants ?? [];
+    const modern = pickModernFormat(variants);
     const original = originalExt(image);
-    const biggest = [...image.variants].sort((a, b) => b.width - a.width)[0];
+    const biggest = [...variants].sort((a, b) => b.width - a.width)[0];
+    const sources = [...new Set([modern, original])]
+        .map((ext) => ({ ext, srcset: srcsetFor(variants, ext) }))
+        .filter(({ srcset }) => srcset)
+        .map(({ ext, srcset }) => `<source type="image/${ext}" srcset="${srcset}" sizes="${sizes}">`)
+        .join("\n  ");
 
     return `
 <picture>
-  <source type="image/${modern}" srcset="${srcsetFor(image.variants, modern)}" sizes="${sizes}">
-  <source type="image/${original}" srcset="${srcsetFor(image.variants, original)}" sizes="${sizes}">
+  ${sources}
   <img src="${image.url}" alt="${image.altText ?? ""}"
-       width="${biggest?.width ?? ""}" height="${biggest?.height ?? ""}" loading="lazy">
+       width="${biggest?.width ?? image.width ?? ""}" height="${biggest?.height ?? image.height ?? ""}" loading="lazy">
 </picture>`;
 }
 ```
+
+`variants` is `null` on Catalogue and `[]` on Discovery until they are generated, and for a source under
+100px wide. A WebP, AVIF or TIFF source has no original-format variants. In those cases there is no
+`<source>` to emit, and `<img src>` carries the image.
 
 Escape `altText` for the target context — it is author-entered content, not a literal.
 
@@ -108,7 +121,9 @@ Two different crops are two different images in the PIM. Do not try to fake art 
 ## Focal point
 
 `focalPoint` (`{ x, y }`, normalized 0–1) is authored in the PIM and tells you where the subject is.
-It is what makes a single image survive being cropped to different aspect ratios:
+It is what makes a single image survive being cropped to different aspect ratios. Select
+`focalPoint { x y }` on Catalogue. On Discovery it is a scalar: select plain `focalPoint`, and an image
+without one returns `{}`, not `null`, so test `x`, not the object:
 
 ```css
 .card-image {
@@ -119,7 +134,8 @@ It is what makes a single image survive being cropped to different aspect ratios
 ```
 
 ```ts
-const style = image.focalPoint ? `--focal-x:${image.focalPoint.x * 100}%;--focal-y:${image.focalPoint.y * 100}%` : "";
+const focal = image.focalPoint;
+const style = focal?.x != null ? `--focal-x:${focal.x * 100}%;--focal-y:${focal.y * 100}%` : "";
 ```
 
 Without it, `object-fit: cover` crops from the centre and decapitates people in portrait shots.

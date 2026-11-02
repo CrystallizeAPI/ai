@@ -37,18 +37,24 @@ mutation Copy($sourceUrl: String!, $filename: String) {
 is there for sources that will not serve a bare request.
 
 **It is a bulk task, so the key comes back before the file does.** `targetKey` is handed to you
-immediately; the copy happens afterwards. Three consequences, all found the hard way:
+immediately; the copy happens afterwards. Four consequences, all found the hard way:
+
+- **A failed copy only shows on the task.** `bulkTask(id:) { ... on BulkTask { status info } }` ends in
+  `error`, with the reason in `info.error`. The source has to answer 2xx with an uncompressed body (a
+  `content-encoding` other than `identity` is refused), a `content-length` within the upload limit, and a
+  `content-type` of exactly `image/jpeg`, `jpg`, `png`, `webp`, `tiff`, `tif` or `avif`, which is how a
+  CDN that serves a browser can still fail here.
 
 - **Do not call `registerImage` afterwards.** `copyRemoteAsset` already registers the image, and the
   second call fails. (Tools Universe.)
 - **`updateImage` on a fresh key answers `ImageNotFoundError` for a while** — WebP sources seemed
   slowest. Retry a "not found" after a delay, or wait for **every** copy task rather than the last few
   you happen to hold (`bulkTask(id:)` until it leaves `pending`/`started`). (Tools Universe.)
-- **A key can be registered whose file never arrives, with no error anywhere.** Two builds, two
+- **A key can be registered whose file never arrives, with no error on the mutation.** Two builds, two
   suppliers: 91 WebP sources (ZF, Brembo) got a key and a library entry while the file behind it 404s
   (Car Parts Universe), and every image from one fashion brand did the same because that CDN serves a
   normal browser but not Crystallize's fetcher (Fashion Universe). The library shows broken tiles, items
-  show broken images, and nothing reports it.
+  show broken images, and nothing reports it unless you read the tasks.
 
 So after the copy tasks finish, **HEAD-check the keys** — all of them if the import is small, a sample if
 it is not. For the ones that 404: try `requestHeaders` first if you suspect the CDN is refusing the
@@ -107,17 +113,23 @@ mutation Register($imageKey: String!) {
 }
 ```
 
-Unlike the copy path, this one **does** need `registerImage`.
+Unlike the copy path, this one **does** need `registerImage`, right after the POST: it makes the key usable
+at once. The upload also registers itself in the background, so a late call can fail because the image
+already exists, which is harmless. In JS, `createBinaryFileManager(client).uploadImage(path)` does all three
+steps, and needs `tenantId` in the client config.
 
 ### Video
 
 The upload path is the only way in for video, since `copyRemoteAsset` is images only: download the file,
 `generatePresignedUploadRequest(contentType: "video/mp4" | "video/quicktime", type: MEDIA)`, POST the
 form, then write `{ key, title }` into a `videos` component or a variant's videos. There is no
-`registerVideo` step — the video is registered on first use, and transcoded to HLS and DASH
+`registerVideo` step — the upload registers the video, and it is transcoded to HLS and DASH
 (`playlists`) within about a minute. MP4 and MOV upload as they are; an HLS-only source has to be
 remuxed first (`ffmpeg -i x.m3u8 -c copy`). A `videos` component's `max` is enforced on create
 (`Cannot provide more than 2 videos for component hero-video`). (Fashion Universe.)
+
+Files work the same way: upload with `type: STATIC`, then write `{ key, title }` into a `files` component.
+There is no register step for them either.
 
 ## Renditions arrive later, and the storefront has to cope
 
@@ -135,13 +147,17 @@ empty list it indexed.
 `registerImageRevision(imageKey:, revisionKey:)` points the library entry at a new file — Core
 `image(key)` returns the new `url` and `size`, and the ladder rebuilds in about 25 seconds.
 
-**It does not reach items that are already published.** Discovery kept serving the original file and its
-renditions for every item using the image, even after rewriting the image component and republishing.
-(Tools Universe, replacing 98 letterboxed manufacturer photos.)
+`revisionKey` is a file you have just uploaded (`generatePresignedUploadRequest` → POST). Call it right after
+the POST and skip `registerImage`: once the upload has registered itself as an image, the revision is refused.
 
-So to replace an image in practice: upload the new file as a **new** image
-(`generatePresignedUploadRequest` → POST → `registerImage`) and write the new key onto the items. Treat
-`registerImageRevision` as a library-level correction, not a way to change what shoppers see.
+**It reaches the read APIs at different times.** The Catalogue API serves the latest revision at once.
+Discovery stores the file with each indexed document, so every item using the image keeps the original file
+and renditions until that item is indexed again, and a revision indexes nothing by itself.
+
+So to replace an image in practice: register the revision, wait for the ladder, then **republish the items
+that use it** (or re-run `igniteDiscoApi`). Uploading the new file as a **new** image
+(`generatePresignedUploadRequest` → POST → `registerImage`) and writing the new key onto the items works too,
+and needs the same publish.
 
 ## Metadata, topics and showcases
 
@@ -165,8 +181,9 @@ the required `language`: an image's topics and alt text are **per language**, so
 language leaves the others untagged.
 
 **Showcases are hotspots on the image — the whole "shop the look" feature, and in no skill until now.**
-Core takes `showcase: [{ hotspot: { x, y }, itemIds, skus, meta }]`, several per image, on
-`registerImage`'s image input and on `updateImage`. Discovery exposes them on the image as
+Core takes `showcase: [{ hotspot: { x, y }, itemIds, skus, meta }]`, several per image, on `ImageInput`
+(the `images` component and variant images) and on `updateImage`, and `skus` is required, so send `[]` for
+a showcase of items only. `registerImage` takes only the key. Discovery exposes them on the image as
 **`showcases`** — plural, type `Showcase`, with `hotspot` as a `Hash` `{ x, y }` plus `items` (the
 related documents), `variants` and `meta`. Verified against a live tenant; the naming difference between
 input (`showcase`) and output (`showcases`) is easy to trip over. (Fashion Universe.)
@@ -195,12 +212,12 @@ yourself before forcing. (Car Parts Universe.)
 
 ## Failure modes
 
-| Symptom                                                     | Cause                                                  | Fix                                                                   |
-| ----------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------- |
-| Broken tiles in the library, broken images on items         | `copyRemoteAsset` gave a key but the copy never landed | HEAD-check the keys; re-import those with `requestHeaders`, or upload |
-| `ImageNotFoundError` from `updateImage` right after a copy  | The key exists before the file does                    | Wait for every copy task, and retry "not found"                       |
-| `registerImage` fails on a copied key                       | `copyRemoteAsset` already registered it                | Don't register a copied image                                         |
-| `variants: []` in Discovery, `width: null` in Core          | Renditions are still queued                            | Fall back to `url`; publish and re-index once they exist              |
-| A replaced image still shows the old file on the storefront | `registerImageRevision` does not reach published items | Upload a new image and write its key onto the items                   |
-| `AssetInUseError` on an image nothing current uses          | Old item versions still reference it                   | `deleteImage(force: true)` after checking current versions            |
-| `copyRemoteAsset` rejects a video URL                       | `RemoteAssetType` is `image` only                      | Use the presigned upload path                                         |
+| Symptom                                                     | Cause                                                  | Fix                                                                                                 |
+| ----------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Broken tiles in the library, broken images on items         | `copyRemoteAsset` gave a key but the copy never landed | Read the task's `info.error`, HEAD-check the keys; re-import those with `requestHeaders`, or upload |
+| `ImageNotFoundError` from `updateImage` right after a copy  | The key exists before the file does                    | Wait for every copy task, and retry "not found"                                                     |
+| `registerImage` fails on a copied key                       | `copyRemoteAsset` already registered it                | Don't register a copied image                                                                       |
+| `variants: []` in Discovery, `width: null` in Core          | Renditions are still queued                            | Fall back to `url`; publish and re-index once they exist                                            |
+| A replaced image still shows the old file on the storefront | Discovery keeps the file it indexed                    | Republish the items that use the image                                                              |
+| `AssetInUseError` on an image nothing current uses          | Old item versions still reference it                   | `deleteImage(force: true)` after checking current versions                                          |
+| `copyRemoteAsset` rejects a video URL                       | `RemoteAssetType` is `image` only                      | Use the presigned upload path                                                                       |

@@ -22,7 +22,7 @@ See the [Shop API Queries Reference](shop-api-queries.md) for token generation d
 
 ## Get a Single Order
 
-Retrieve an order by its Shop API UUID.
+Retrieve an order by its Shop API UUID. An unknown id answers a GraphQL error, not `null`.
 
 ```graphql
 query GetOrder($id: UUID!) {
@@ -82,7 +82,8 @@ query GetOrder($id: UUID!) {
                 amount
             }
             taxBreakdown {
-                taxRate
+                percent
+                base
                 amount
             }
         }
@@ -163,34 +164,39 @@ Variables:
 > `customerIdentifier` it is given. Take the identifier from the session and never from the client. The
 > same holds for `subscriptionContracts(customerIdentifier:)` on the `/subscription-contract` endpoint.
 
-**`limit`/`skip` paged inconsistently** in the Tools Universe build: `limit: 10` returned 5 orders and
-then 4 for a customer with 9. Ask for everything a customer has in one page (`limit: 100`) rather than
-walking pages.
+**`limit`/`skip` do not page by date.** `limit` defaults to 10 and the window is taken over the customer's
+orders **oldest first**; only the orders inside it are then sorted newest first. So a default call for a
+customer with 30 orders answers their ten oldest, not their ten latest. A page can also come back short
+without being the last: `limit: 10` returned 5 orders and then 4 for a customer with 9 in the Tools Universe
+build. Ask for everything a customer has in one page (`limit: 100`) rather than walking pages.
 
 For a company or a department there is no query by parent: read the people's orders and filter on your
 own `meta` (the ordering person, the cost centre).
 
 ## The Order Store and Core
 
-Shop API orders and Core orders are the same orders in two stores, and they do **not** converge. Two
-build findings decide how a storefront should read them.
+Shop API orders and Core orders are the same orders in two stores, synced asynchronously in both
+directions. How an order was **created** decides how that behaves, and so how a storefront should read it.
 
-**Orders edited in Core appear more than once here.** Three `updateOrder` calls on one seeded order
-left **three** orders in `orders(customerIdentifier:)`: new Shop ids, the same `coreId`, different
-`updatedAt`. A storefront that sums an order list then counts the same money several times over — the Lab
-Universe build saw a department budget of NOK 1,249,299 instead of 411,775. Two defences, use both:
+**An order created with the Shop API stays one order.** It gets its `coreId` in about ten seconds and keeps
+its Shop id for good: `addToStage` on the Shop API moves the Core stage too, and an edit, stage change or
+delete in Core lands on that same order.
 
-1. **Group by `coreId` and keep the most recently updated copy** whenever you read a list.
+**An order registered in Core and edited there appears more than once here.** It has no Shop id, so every
+change Core pushes arrives as a new order. Three `updateOrder` calls on one seeded order left **three** orders in
+`orders(customerIdentifier:)`: new Shop ids, the same `coreId`, different `updatedAt`. A storefront that sums
+an order list then counts the same money several times over — the Lab Universe build saw a department budget
+of NOK 1,249,299 instead of 411,775. `deleteOrder` in Core removes only the latest copy. Two defences, use
+both:
+
+1. **Group by `coreId` and keep the most recently updated copy** whenever you read a list. A null `coreId` is
+   not a group: those orders stay separate.
 2. **Change orders through the Shop API** (`setMeta`, `addToStage`) when a storefront reads them, so no
    copy is ever made.
 
-**The sync runs one way, Shop → Core.** An order created with the Shop API gets its `coreId` in about ten
-seconds, and `addToStage` on the Shop API moves the Core stage too. Nothing comes back the other way:
-orders registered in Core with `registerOrder` showed up in the Shop store only sometimes, carrying the
-pipelines they had at creation time, and a later `updateOrderPipelineStage` or `deleteOrder` in Core never
-reached the Shop store at all (watched for minutes). So a storefront that lists orders with the Shop API
-must have them **created** there, and **moved between stages** there. Seed demo orders with the Shop API,
-not with `registerOrder`. (Tools Universe.)
+So a storefront that lists orders with the Shop API should have them **created** there, and **moved between
+stages** there. Seed demo orders with the Shop API, not with `registerOrder`: orders registered in Core
+showed up in the Shop store only sometimes. (Tools Universe.)
 
 Two smaller consequences:
 

@@ -1,7 +1,7 @@
 # Personalization & Similarity (`context.userTaste`, `nearestTo`)
 
-Discovery API, `https://api.crystallize.com/<tenant>/discovery`, no auth. **Nothing about the shopper is
-stored in Crystallize** — you send the vector with each query.
+Discovery API, `https://api.crystallize.com/<tenant>/discovery`, no auth unless the tenant requires a
+static token. **Nothing about the shopper is stored in Crystallize** — you send the vector with each query.
 
 ## `context.userTaste`
 
@@ -14,7 +14,9 @@ ContextInput   { userTaste: [UserTasteInput!]! }           # one entry per vocab
 ```
 
 `userTaste` must be **non-empty**, and a vocabulary may appear **at most once**. `weights` maps
-`dimensionId:value` to a number — **positive means likes, negative means dislikes**.
+`dimensionId:value` to a number — **positive means likes, negative means dislikes**. A negative weight
+puts the query on the windowed path; see
+[the rerank window](ranking-signals.md#the-rerank-window).
 
 Weight keys contain a colon, which is not a valid GraphQL name, so **pass the context as a variable**,
 never inline in the query document.
@@ -66,8 +68,9 @@ query SearchWithTaste($context: ContextInput!) {
 The two entries are scored separately and **added**, so Kenyan light-roast berry coffees rise above
 coffees that satisfy only one of them.
 
-Supplied **without** `rankBy`, results are reranked toward that taste automatically. There are no
-`terms` on this path, so `rankExplain` is `null`.
+Supplied **without** `rankBy`, results are ranked toward that taste automatically, over the whole result
+set unless [a windowed case](ranking-signals.md#the-rerank-window) applies. `rankScore` carries the summed
+cosine. There are no `terms` on this path, so `rankExplain` is `null`.
 
 ## You supply the magnitude
 
@@ -76,8 +79,11 @@ Supplied **without** `rankBy`, results are reranked toward that taste automatica
 every weight, add them up, take the square root. For `{ "flavor:berry": 1.0, "roast:light": 1.0 }` that
 is `sqrt(1 + 1) = 1.414`.
 
-**A miscomputed magnitude raises no error.** It quietly distorts every cosine, so the results look
-plausible and are wrong. Compute it in exactly one place and unit test it against a known case.
+**A miscomputed magnitude raises no error.** The server divides by the number you send and never
+recomputes it, so a wrong value rescales that vocabulary's contribution. That is harmless with a single
+vocabulary and no `rankBy`, and a ranking bug as soon as you sum vocabularies or blend with other signals:
+the results look plausible and are wrong. `magnitude: 0` is not "let the server work it out": it zeroes that
+vocabulary for every item. Compute it in exactly one place and unit test it against a known case.
 
 ```ts
 type SparseVector = Record<string, number>;
@@ -91,7 +97,8 @@ const toUserTaste = (vocabulary: string, weights: SparseVector) => ({
 });
 ```
 
-**Prune near-zero weights before sending.** They cost payload and contribute nothing beyond rounding.
+**Prune near-zero weights before sending, and compute `magnitude` after pruning.** They cost payload and
+contribute nothing beyond rounding, and past about 800 weights the query takes the windowed path.
 
 ## Where the shopper vector comes from
 
@@ -102,7 +109,7 @@ The vector is UI state or session state, whichever you have. All of these are on
 - **Cold start from picks.** Let a new visitor pick two or three products, read what they are made of,
   rebuild the vectors with the same positional rule, and sum them. No history needed. Item taste is
   **not** exposed on Discovery hits — read `topicPaths` from the hit if your taste keys are derived from
-  topics, or read `item { taste { ... } }` from Core server-side.
+  topics, or read `item { ... on Item { taste { ... } } }` from Core server-side.
 - **Decayed session behaviour.** Add a little weight for every product a shopper opens or adds, decay it
   over time, and send the result. The profile lives in the browser or your session store.
 - **Agents.** An AI agent holds a structured taste vector for a customer and sends it with every search,
@@ -112,10 +119,12 @@ The vector is UI state or session state, whichever you have. All of these are on
 
 `context` alone ranks purely by taste. To put the shopper **on top of** the catalogue rules, add one
 `tasteCosine` term to a `rankBy` and **pass both** — taste terms read the shopper vector from `context`.
+Neither half errors without the other: a `tasteCosine` term with no `context` entry for its vocabulary
+scores 0, and a `context` with no `tasteCosine` term in the `rankBy` is ignored.
 
 ```graphql
 query Blended($context: ContextInput!, $rankBy: RankByInput!) {
-    search(term: "espresso", context: $context, rankBy: $rankBy, pagination: { limit: 24 }) {
+    search(term: "espresso", context: $context, rankBy: $rankBy, sorting: { score: desc }, pagination: { limit: 24 }) {
         hits {
             ... on product {
                 name
@@ -136,7 +145,7 @@ query Blended($context: ContextInput!, $rankBy: RankByInput!) {
     "rankBy": {
         "terms": [
             { "signal": "relevance", "weight": 1.0 },
-            { "signal": "fieldBoost", "weight": 0.6, "field": "margin", "normalize": true },
+            { "signal": "fieldBoost", "weight": 0.6, "field": "margin_number", "normalize": true },
             { "signal": "inStockBoost", "weight": 0.4, "field": "stock_default" },
             { "signal": "recency", "weight": 0.3, "field": "publishedAt", "halfLifeDays": 60 },
             { "signal": "tasteCosine", "weight": 1.2, "vocabulary": "taste", "from": "userTaste" }
@@ -189,12 +198,15 @@ Four things to know:
 
 - **The anchor item is excluded** from the results.
 - **An anchor with no vector for that vocabulary yields an empty result** — not a fallback to relevance.
-  Check the anchor before rendering an empty shelf.
+  So does an anchor not found in the query's language and publication state. Check the anchor before
+  rendering an empty shelf.
 - **`k` replaces `pagination.limit`** when `nearestTo` is set, and is itself capped by the rerank window.
 - **`nearestTo` alone does not combine `context.userTaste`.** It scores from the anchor vector only.
 
 To blend neighbours with stock, margin or the shopper's own taste, add a `tasteCosine` term with
-`from: nearestTo` to a `rankBy`:
+`from: nearestTo` to a `rankBy`, and keep `nearestTo` in the query: the term reads the anchor from it and
+scores 0 without it. A `rankBy` is windowed, so neighbours outside the window are never considered; narrow
+the set with `filters`, or raise `options.rerankWindow`, on a catalogue larger than the window.
 
 ```json
 {
@@ -202,7 +214,7 @@ To blend neighbours with stock, margin or the shopper's own taste, add a `tasteC
         "terms": [
             { "signal": "tasteCosine", "weight": 1.0, "vocabulary": "taste", "from": "nearestTo" },
             { "signal": "inStockBoost", "weight": 0.5, "field": "stock_default" },
-            { "signal": "fieldBoost", "weight": 0.3, "field": "margin", "normalize": true }
+            { "signal": "fieldBoost", "weight": 0.3, "field": "margin_number", "normalize": true }
         ],
         "tieBreaker": "sku"
     }

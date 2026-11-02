@@ -63,7 +63,7 @@ placed cart.
 ```ts
 // lib/two.ts
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { carts, createOrderOnce, PLACED_CART, readCart, recordPayment } from "@/lib/crystallize-payments";
+import { carts, createOrderOnce, defined, PLACED_CART, readCart, recordPayment } from "@/lib/crystallize-payments";
 import { updatePayment, withMeta, type Payment, type PlacedCart } from "@/lib/crystallize-payments";
 
 export async function two<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -366,20 +366,21 @@ export async function chooseCompany(cartId: string, lookupId: string, person: Re
     const cart = (await carts.fetch(cartId, { state: true, ...PLACED_CART })) as unknown as PlacedCart & {
         state: string;
     };
-    if (cart.state !== "cart") throw new Error(`cart ${cartId} is ${cart.state}`); // writes to a placed cart are lost
+    if (cart.state === "placed" || cart.state === "ordered") {
+        throw new Error(`cart ${cartId} is ${cart.state}`); // writes to a placed cart are lost
+    }
     const co = await two<Company>(`/companies/v2/company/${encodeURIComponent(lookupId)}`);
     const a = co.addresses?.find((x) => x.type === "BUSINESS_ADDRESS"); // registered address = billing address
-    const [street, postalCode, city, country] = [a?.street_address, a?.postal_code, a?.city, a?.country].map(
-        (v) => v ?? undefined,
-    );
+    const [street, postalCode, city, country] = [a?.street_address, a?.postal_code, a?.city, a?.country];
     await carts.setCustomer(cartId, {
         ...person, // firstName, lastName, email, phone: Two requires all four
         isGuest: false, // true skips the Core customer
         identifier: person.email, // or your signed-in customer's identifier
         type: "organization",
         companyName: co.name,
-        taxNumber: co.national_identifier?.id, // the organisation number
-        addresses: [{ type: "billing", street, postalCode, city, country }], // replaces all addresses: add delivery too
+        ...defined({ taxNumber: co.national_identifier?.id }), // the organisation number; no explicit undefined
+        // replaces all addresses: add delivery too
+        addresses: [{ type: "billing" as const, ...defined({ street, postalCode, city, country }) }],
     });
     const { tax_subtotals: _, ...money } = amounts(cart); // the current cart: a pre-check, not a charge
     const buyer = { company: { company_canonical_id: co.canonical_id }, representative: rep(person) };
