@@ -4,6 +4,12 @@ import { createClient } from "@crystallize/js-api-client";
 import { getCookie } from "hono/cookie";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { apiBaseUrl, ENVIRONMENT_HEADER, resolveApiOrigin } from "../core/api-origin";
+import {
+    isOAuthTokenValid,
+    OAUTH_ACCESS_TOKEN_PREFIX,
+    oauthChallenge,
+    tenantFromMcpPath,
+} from "../core/oauth";
 
 const meQuery = `query { me { tenants { tenant { id name identifier staticAuthToken } } } }`;
 
@@ -48,6 +54,27 @@ export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
     const accessTokenSecret = c.req.header("X-Crystallize-Access-Token-Secret");
     const sessionId = getCookie(c, "connect.sid") ?? c.req.header("X-Crystallize-Session-Id");
     const bearerToken = extractBearerToken(c.req.header("Authorization"));
+
+    // `/mcp/@<tenant>`: the OAuth endpoint. Crystallize OAuth tokens only, and a 401 that starts the flow.
+    const oauthTenant = tenantFromMcpPath(new URL(c.req.url).pathname);
+    if (oauthTenant) {
+        if (!bearerToken?.startsWith(OAUTH_ACCESS_TOKEN_PREFIX)) {
+            return oauthChallenge(c.req.url, oauthTenant);
+        }
+        if (!(await isOAuthTokenValid(bearerToken, oauthTenant, origin))) {
+            return oauthChallenge(c.req.url, oauthTenant, "invalid_token");
+        }
+
+        c.set("authContext", {
+            type: "bearer",
+            bearerToken,
+            origin,
+            // the token is bound to this one tenant; Core enforces it on every call
+            tenants: [{ id: oauthTenant, identifier: oauthTenant, name: oauthTenant }],
+        });
+        await next();
+        return;
+    }
 
     if (!sessionId && !bearerToken && (!accessTokenId || !accessTokenSecret)) {
         return c.json(
