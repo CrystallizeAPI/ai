@@ -290,6 +290,8 @@ The `configurationSchema` field must be a valid **JSON Schema, draft 2020-12**.
 
 At install and re-install, Crystallize validates the submitted `configuration` against this schema, after removing secret fields from its top-level `properties` and `required`. A revision with no `configurationSchema` only accepts an empty `configuration`.
 
+The schema can also carry how the App renders each entrypoint, under `x-entryPoints`. See [Entrypoint Settings](#entrypoint-settings).
+
 ### Secrets
 
 A top-level array of configuration property names to treat as secrets:
@@ -335,7 +337,7 @@ Entrypoints declare where the plugin appears in the Crystallize App UI. Each ent
 | ---------------------------------------------- | --------------------------------------------------------------------- | ----------- | ---------- |
 | `dashboard/home/top-card`                      | Home dashboard. Replaces the default top card                         | 120–1200    | Fixed      |
 | `layout/sidebar-right`                         | Right sidebar, on every page                                          | 80–viewport | 240–640    |
-| `layout/bottom-right/inline`                   | Fixed bottom-right bar, on every page                                 | 120–320     | 120–320    |
+| `layout/bottom-right/inline`                   | Fixed bottom-right bar, on every page                                 | 0–320       | 0–320      |
 | `orders/order/top/inline`                      | Order detail page, top                                                | 0–1200      | Fixed      |
 | `orders/order/bottom/inline`                   | Order detail page, bottom                                             | 0–1200      | Fixed      |
 | `catalogue/item/above-components/inline`       | Item editor, above the components. Not on archived versions           | 0–1200      | Fixed      |
@@ -349,7 +351,7 @@ Entrypoints declare where the plugin appears in the Crystallize App UI. Each ent
 | `plugins/page/full`                            | Full page at `/plugins/<identifier>`                                  | Full page   | Full page  |
 | `apps/plugin/content`                          | The plugin's page under Apps, replacing its config page               | Full page   | Full page  |
 
-Heights and widths are the ranges the App clamps `notifyHeight` and `notifyWidth` to.
+Heights and widths are the ranges the App clamps `notifyHeight` and `notifyWidth` to. A size the plugin reported is kept per installation and placement in the browser, and the frame starts at it on the next visit.
 
 Each entrypoint has the following fields:
 
@@ -360,6 +362,36 @@ Each entrypoint has the following fields:
 | `target`    | `string` | URI path suffix appended to `$upstream/$tenantIdentifier/`. Must start with `/`, must not start with `//`, must not contain `://`, must not contain `..` segments. |
 | `label`     | `string` | _(optional)_ Display label                                                                                                                                         |
 | `icon`      | `string` | _(optional)_ Absolute URL to an icon                                                                                                                               |
+
+#### Entrypoint Settings
+
+The entrypoint has no field for how the App renders it. Set that in the revision's `configurationSchema`, under a top-level `x-entryPoints` key, keyed by placement. The install form and Crystallize's schema validation ignore the key, so it never shows up as a field or affects `configuration`.
+
+```json
+{
+    "configurationSchema": {
+        "type": "object",
+        "properties": {},
+        "x-entryPoints": {
+            "layout/bottom-right/inline": { "initialWidth": 0, "initialHeight": 0, "showLoader": false }
+        }
+    }
+}
+```
+
+| Setting         | Type      | Default | Effect                                                              |
+| --------------- | --------- | ------- | ------------------------------------------------------------------- |
+| `initialWidth`  | `number`  | —       | The width the iframe starts at, instead of the placement's default  |
+| `initialHeight` | `number`  | —       | The height the iframe starts at, instead of the placement's default |
+| `showLoader`    | `boolean` | `true`  | `false` hides the App's spinner while the iframe loads              |
+
+- The initial size is only the start. The plugin still resizes with `notifyWidth` / `notifyHeight`, and a size it reported on an earlier visit wins over the initial one.
+- The App clamps the initial size to the placement's range in the table above: the settings can't go past its minimum or maximum.
+- A size applies only where the placement's range lets the plugin change it: width and height on `layout/bottom-right/inline`, width on `layout/sidebar-right`, height on the others with a range. Placements marked `Fixed`, `Dialog` or `Full page` ignore it, and only `showLoader` applies there.
+- An invalid value, such as a negative or non-numeric size, is ignored on its own.
+- A schema with only `x-entryPoints` and no `properties` installs without a configuration step, like a revision with no schema.
+
+For a widget that should only show up sometimes, such as a button in `layout/bottom-right/inline`, start it at `0` × `0` with `showLoader: false`, then `notifyWidth` / `notifyHeight` when it has something to show and `0` to hide it again.
 
 #### Entity Context
 
@@ -648,7 +680,7 @@ const result = await channel.call("updateItemComponent", params); // rejects wit
 | `ready`                        | iframe → App | —                                                | Send once mounted. The App answers with `setEntityContext`, and `setDataGrid` for a bulk action                    |
 | `setEntityContext`             | App → iframe | `EntityContext`                                  | Sent after `ready`, then on every change of context                                                                |
 | `notifyHeight`                 | iframe → App | `{ height }`, integer ≥ 0                        | Resizes the iframe within the [placement's range](#entrypoints). No effect on full-page placements or bulk actions |
-| `notifyWidth`                  | iframe → App | `{ width }`, positive integer                    | Resizes the iframe on `layout/sidebar-right` and `layout/bottom-right/inline`                                      |
+| `notifyWidth`                  | iframe → App | `{ width }`, integer ≥ 0                         | Resizes the iframe on `layout/sidebar-right` and `layout/bottom-right/inline`                                      |
 | `promoteToDialog`              | iframe → App | `{ width?, height? }`                            | Shows the iframe as a centered dialog, keeping its state. No effect on full-page placements or bulk actions        |
 | `demoteFromDialog`             | iframe → App | —                                                | Returns it to its slot                                                                                             |
 | `navigateTo`                   | iframe → App | `NavigateToParams`                               | Navigates the App. See below                                                                                       |
@@ -661,7 +693,7 @@ const result = await channel.call("updateItemComponent", params); // rejects wit
 | `closePluginDialog`            | iframe → App | —                                                | Bulk actions: closes the dialog                                                                                    |
 | `closeSplitView`               | iframe → App | —                                                | `catalogue/item/split-view/inline`: closes the split                                                               |
 
-**`navigateTo` targets**, by `entity`: `item` (`id` or `externalReference`, optional `language`), `productVariant` (`sku`, optional `language`), `image` (`key`), `order` (`id`), `fulfilmentPipeline` (`id`), `customer` (`identifier`), `grid` (`id`), `topic` (`id`, optional `language`), `priceList` (`identifier`), `plugin` (`identifier`, for a `plugins/page/full` plugin), and `lightbox` (`area: "catalogue"`, `groups`). All except `lightbox` accept `target: "_blank"` and `splits`, a list of `item` or `productVariant` targets to open alongside.
+**`navigateTo` targets**, by `entity`: `item` (`id` or `externalReference`, optional `language`), `productVariant` (`sku`, optional `language`), `image` (`key`), `order` (`id`), `fulfilmentPipeline` (`id`), `customer` (`identifier`), `grid` (`id`), `topic` (`id`, optional `language`), `priceList` (`identifier`), `plugin` (`identifier`, for a `plugins/page/full` plugin), `page` (`path`, any App screen under the tenant and language, such as `/settings/shapes`, starting with a single `/`), and `lightbox` (`area: "catalogue"`, `groups`). All except `lightbox` accept `target: "_blank"` and `splits`, a list of `item` or `productVariant` targets to open alongside.
 
 **`updateItemComponent`** sets the value in the rendered editor field. It does not save: the user still saves the item, and the change only lands if that item, language and variant are open. It works on leaf components only, so targeting a chunk, choice or piece itself returns `NOT_RENDERED`: address the leaf inside it. `componentId` is the `/`-separated component path, e.g. `summary-chunk/0/summary`, and `input` is a component content input without its own `componentId`, e.g. `{ singleLine: { text: "New title" } }`. The result is `{ applied: true }` or `{ applied: false, reason: "NOT_RENDERED" | "TYPE_MISMATCH", message }`.
 
