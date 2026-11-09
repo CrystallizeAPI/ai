@@ -5,10 +5,11 @@ import { getCookie } from "hono/cookie";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { apiBaseUrl, ENVIRONMENT_HEADER, resolveApiOrigin } from "../core/api-origin";
 import {
-    isOAuthTokenValid,
+    fetchOAuthTenants,
     OAUTH_ACCESS_TOKEN_PREFIX,
+    oauthApiOrigin,
+    oauthApiUrl,
     oauthChallenge,
-    tenantFromMcpPath,
 } from "../core/oauth";
 
 const meQuery = `query { me { tenants { tenant { id name identifier staticAuthToken } } } }`;
@@ -59,28 +60,35 @@ export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
     const sessionId = getCookie(c, "connect.sid") ?? c.req.header("X-Crystallize-Session-Id");
     const bearerToken = extractBearerToken(c.req.header("Authorization"));
 
-    // `/mcp/@<tenant>`: the OAuth endpoint. Crystallize OAuth tokens only, and a 401 that starts the flow.
-    const oauthTenant = tenantFromMcpPath(new URL(c.req.url).pathname);
-    if (oauthTenant) {
-        if (!bearerToken?.startsWith(OAUTH_ACCESS_TOKEN_PREFIX)) {
-            return oauthChallenge(c.req.url, oauthTenant);
+    // OAuth (MCP authorization), when this deployment has an authorization server: a Crystallize OAuth token,
+    // acting as the user on every tenant they can access.
+    const oauthApi = oauthApiUrl(c.env);
+    if (oauthApi && bearerToken?.startsWith(OAUTH_ACCESS_TOKEN_PREFIX)) {
+        const result = await fetchOAuthTenants(bearerToken, oauthApi);
+        if (!result.ok) {
+            return result.reason === "invalid_token"
+                ? oauthChallenge(c.req.url, "invalid_token")
+                : c.json({ error: "Unauthorized: the authorization server is unavailable" }, 503);
         }
-        if (!(await isOAuthTokenValid(bearerToken, oauthTenant, origin))) {
-            return oauthChallenge(c.req.url, oauthTenant, "invalid_token");
+        if (result.tenants.length === 0) {
+            return c.json({ error: "Unauthorized: the user has no tenants" }, 403);
         }
 
         c.set("authContext", {
             type: "bearer",
             bearerToken,
-            origin,
-            // the token is bound to this one tenant; Core enforces it on every call
-            tenants: [{ id: oauthTenant, identifier: oauthTenant, name: oauthTenant }],
+            // the token only works on the environment that issued it, whatever the request asked for
+            origin: oauthApiOrigin(oauthApi) ?? origin,
+            tenants: result.tenants,
         });
         await next();
         return;
     }
 
     if (!sessionId && !bearerToken && (!accessTokenId || !accessTokenSecret)) {
+        if (oauthApi) {
+            return oauthChallenge(c.req.url);
+        }
         return c.json(
             {
                 error: "Unauthorized: provide X-Crystallize-Access-Token-Id/Secret headers, an Authorization: Bearer <jwt> header, or a connect.sid cookie",

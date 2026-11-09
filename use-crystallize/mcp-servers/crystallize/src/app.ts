@@ -8,14 +8,15 @@ import { buildSessionEvent } from "./core/analytics";
 import { readExposeFlags } from "./core/expose-flags";
 import { isSessionStartRequest } from "./core/mcp-request";
 import { PLAUSIBLE_EVENTS_ENDPOINT } from "./core/services/plausible-analytics-tracker";
-import { protectedResourceMetadata, tenantFromMcpPath, type OAuthEnv } from "./core/oauth";
+import { oauthApiUrl, PROTECTED_RESOURCE_METADATA_PATH, protectedResourceMetadata } from "./core/oauth";
 
 export const createApp = () => {
     const app = new Hono<AppContext>();
     app.use(servicesProvider);
-    app.get("/.well-known/oauth-protected-resource/mcp/:tenant{@[^/]+}", (c) =>
-        c.json(protectedResourceMetadata(c.req.url, c.req.param("tenant").slice(1), c.env as OAuthEnv)),
-    );
+    app.get(PROTECTED_RESOURCE_METADATA_PATH, (c) => {
+        const apiUrl = oauthApiUrl(c.env);
+        return apiUrl ? c.json(protectedResourceMetadata(c.req.url, apiUrl)) : c.notFound();
+    });
     app.get("/", (c) =>
         c.html(
             landingPage({
@@ -37,8 +38,7 @@ export const createApp = () => {
         // The server is already built per request by `servicesProvider`, so the factory just hands it over.
         const mcpServer = c.get("services").mcpServer;
         const handler = createMcpHandler(() => mcpServer, {
-            // `/mcp`, or `/mcp/@<tenant>` for OAuth clients (the handler matches its route exactly)
-            route: tenantFromMcpPath(new URL(c.req.url).pathname) ? new URL(c.req.url).pathname : "/mcp",
+            route: "/mcp",
             authContext: {
                 props: c.get("authContext"),
             },

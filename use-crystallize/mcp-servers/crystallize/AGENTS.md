@@ -503,6 +503,7 @@ Adding a tool means adding `origin: authContext.origin` to its `createClient` an
 builds. `grep -n 'crystallize\.com' src` should only ever hit `api-origin.ts`, the landing page and the UI panels'
 static CSP.
 
+<<<<<<< HEAD
 #### Two workers: dev (top level) and production (`env.production`)
 
 `wrangler.jsonc` describes two Workers running the same code. The **top level is the dev worker**,
@@ -552,6 +553,31 @@ One-time setup, outside the repo:
   so create the Worker in the dashboard first (any template; the first deploy replaces it).
 - **`CRYSTALLIZE_DEV_API_ORIGIN`** as a Secret on the dev Worker (dashboard or `wrangler secret put`). Secrets
   survive deploys; without it every header-less request is a 500.
+=======
+### OAuth (MCP authorization)
+
+MCP clients that support the MCP authorization spec (2025-06-18) can sign in with Crystallize instead of pasting
+credentials. The Core API is the authorization server; this server is the protected resource. **Off** unless
+`CRYSTALLIZE_OAUTH_API_URL` is set (see `src/core/oauth.ts`).
+
+- **The client acts as the user**, not a tenant: one token for `/mcp`, valid on every tenant the user can access.
+  Tool calls name their tenant; the Core API applies the user's role on that tenant on every call. Picking
+  tenants and per-tenant permissions at consent is planned, not built.
+- **Discovery**: with OAuth on, a request with no credentials gets a **401** with
+  `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/mcp"` (instead of the 403).
+  That document (RFC 9728) names `<origin>/mcp` as the resource and `${CRYSTALLIZE_OAUTH_API_URL}/oauth` as the
+  authorization server; the client registers itself (DCR) and runs the PKCE code flow from there.
+- **Tokens**: `crz_oat_…` bearer tokens go to the Core API's `GET /oauth-grant/tenants`, which validates them and
+  returns the user's tenants for `authContext.tenants` (`type: "bearer"`, forwarded as is). A refused token is a
+  401 `error="invalid_token"`, so the client refreshes or signs in again. Other bearer tokens are plugin JWTs, as
+  before.
+- **Environment**: the token only works where it was issued, so `authContext.origin` comes from
+  `CRYSTALLIZE_OAUTH_API_URL` (`https://api<suffix>`), not `X-Crystallize-Environment`. A local
+  `http://localhost:…` Core API has no suffix: the flow and `tenant-overview` work locally, tools that call the
+  APIs through js-api-client do not.
+- **Core API side**: its `OAUTH_MCP_RESOURCE` must be this server's exact `<origin>/mcp`, and its `oauth` flag on.
+- Only the Core API accepts these tokens today. Tools for the Catalogue, Discovery and Shop APIs fail with them.
+>>>>>>> 79bdd53 (feat(oauth): use /mcp)
 
 ### MCP protocol versions
 
@@ -575,7 +601,8 @@ declares as its peer — bump them together with `agents`, never on their own. `
 ```ts
 type AppContext = {
     // CRYSTALLIZE_DEV_API_ORIGIN is a secret, so `bun cf-typegen` only emits it when `.env` has it — declared by hand.
-    Bindings: CloudflareBindings & { CRYSTALLIZE_DEV_API_ORIGIN?: string };
+    // So is the optional CRYSTALLIZE_OAUTH_API_URL (OAuthEnv).
+    Bindings: CloudflareBindings & { CRYSTALLIZE_DEV_API_ORIGIN?: string } & OAuthEnv;
     Variables: {
         authContext: AuthContext; // { type: token|session|bearer, credentials, origin, tenants }
         services: Services; // { mcpServer, tenantMatcher, analyticsTracker }
@@ -623,6 +650,6 @@ Use `c.set()` / `c.get()` in middleware/handlers. Extend `Variables` when adding
   the top-level dev worker sets none of them. `CRYSTALLIZE_DEFAULT_ENVIRONMENT` is set on both (see "Two workers"
   above).
 - **Secrets** (`wrangler secret put`, or `.env` locally — never `vars`): `CRYSTALLIZE_DEV_API_ORIGIN`, the dev
-  origin suffix a request selects with `X-Crystallize-Environment: dev` or the dev worker's default (see
-  "Environments" above). Unset on a production-default server means production only; required on the dev worker
-  and locally.
+  origin suffix a request selects with `X-Crystallize-Environment: dev` (see "Environments" above). Unset means
+  production only. `CRYSTALLIZE_OAUTH_API_URL`, the Core API that issues OAuth tokens (see "OAuth" above); a secret
+  for the same reason when it names a dev host. Unset means OAuth is off.
