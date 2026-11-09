@@ -5,9 +5,10 @@ MCP server built on **Hono**, **Cloudflare Workers**, and the **Model Context Pr
 ## Quick Reference
 
 ```bash
-bun dev          # Vite dev server with HMR
+bun dev          # Vite dev server with HMR (top-level = dev worker config: defaults to the dev environment)
 bun build        # Production build
-bun deploy       # Build + deploy to Cloudflare
+bun deploy       # Build + deploy production (CLOUDFLARE_ENV=production; CI does this on a release tag)
+bun deploy:dev   # Build + deploy the dev worker (CI does this on every push to main)
 bun lint         # oxlint --fix
 bun test         # Run the test suite (bun test)
 bun type-check   # TypeScript check (no emit)
@@ -458,19 +459,25 @@ retroactive, so create that goal before shipping.
   request scope. `buildContainer` caches one container per isolate (built from the first request's `env`), so
   anything request-derived registered as a singleton would freeze at the first request. Bindings like `AI` are
   isolate-stable, which is why the container may hold them.
-- Localhost **and `*.workers.dev`** are skipped. `PLAUSIBLE_DOMAIN` sits in top-level `vars`, so it binds to every
-  deploy including preview URLs; without that guard a preview would file its traffic as production.
+- Localhost **and `*.workers.dev`** are skipped. `PLAUSIBLE_DOMAIN` sits in `env.production`'s `vars`, so it binds
+  to every production deploy including preview URLs; without that guard a preview would file its traffic as
+  production. The dev worker (top level) has no `PLAUSIBLE_*` vars at all.
 - `PLAUSIBLE_API_ENDPOINT` drives **both** sides: the server-side POST target, and the landing page's `data-api`
   plus its script origin. Point it at a self-hosted Plausible and the browser follows.
 
 ### Environments (production or dev)
 
-Production (`api.crystallize.com`, `shop-api.crystallize.com`, `pim.crystallize.com`) is the default and the only
-environment named anywhere in the repo. A request can switch to dev the way the js-api-client's `shopApiStaging`
-switch works: the caller flips a switch, never types a hostname.
+Production (`api.crystallize.com`, `shop-api.crystallize.com`, `pim.crystallize.com`) is the only environment named
+anywhere in the repo. A request can switch environment the way the js-api-client's `shopApiStaging` switch works:
+the caller flips a switch, never types a hostname.
 
-- **Header**: `X-Crystallize-Environment: dev` (case-insensitive). Absent, blank or `production` → production. Any
-  other value is a **400**.
+- **Header**: `X-Crystallize-Environment: dev` or `production` (case-insensitive). Absent or blank → the server's
+  default (below). Any other value is a **400**.
+- **Default**: the `CRYSTALLIZE_DEFAULT_ENVIRONMENT` var (`production` | `dev`) picks the environment for requests
+  without the header: `production` on the production worker, `dev` on the dev worker **and locally** (`bun dev`
+  runs the top-level config). Unset means production. The header always wins, so `production` still reaches
+  production from the dev worker. A bad default is a **500**, and so is a `dev` default without the secret below —
+  a misconfigured server never falls back to production silently.
 - **Secret**: `CRYSTALLIZE_DEV_API_ORIGIN` holds the dev js-api-client `origin` *suffix*, e.g. `-dev.example.test`.
   It is glued straight after `api` / `shop-api` / `pim` (`https://api${suffix}`), so it must start with `.` or `-`
   and be a plain lowercase host fragment; anything else is a **500** when dev is requested. Unset means the server
@@ -478,7 +485,7 @@ switch works: the caller flips a switch, never types a hostname.
   `wrangler secret put CRYSTALLIZE_DEV_API_ORIGIN`, locally a line in `.env` (gitignored; Wrangler loads it). The
   dev hostname therefore never appears in the repo — keep it out of tests and docs too (use `-dev.example.test`).
 - **Resolution** happens first thing in `authMiddleware` (`resolveApiOrigin` in `src/core/api-origin.ts`), before
-  any upstream call. The secret is only read when a request asks for dev, so a bad secret can never take
+  any upstream call. The secret is only checked once a request resolves to dev, so a bad secret can never take
   production traffic down.
 - **Threading**: the resolved suffix is stored on the auth context as `origin`, because a credential is only valid
   on its own environment. The middleware itself uses it for the bearer JWKS (one `createRemoteJWKSet` per
@@ -487,12 +494,64 @@ switch works: the caller flips a switch, never types a hostname.
   `apiBaseUrl(prefix, authContext.origin)` in `src/core/api-origin.ts` — never a literal host.
 - **UI panels**: a tool's `ui.meta` CSP lists production hosts. On dev the resource read adds
   `https://*.<parent domain of the suffix>` (`withEnvironmentResourceDomains`), so images still load in the panel.
-- **Dev bridge**: `CRYSTALLIZE_ENVIRONMENT=dev` in `.env` makes `bun run dev:bridge` send the header.
+- **Local**: `bun dev` defaults to dev, so `.env` needs `CRYSTALLIZE_DEV_API_ORIGIN` (without it every header-less
+  request is a 500). To reach production locally, send the header — `CRYSTALLIZE_ENVIRONMENT=production` in `.env`
+  makes `bun run dev:bridge` do that — or run the production config with `CLOUDFLARE_ENV=production bun dev`.
 - **Analytics** are unaffected: the tenant/tool paths carry no environment segment.
 
 Adding a tool means adding `origin: authContext.origin` to its `createClient` and using `apiBaseUrl` for any URL it
 builds. `grep -n 'crystallize\.com' src` should only ever hit `api-origin.ts`, the landing page and the UI panels'
 static CSP.
+
+#### Two workers: dev (top level) and production (`env.production`)
+
+`wrangler.jsonc` describes two Workers running the same code. The **top level is the dev worker**,
+`crystallize-mcp-server-dev`: what `bun dev` runs locally, and what the API gateway proxy (plugged onto Crystallize
+Digital) reaches at its workers.dev URL. **Production is `env.production`**, `crystallize-mcp-server` on
+`mcp.crystallize.com`. The point of that layout: anything that forgets to pick an environment lands on dev, never on
+production.
+
+The env is picked at **build** time, not deploy time: the Vite plugin flattens the selected block into
+`dist/mcp_server/wrangler.json` (a fixed folder, via `viteEnvironment.name` in `vite.config.ts`, whichever worker is
+built). `bun run deploy` builds with `CLOUDFLARE_ENV=production`; `bun run deploy:dev` builds the top level. Never
+pass `--env` to `wrangler deploy` — the generated config is already flattened.
+
+| Key                               | Top level (dev, and local)   | `env.production`                      |
+| --------------------------------- | ---------------------------- | ------------------------------------- |
+| `name`                            | `crystallize-mcp-server-dev` | `crystallize-mcp-server`              |
+| `routes`                          | none                         | `mcp.crystallize.com` (custom domain) |
+| `workers_dev`                     | `true`                       | `false`                               |
+| `CRYSTALLIZE_DEFAULT_ENVIRONMENT` | `dev`                        | `production`                          |
+| `PLAUSIBLE_*`                     | none                         | set                                   |
+
+Wrangler's inheritance rules are what make this layout bite:
+
+- `routes` and `workers_dev` **are inherited** by an env. `env.production` must keep both explicit — dropping
+  `workers_dev: false` would expose production on workers.dev.
+- `vars` and bindings (`ai`) are **not** inherited, so `env.production` repeats `ai` and lists every var. Wrangler
+  warns at build time when a top-level var is missing from an env, which is why production spells out
+  `CRYSTALLIZE_DEFAULT_ENVIRONMENT: "production"`.
+- `account_id`, `compatibility_*`, `placement` and `observability` are inherited and live once at the top level.
+- The service tag Wrangler puts on both Workers (dashboard grouping only) is the top-level name, so production shows
+  up grouped under `crystallize-mcp-server-dev` in the dashboard. Cosmetic.
+
+`bun cf-typegen` (no `--env`) types the union of both: `PLAUSIBLE_*` optional, the default `"production" | "dev"`.
+
+**Shipping dev is not versioned.** `.github/workflows/deploy-mcp-dev.yaml` runs on every push to `main`, alongside CI
+rather than after it: it runs the test suite (the gate — red tests never reach dev), then `deploy:dev`. No tag, no
+version check, no GitHub Release; production still only moves on a release tag via `deploy-mcp.yaml`. Release commits
+are pushed with `GITHUB_TOKEN`, which triggers no workflow, so they do not reach dev — run the workflow by hand if that
+matters.
+
+One-time setup, outside the repo:
+
+- **GitHub environment `mcp-dev`** holding a `CLOUDFLARE_API_TOKEN` secret, separate from `production`'s.
+- **That token**: Workers Editor on `crystallize-mcp-server-dev` **only**, plus the account-wide Workers read
+  policies the production token needs for wrangler's dashboard-metadata preflight. A token that deploys on every
+  merge must not be able to touch production. Cloudflare cannot scope a token to a Worker that does not exist yet,
+  so create the Worker in the dashboard first (any template; the first deploy replaces it).
+- **`CRYSTALLIZE_DEV_API_ORIGIN`** as a Secret on the dev Worker (dashboard or `wrangler secret put`). Secrets
+  survive deploys; without it every header-less request is a 500.
 
 ### MCP protocol versions
 
@@ -560,7 +619,10 @@ Use `c.set()` / `c.get()` in middleware/handlers. Extend `Variables` when adding
 - **Vars** (plain `vars` in `wrangler.jsonc`, none are secrets): `PLAUSIBLE_DOMAIN` (site ID for server-side MCP
   events; unset to disable them), `PLAUSIBLE_SCRIPT_URL` (the landing page's `pa-XXXX.js`; unset to drop the
   script) and `PLAUSIBLE_API_ENDPOINT` (override for a self-hosted Plausible or a first-party proxy — it feeds
-  both the server-side POST and the browser's `plausible.init({ endpoint })`)
+  both the server-side POST and the browser's `plausible.init({ endpoint })`). All three live in `env.production`;
+  the top-level dev worker sets none of them. `CRYSTALLIZE_DEFAULT_ENVIRONMENT` is set on both (see "Two workers"
+  above).
 - **Secrets** (`wrangler secret put`, or `.env` locally — never `vars`): `CRYSTALLIZE_DEV_API_ORIGIN`, the dev
-  origin suffix a request selects with `X-Crystallize-Environment: dev` (see "Environments" above). Unset means
-  production only.
+  origin suffix a request selects with `X-Crystallize-Environment: dev` or the dev worker's default (see
+  "Environments" above). Unset on a production-default server means production only; required on the dev worker
+  and locally.

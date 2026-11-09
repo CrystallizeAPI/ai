@@ -17,6 +17,9 @@ import { authMiddleware } from "../../src/middlewares/auth";
 
 describe("authMiddleware", () => {
     let app: Hono;
+    // A Worker always has an env, but `app.request` without one leaves `c.env` undefined.
+    const request = (input: string, init?: RequestInit, env: Record<string, string> = {}) =>
+        app.request(input, init, env);
 
     beforeEach(() => {
         mockCreateClient.mockReset();
@@ -30,14 +33,14 @@ describe("authMiddleware", () => {
     });
 
     it("returns 403 when headers are missing", async () => {
-        const res = await app.request("/test");
+        const res = await request("/test");
         expect(res.status).toBe(403);
         const body = (await res.json()) as { error: string };
         expect(body.error).toContain("Unauthorized");
     });
 
     it("returns 403 when only one header is provided", async () => {
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: { "X-Crystallize-Access-Token-Id": "some-id" },
         });
         expect(res.status).toBe(403);
@@ -47,7 +50,7 @@ describe("authMiddleware", () => {
         const mockPimApi = mock().mockResolvedValue({ me: { tenants: [] } });
         mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 "X-Crystallize-Access-Token-Id": "test-id",
                 "X-Crystallize-Access-Token-Secret": "test-secret",
@@ -63,7 +66,7 @@ describe("authMiddleware", () => {
         const mockPimApi = mock().mockResolvedValue(null);
         mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 "X-Crystallize-Access-Token-Id": "test-id",
                 "X-Crystallize-Access-Token-Secret": "test-secret",
@@ -78,7 +81,7 @@ describe("authMiddleware", () => {
         const mockPimApi = mock().mockResolvedValue({ me: { tenants: tenantData } });
         mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 "X-Crystallize-Access-Token-Id": "test-id",
                 "X-Crystallize-Access-Token-Secret": "test-secret",
@@ -102,7 +105,7 @@ describe("authMiddleware", () => {
         const mockPimApi = mock().mockResolvedValue({ me: { tenants: tenantData } });
         mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 Cookie: "connect.sid=my-session-id",
             },
@@ -126,7 +129,7 @@ describe("authMiddleware", () => {
         const mockPimApi = mock().mockResolvedValue({ me: { tenants: tenantData } });
         mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 "X-Crystallize-Session-Id": "header-session-id",
             },
@@ -146,7 +149,7 @@ describe("authMiddleware", () => {
         const mockPimApi = mock().mockResolvedValue({ me: { tenants: tenantData } });
         mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 Cookie: "connect.sid=my-session-id",
                 "X-Crystallize-Access-Token-Id": "test-id",
@@ -166,7 +169,7 @@ describe("authMiddleware", () => {
     it("verifies the JWT signature and builds bearer authContext from claims + tenant header", async () => {
         mockJwtVerify.mockResolvedValue({ payload: { act: { tenantId: "t42" } } } as never);
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 Authorization: "Bearer my-jwt-token",
                 "X-Crystallize-Tenant-Identifier": "shop",
@@ -193,7 +196,7 @@ describe("authMiddleware", () => {
     it("accepts lowercase 'bearer' scheme in the Authorization header", async () => {
         mockJwtVerify.mockResolvedValue({ payload: { act: { tenantId: "t42" } } } as never);
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 Authorization: "bearer my-jwt-token",
                 "X-Crystallize-Tenant-Identifier": "shop",
@@ -207,7 +210,7 @@ describe("authMiddleware", () => {
     });
 
     it("rejects bearer when X-Crystallize-Tenant-Identifier is missing", async () => {
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: { Authorization: "Bearer my-jwt-token" },
         });
 
@@ -220,7 +223,7 @@ describe("authMiddleware", () => {
     it("rejects bearer when the signature is invalid", async () => {
         mockJwtVerify.mockRejectedValue(new Error("signature verification failed"));
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 Authorization: "Bearer my-jwt-token",
                 "X-Crystallize-Tenant-Identifier": "shop",
@@ -235,7 +238,7 @@ describe("authMiddleware", () => {
     it("rejects bearer when act.tenantId is missing from claims", async () => {
         mockJwtVerify.mockResolvedValue({ payload: { act: {} } } as never);
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 Authorization: "Bearer my-jwt-token",
                 "X-Crystallize-Tenant-Identifier": "shop",
@@ -248,7 +251,7 @@ describe("authMiddleware", () => {
     });
 
     it("ignores Authorization header without a Bearer scheme", async () => {
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 Authorization: "Basic dXNlcjpwYXNz",
             },
@@ -263,7 +266,7 @@ describe("authMiddleware", () => {
         const mockPimApi = mock().mockResolvedValue({ me: { tenants: tenantData } });
         mockCreateClient.mockReturnValue({ pimApi: mockPimApi } as never);
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 Cookie: "connect.sid=my-session-id",
                 Authorization: "Bearer my-jwt-token",
@@ -281,7 +284,7 @@ describe("authMiddleware", () => {
     it("prefers bearer over token headers when both are provided", async () => {
         mockJwtVerify.mockResolvedValue({ payload: { act: { tenantId: "t42" } } } as never);
 
-        const res = await app.request("/test", {
+        const res = await request("/test", {
             headers: {
                 Authorization: "Bearer my-jwt-token",
                 "X-Crystallize-Tenant-Identifier": "shop",
@@ -308,10 +311,9 @@ describe("authMiddleware", () => {
             const pimApi = mock().mockResolvedValue({ me: { tenants: tenantData } });
             mockCreateClient.mockReturnValue({ pimApi } as never);
         };
-        const jwksHrefs = () =>
-            mockCreateRemoteJWKSet.mock.calls.map((call) => (call as unknown as [URL])[0].href);
+        const jwksHrefs = () => mockCreateRemoteJWKSet.mock.calls.map((call) => (call as unknown as [URL])[0].href);
         const bearerDev = () =>
-            app.request(
+            request(
                 "/test",
                 {
                     headers: {
@@ -325,7 +327,7 @@ describe("authMiddleware", () => {
 
         it("resolves X-Crystallize-Environment: dev into authContext.origin and the me-call client", async () => {
             okMe();
-            const res = await app.request(
+            const res = await request(
                 "/test",
                 { headers: { ...tokenHeaders, "X-Crystallize-Environment": "dev" } },
                 env,
@@ -339,7 +341,7 @@ describe("authMiddleware", () => {
 
         it("defaults authContext.origin to production without the header", async () => {
             okMe();
-            const res = await app.request("/test", { headers: tokenHeaders }, env);
+            const res = await request("/test", { headers: tokenHeaders }, env);
 
             expect(res.status).toBe(200);
             const body = (await res.json()) as { authContext: { origin: string } };
@@ -347,9 +349,57 @@ describe("authMiddleware", () => {
             expect(mockCreateClient).toHaveBeenCalledWith(expect.objectContaining({ origin: ".crystallize.com" }));
         });
 
+        it("defaults to dev without the header when CRYSTALLIZE_DEFAULT_ENVIRONMENT is dev", async () => {
+            okMe();
+            const res = await request(
+                "/test",
+                { headers: tokenHeaders },
+                { ...env, CRYSTALLIZE_DEFAULT_ENVIRONMENT: "dev" },
+            );
+
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { authContext: { origin: string } };
+            expect(body.authContext.origin).toBe("-dev.example.test");
+            expect(mockCreateClient).toHaveBeenCalledWith(expect.objectContaining({ origin: "-dev.example.test" }));
+        });
+
+        it("lets X-Crystallize-Environment: production override a dev default", async () => {
+            okMe();
+            const res = await request(
+                "/test",
+                { headers: { ...tokenHeaders, "X-Crystallize-Environment": "production" } },
+                { ...env, CRYSTALLIZE_DEFAULT_ENVIRONMENT: "dev" },
+            );
+
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { authContext: { origin: string } };
+            expect(body.authContext.origin).toBe(".crystallize.com");
+        });
+
+        it("returns 500 before contacting Crystallize when the dev default has no dev secret", async () => {
+            okMe();
+            const res = await request("/test", { headers: tokenHeaders }, { CRYSTALLIZE_DEFAULT_ENVIRONMENT: "dev" });
+
+            expect(res.status).toBe(500);
+            expect(mockCreateClient).not.toHaveBeenCalled();
+        });
+
+        it("never lets a bad dev secret affect production requests", async () => {
+            okMe();
+            const res = await request(
+                "/test",
+                { headers: tokenHeaders },
+                { CRYSTALLIZE_DEV_API_ORIGIN: "dev.example.test/evil" },
+            );
+
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { authContext: { origin: string } };
+            expect(body.authContext.origin).toBe(".crystallize.com");
+        });
+
         it("rejects an unknown environment with 400 before contacting Crystallize", async () => {
             okMe();
-            const res = await app.request(
+            const res = await request(
                 "/test",
                 { headers: { ...tokenHeaders, "X-Crystallize-Environment": "staging" } },
                 env,
@@ -363,7 +413,7 @@ describe("authMiddleware", () => {
 
         it("rejects dev with 400 when CRYSTALLIZE_DEV_API_ORIGIN is unset", async () => {
             okMe();
-            const res = await app.request(
+            const res = await request(
                 "/test",
                 { headers: { ...tokenHeaders, "X-Crystallize-Environment": "dev" } },
                 {},
@@ -377,7 +427,7 @@ describe("authMiddleware", () => {
 
         it("returns 500 when CRYSTALLIZE_DEV_API_ORIGIN is not a valid suffix", async () => {
             okMe();
-            const res = await app.request(
+            const res = await request(
                 "/test",
                 { headers: { ...tokenHeaders, "X-Crystallize-Environment": "dev" } },
                 { CRYSTALLIZE_DEV_API_ORIGIN: "dev.example.test/evil" },
@@ -401,7 +451,7 @@ describe("authMiddleware", () => {
 
         it("verifies production bearer tokens against api.crystallize.com", async () => {
             mockJwtVerify.mockResolvedValue({ payload: { act: { tenantId: "t42" } } } as never);
-            const res = await app.request("/test", {
+            const res = await request("/test", {
                 headers: { Authorization: "Bearer my-jwt-token", "X-Crystallize-Tenant-Identifier": "shop" },
             });
 

@@ -1,0 +1,47 @@
+name: Deploy MCP Dev
+
+# Ships every push to `main` to the dev worker (`crystallize-mcp-server-dev`, the top level of wrangler.jsonc).
+# Not versioned: no tag, no version check, no GitHub Release. Production stays on `deploy-mcp.yaml`.
+# Runs alongside CI rather than after it; the test suite below is the gate, so red tests never reach dev.
+on:
+    push:
+        branches: ["main"]
+    # A release commit is pushed with GITHUB_TOKEN, which triggers no workflow, so nothing above fires for it.
+    # Run this by hand on main to redeploy anyway.
+    workflow_dispatch:
+
+# One deploy at a time, in push order: a newer push replaces a pending run and waits for the running one.
+concurrency:
+    group: deploy-mcp-dev
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+jobs:
+    deploy:
+        name: 🚀 Deploy the MCP dev server
+        if: github.ref == 'refs/heads/main'
+        runs-on: ubuntu-latest
+        # Its own GitHub environment, holding a CLOUDFLARE_API_TOKEN scoped to the dev worker only:
+        # a token that deploys on every push must not be able to touch production.
+        environment:
+            name: mcp-dev
+        steps:
+            - name: ⬇️ Checkout repo
+              uses: actions/checkout@v6
+
+            - name: 📦 Setup Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: 📥 Install deps
+              run: make install
+
+            - name: 🏄 Run the tests
+              run: make tests
+
+            - name: 🚢 Ship it
+              working-directory: use-crystallize/mcp-servers/crystallize
+              env:
+                  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+              run: bun run deploy:dev

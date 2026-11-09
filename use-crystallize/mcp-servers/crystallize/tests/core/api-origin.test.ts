@@ -1,5 +1,11 @@
 import { describe, it, expect } from "bun:test";
-import { apiBaseUrl, ENVIRONMENT_HEADER, PRODUCTION_API_ORIGIN, resolveApiOrigin } from "../../src/core/api-origin";
+import {
+    apiBaseUrl,
+    DEFAULT_ENVIRONMENT_VAR,
+    ENVIRONMENT_HEADER,
+    PRODUCTION_API_ORIGIN,
+    resolveApiOrigin,
+} from "../../src/core/api-origin";
 
 describe("resolveApiOrigin", () => {
     const devOrigin = "-dev.example.test";
@@ -35,6 +41,41 @@ describe("resolveApiOrigin", () => {
             expect(result.error).toContain(ENVIRONMENT_HEADER);
             expect(result.error).toContain("dev");
         }
+    });
+
+    describe("with a server default (CRYSTALLIZE_DEFAULT_ENVIRONMENT)", () => {
+        it("uses the default when no environment is named", () => {
+            expect(resolveApiOrigin(undefined, devOrigin, "dev")).toEqual({ ok: true, origin: "-dev.example.test" });
+            expect(resolveApiOrigin("  ", devOrigin, " DEV ")).toEqual({ ok: true, origin: "-dev.example.test" });
+        });
+
+        it("lets the header override the default", () => {
+            expect(resolveApiOrigin("production", devOrigin, "dev")).toEqual({ ok: true, origin: ".crystallize.com" });
+        });
+
+        it("treats a blank default as production", () => {
+            expect(resolveApiOrigin(undefined, devOrigin, "")).toEqual({ ok: true, origin: ".crystallize.com" });
+        });
+
+        it("resolves a production default without reading the dev secret", () => {
+            // env.production sets the default explicitly; a broken dev secret must not matter there.
+            expect(resolveApiOrigin(undefined, "not/a-suffix", "production")).toEqual({
+                ok: true,
+                origin: ".crystallize.com",
+            });
+        });
+
+        it("blames the server with 500 when the default is not a known environment", () => {
+            const result = resolveApiOrigin(undefined, devOrigin, "staging");
+            expect(result).toMatchObject({ ok: false, status: 500 });
+            if (!result.ok) expect(result.error).toContain(DEFAULT_ENVIRONMENT_VAR);
+        });
+
+        it("blames the server with 500 when the default is dev but no dev suffix is configured", () => {
+            const result = resolveApiOrigin(undefined, undefined, "dev");
+            expect(result).toMatchObject({ ok: false, status: 500 });
+            if (!result.ok) expect(result.error).toContain("not configured");
+        });
     });
 
     it("rejects a dev suffix that could change the URL path or host prefix with 500", () => {

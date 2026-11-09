@@ -35,10 +35,14 @@ const extractBearerToken = (header: string | undefined): string | undefined => {
 
 export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
     // Resolved before any credential check: the credential is only meaningful on its own environment, and both
-    // the JWKS lookup and the `me` call below have to target it. The secret is only read when a request asks for
-    // dev, so a bad secret can never take production traffic down.
-    const environment = c.req.header(ENVIRONMENT_HEADER);
-    const resolved = resolveApiOrigin(environment, environment ? c.env.CRYSTALLIZE_DEV_API_ORIGIN : undefined);
+    // the JWKS lookup and the `me` call below have to target it. The secret is only checked once a request resolves
+    // to dev (by header, or by the dev worker's CRYSTALLIZE_DEFAULT_ENVIRONMENT), so a bad secret can never take
+    // production traffic down.
+    const resolved = resolveApiOrigin(
+        c.req.header(ENVIRONMENT_HEADER),
+        c.env.CRYSTALLIZE_DEV_API_ORIGIN,
+        c.env.CRYSTALLIZE_DEFAULT_ENVIRONMENT,
+    );
     if (!resolved.ok) {
         return c.json({ error: resolved.error }, resolved.status);
     }

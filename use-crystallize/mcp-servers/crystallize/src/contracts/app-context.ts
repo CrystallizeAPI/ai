@@ -38,7 +38,8 @@ export type AuthContext = TokenAuthContext | SessionAuthContext | BearerAuthCont
 export type AppContext = {
     // CRYSTALLIZE_DEV_API_ORIGIN is a *secret* (`wrangler secret put` / `.env` locally), so `bun cf-typegen` only
     // emits it when the local `.env` has it. Declared here so the type never depends on that.
-    Bindings: CloudflareBindings & { CRYSTALLIZE_DEV_API_ORIGIN?: string };
+    // CRYSTALLIZE_DEFAULT_ENVIRONMENT is declared too, so the code never relies on it being set (unset = production).
+    Bindings: CloudflareBindings & { CRYSTALLIZE_DEV_API_ORIGIN?: string; CRYSTALLIZE_DEFAULT_ENVIRONMENT?: string };
     Variables: {
         authContext: AuthContext;
         services: Services;

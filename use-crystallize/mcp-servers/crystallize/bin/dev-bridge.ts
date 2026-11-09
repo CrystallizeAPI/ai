@@ -7,7 +7,7 @@
  * http://localhost:5173/mcp), injecting:
  *   - X-Crystallize-Access-Token-Id     from CRYSTALLIZE_TOKEN_ID
  *   - X-Crystallize-Access-Token-Secret from CRYSTALLIZE_TOKEN_SECRET
- *   - X-Crystallize-Environment         from CRYSTALLIZE_ENVIRONMENT (optional; `dev` to target the dev environment)
+ *   - X-Crystallize-Environment         from CRYSTALLIZE_ENVIRONMENT (optional; `dev` or `production`, else the server default)
  * and adding permissive CORS headers for the loopback host.
  *
  * Usage (loads .env automatically):
