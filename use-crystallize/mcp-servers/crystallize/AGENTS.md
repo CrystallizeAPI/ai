@@ -576,7 +576,6 @@ credentials. The Core API is the authorization server; this server is the protec
   APIs through js-api-client do not.
 - **Core API side**: its `OAUTH_MCP_RESOURCE` must be this server's exact `<origin>/mcp`, and its `oauth` flag on.
 - Only the Core API accepts these tokens today. Tools for the Catalogue, Discovery and Shop APIs fail with them.
->>>>>>> 79bdd53 (feat(oauth): use /mcp)
 
 ### MCP protocol versions
 
