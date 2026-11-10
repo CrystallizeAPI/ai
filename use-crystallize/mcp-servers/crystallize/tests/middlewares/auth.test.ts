@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 import { Hono } from "hono";
 
 const mockCreateClient = mock();
@@ -466,6 +466,125 @@ describe("authMiddleware", () => {
 
             const devHref = "https://api-dev.example.test/.well-known/jwks.json";
             expect(jwksHrefs().filter((href) => href === devHref)).toHaveLength(1);
+        });
+    });
+
+    describe("OAuth (MCP authorization)", () => {
+        const env = { CRYSTALLIZE_OAUTH_API_URL: "https://api-dev.example.test/" };
+        const oauthHeaders = { Authorization: "Bearer crz_oat_abc" };
+        const tenants = [{ id: "t1", identifier: "shop", name: "Shop", scopes: ["orders:read"] }];
+        const originalFetch = globalThis.fetch;
+        let mockFetch: ReturnType<typeof mock>;
+
+        beforeEach(() => {
+            mockFetch = mock();
+            globalThis.fetch = mockFetch as unknown as typeof fetch;
+        });
+        afterEach(() => {
+            globalThis.fetch = originalFetch;
+        });
+
+        const respond = (status: number, body: unknown = {}) =>
+            mockFetch.mockResolvedValue(new Response(JSON.stringify(body), { status }));
+
+        it("challenges a request without credentials with the resource metadata", async () => {
+            const res = await app.request("http://mcp.example.test/test", {}, env);
+
+            expect(res.status).toBe(401);
+            expect(res.headers.get("WWW-Authenticate")).toBe(
+                'Bearer resource_metadata="http://mcp.example.test/.well-known/oauth-protected-resource/mcp"',
+            );
+            expect(mockFetch).not.toHaveBeenCalled();
+        });
+
+        it("keeps the 403 for missing credentials when OAuth is not configured", async () => {
+            const res = await app.request("/test", {}, {});
+
+            expect(res.status).toBe(403);
+            expect(res.headers.get("WWW-Authenticate")).toBeNull();
+        });
+
+        it("acts as the user on the tenants the Core API returns for the token", async () => {
+            respond(200, { tenants });
+            const res = await app.request("/test", { headers: oauthHeaders }, env);
+
+            expect(res.status).toBe(200);
+            expect(mockFetch).toHaveBeenCalledWith("https://api-dev.example.test/oauth-grant/tenants", {
+                headers: { Accept: "application/json", Authorization: "Bearer crz_oat_abc" },
+            });
+            const body = (await res.json()) as { authContext: Record<string, unknown> };
+            expect(body.authContext).toEqual({
+                type: "bearer",
+                bearerToken: "crz_oat_abc",
+                origin: "-dev.example.test",
+                tenants: [{ id: "t1", identifier: "shop", name: "Shop" }],
+            });
+            expect(mockJwtVerify).not.toHaveBeenCalled();
+            expect(mockCreateClient).not.toHaveBeenCalled();
+        });
+
+        it("uses the token's environment, not X-Crystallize-Environment", async () => {
+            respond(200, { tenants });
+            const res = await app.request(
+                "/test",
+                { headers: { ...oauthHeaders, "X-Crystallize-Environment": "production" } },
+                env,
+            );
+
+            const body = (await res.json()) as { authContext: { origin: string } };
+            expect(body.authContext.origin).toBe("-dev.example.test");
+        });
+
+        it("falls back to the request's environment for a local Core API", async () => {
+            respond(200, { tenants });
+            const res = await app.request(
+                "/test",
+                { headers: oauthHeaders },
+                { CRYSTALLIZE_OAUTH_API_URL: "http://localhost:3001" },
+            );
+
+            expect(mockFetch).toHaveBeenCalledWith("http://localhost:3001/oauth-grant/tenants", expect.anything());
+            const body = (await res.json()) as { authContext: { origin: string } };
+            expect(body.authContext.origin).toBe(".crystallize.com");
+        });
+
+        it.each([401, 403])("answers invalid_token when the Core API refuses the token (%i)", async (status) => {
+            respond(status);
+            const res = await app.request("http://mcp.example.test/test", { headers: oauthHeaders }, env);
+
+            expect(res.status).toBe(401);
+            expect(res.headers.get("WWW-Authenticate")).toBe(
+                'Bearer resource_metadata="http://mcp.example.test/.well-known/oauth-protected-resource/mcp", error="invalid_token"',
+            );
+        });
+
+        it("answers 503 when the Core API cannot be reached", async () => {
+            mockFetch.mockRejectedValue(new TypeError("fetch failed"));
+            const unreachable = await app.request("/test", { headers: oauthHeaders }, env);
+            respond(500);
+            const failing = await app.request("/test", { headers: oauthHeaders }, env);
+
+            expect(unreachable.status).toBe(503);
+            expect(failing.status).toBe(503);
+        });
+
+        it("refuses a user without tenants", async () => {
+            respond(200, { tenants: [] });
+            const res = await app.request("/test", { headers: oauthHeaders }, env);
+
+            expect(res.status).toBe(403);
+        });
+
+        it("leaves plugin JWT bearer tokens to the JWKS check", async () => {
+            mockJwtVerify.mockResolvedValue({ payload: { act: { tenantId: "t42" } } } as never);
+            const res = await app.request(
+                "/test",
+                { headers: { Authorization: "Bearer my-jwt-token", "X-Crystallize-Tenant-Identifier": "shop" } },
+                env,
+            );
+
+            expect(res.status).toBe(200);
+            expect(mockFetch).not.toHaveBeenCalled();
         });
     });
 });
