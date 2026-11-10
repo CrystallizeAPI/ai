@@ -498,7 +498,7 @@ describe("authMiddleware", () => {
         });
 
         it("keeps the 403 for missing credentials when OAuth is not configured", async () => {
-            const res = await app.request("/test");
+            const res = await app.request("/test", {}, {});
 
             expect(res.status).toBe(403);
             expect(res.headers.get("WWW-Authenticate")).toBeNull();
@@ -535,7 +535,7 @@ describe("authMiddleware", () => {
             expect(body.authContext.origin).toBe("-dev.example.test");
         });
 
-        it("falls back to the request's environment for a local Core API", async () => {
+        it("routes a local Core API through the local rewrite origin", async () => {
             respond(200, { tenants });
             const res = await app.request(
                 "/test",
@@ -545,7 +545,7 @@ describe("authMiddleware", () => {
 
             expect(mockFetch).toHaveBeenCalledWith("http://localhost:3001/oauth-grant/tenants", expect.anything());
             const body = (await res.json()) as { authContext: { origin: string } };
-            expect(body.authContext.origin).toBe(".crystallize.com");
+            expect(body.authContext.origin).toBe(".oauth-local.invalid");
         });
 
         it.each([401, 403])("answers invalid_token when the Core API refuses the token (%i)", async (status) => {
