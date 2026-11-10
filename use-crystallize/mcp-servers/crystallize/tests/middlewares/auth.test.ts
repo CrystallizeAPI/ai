@@ -535,7 +535,7 @@ describe("authMiddleware", () => {
             expect(body.authContext.origin).toBe("-dev.example.test");
         });
 
-        it("routes a local Core API through the local rewrite origin", async () => {
+        it("falls back to the request's environment for a local Core API", async () => {
             respond(200, { tenants });
             const res = await app.request(
                 "/test",
@@ -545,7 +545,7 @@ describe("authMiddleware", () => {
 
             expect(mockFetch).toHaveBeenCalledWith("http://localhost:3001/oauth-grant/tenants", expect.anything());
             const body = (await res.json()) as { authContext: { origin: string } };
-            expect(body.authContext.origin).toBe(".oauth-local.invalid");
+            expect(body.authContext.origin).toBe(".crystallize.com");
         });
 
         it.each([401, 403])("answers invalid_token when the Core API refuses the token (%i)", async (status) => {
