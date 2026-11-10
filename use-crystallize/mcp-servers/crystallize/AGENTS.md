@@ -503,7 +503,6 @@ Adding a tool means adding `origin: authContext.origin` to its `createClient` an
 builds. `grep -n 'crystallize\.com' src` should only ever hit `api-origin.ts`, the landing page and the UI panels'
 static CSP.
 
-<<<<<<< HEAD
 #### Two workers: dev (top level) and production (`env.production`)
 
 `wrangler.jsonc` describes two Workers running the same code. The **top level is the dev worker**,
