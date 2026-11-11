@@ -6,6 +6,7 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { apiBaseUrl, ENVIRONMENT_HEADER, resolveApiOrigin } from "../core/api-origin";
 import {
     fetchOAuthTenants,
+    mcpPublicUrl,
     OAUTH_ACCESS_TOKEN_PREFIX,
     oauthApiOrigin,
     oauthApiUrl,
@@ -67,7 +68,7 @@ export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
         const result = await fetchOAuthTenants(bearerToken, oauthApi);
         if (!result.ok) {
             return result.reason === "invalid_token"
-                ? oauthChallenge(c.req.url, "invalid_token")
+                ? oauthChallenge(mcpPublicUrl(c.env, c.req.url), "invalid_token")
                 : c.json({ error: "Unauthorized: the authorization server is unavailable" }, 503);
         }
         if (result.tenants.length === 0) {
@@ -87,7 +88,7 @@ export const authMiddleware = createMiddleware<AppContext>(async (c, next) => {
 
     if (!sessionId && !bearerToken && (!accessTokenId || !accessTokenSecret)) {
         if (oauthApi) {
-            return oauthChallenge(c.req.url);
+            return oauthChallenge(mcpPublicUrl(c.env, c.req.url));
         }
         return c.json(
             {

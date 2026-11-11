@@ -11,11 +11,21 @@ const MCP_PATH = "/mcp";
 
 export type OAuthEnv = {
     CRYSTALLIZE_OAUTH_API_URL?: string;
+    CRYSTALLIZE_MCP_PUBLIC_URL?: string;
 };
 
 export const oauthApiUrl = (env: OAuthEnv | undefined): URL | undefined => {
     const value = env?.CRYSTALLIZE_OAUTH_API_URL?.trim();
     return value ? new URL(value) : undefined;
+};
+
+/**
+ * The URL clients see this server at: `CRYSTALLIZE_MCP_PUBLIC_URL` when set, else the request's own. Clients check
+ * the advertised resource against the URL they connected to, so behind a proxy the request URL would not match.
+ */
+export const mcpPublicUrl = (env: OAuthEnv | undefined, requestUrl: string): string => {
+    const value = env?.CRYSTALLIZE_MCP_PUBLIC_URL?.trim();
+    return value ? new URL(value).origin : requestUrl;
 };
 
 const apiEndpoint = (base: URL, path: string): string => {
@@ -33,25 +43,25 @@ export const oauthApiOrigin = (apiUrl: URL): string | undefined => {
     return /^api([.-][a-z0-9.-]*[a-z0-9])$/.exec(apiUrl.hostname)?.[1];
 };
 
-export const mcpResource = (requestUrl: string) => new URL(MCP_PATH, requestUrl).href;
+export const mcpResource = (publicUrl: string) => new URL(MCP_PATH, publicUrl).href;
 
 export const PROTECTED_RESOURCE_METADATA_PATH = `/.well-known/oauth-protected-resource${MCP_PATH}`;
 
-export const protectedResourceMetadata = (requestUrl: string, apiUrl: URL) => ({
-    resource: mcpResource(requestUrl),
+export const protectedResourceMetadata = (publicUrl: string, apiUrl: URL) => ({
+    resource: mcpResource(publicUrl),
     authorization_servers: [apiEndpoint(apiUrl, "oauth")],
     bearer_methods_supported: ["header"],
     resource_name: "Crystallize MCP",
 });
 
 /** A 401 that starts the OAuth flow (RFC 9728 §5.1), or tells the client to get a new token. */
-export const oauthChallenge = (requestUrl: string, error?: "invalid_token") =>
+export const oauthChallenge = (publicUrl: string, error?: "invalid_token") =>
     new Response(JSON.stringify({ error: error ?? "unauthorized" }), {
         status: 401,
         headers: {
             "Content-Type": "application/json",
             "WWW-Authenticate": [
-                `Bearer resource_metadata="${new URL(PROTECTED_RESOURCE_METADATA_PATH, requestUrl).href}"`,
+                `Bearer resource_metadata="${new URL(PROTECTED_RESOURCE_METADATA_PATH, publicUrl).href}"`,
                 ...(error ? [`error="${error}"`] : []),
             ].join(", "),
         },

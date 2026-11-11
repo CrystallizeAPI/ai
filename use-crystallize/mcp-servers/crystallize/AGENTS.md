@@ -565,7 +565,9 @@ credentials. The Core API is the authorization server; this server is the protec
 - **Discovery**: with OAuth on, a request with no credentials gets a **401** with
   `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/mcp"` (instead of the 403).
   That document (RFC 9728) names `<origin>/mcp` as the resource and `${CRYSTALLIZE_OAUTH_API_URL}/oauth` as the
-  authorization server; the client registers itself (DCR) and runs the PKCE code flow from there.
+  authorization server; the client registers itself (DCR) and runs the PKCE code flow from there. `<origin>` is
+  the request's, or `CRYSTALLIZE_MCP_PUBLIC_URL` when set: behind a proxy (the dev worker is reached through one)
+  the worker sees its workers.dev URL, and clients refuse a resource that isn't the URL they connected to.
 - **Tokens**: `crz_oat_…` bearer tokens go to the Core API's `GET /oauth-grant/tenants`, which validates them and
   returns the user's tenants for `authContext.tenants` (`type: "bearer"`, forwarded as is). A refused token is a
   401 `error="invalid_token"`, so the client refreshes or signs in again. Other bearer tokens are plugin JWTs, as
@@ -574,7 +576,8 @@ credentials. The Core API is the authorization server; this server is the protec
   `CRYSTALLIZE_OAUTH_API_URL` (`https://api<suffix>`), not `X-Crystallize-Environment`. A local
   `http://localhost:…` Core API has no suffix: the flow and `tenant-overview` work locally, tools that call the
   APIs through js-api-client do not.
-- **Core API side**: its `OAUTH_MCP_RESOURCE` must be this server's exact `<origin>/mcp`, and its `oauth` flag on.
+- **Core API side**: its `OAUTH_MCP_RESOURCE` must be this server's exact public `<origin>/mcp`, and its `oauth` flag
+  on.
 - Only the Core API accepts these tokens today. Tools for the Catalogue, Discovery and Shop APIs fail with them.
 
 ### MCP protocol versions
@@ -650,4 +653,5 @@ Use `c.set()` / `c.get()` in middleware/handlers. Extend `Variables` when adding
 - **Secrets** (`wrangler secret put`, or `.env` locally — never `vars`): `CRYSTALLIZE_DEV_API_ORIGIN`, the dev
   origin suffix a request selects with `X-Crystallize-Environment: dev` (see "Environments" above). Unset means
   production only. `CRYSTALLIZE_OAUTH_API_URL`, the Core API that issues OAuth tokens (see "OAuth" above); a secret
-  for the same reason when it names a dev host. Unset means OAuth is off.
+  for the same reason when it names a dev host. Unset means OAuth is off. `CRYSTALLIZE_MCP_PUBLIC_URL`, the origin
+  clients connect to when a proxy sits in front of the worker; unset means the request's own origin.

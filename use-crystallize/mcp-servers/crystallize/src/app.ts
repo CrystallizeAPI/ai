@@ -8,14 +8,14 @@ import { buildSessionEvent } from "./core/analytics";
 import { readExposeFlags } from "./core/expose-flags";
 import { isSessionStartRequest } from "./core/mcp-request";
 import { PLAUSIBLE_EVENTS_ENDPOINT } from "./core/services/plausible-analytics-tracker";
-import { oauthApiUrl, PROTECTED_RESOURCE_METADATA_PATH, protectedResourceMetadata } from "./core/oauth";
+import { mcpPublicUrl, oauthApiUrl, PROTECTED_RESOURCE_METADATA_PATH, protectedResourceMetadata } from "./core/oauth";
 
 export const createApp = () => {
     const app = new Hono<AppContext>();
     app.use(servicesProvider);
     app.get(PROTECTED_RESOURCE_METADATA_PATH, (c) => {
         const apiUrl = oauthApiUrl(c.env);
-        return apiUrl ? c.json(protectedResourceMetadata(c.req.url, apiUrl)) : c.notFound();
+        return apiUrl ? c.json(protectedResourceMetadata(mcpPublicUrl(c.env, c.req.url), apiUrl)) : c.notFound();
     });
     app.get("/", (c) =>
         c.html(

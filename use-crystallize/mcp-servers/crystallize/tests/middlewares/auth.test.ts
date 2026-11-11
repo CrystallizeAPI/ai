@@ -497,6 +497,19 @@ describe("authMiddleware", () => {
             expect(mockFetch).not.toHaveBeenCalled();
         });
 
+        it("challenges with the public URL when the worker sits behind a proxy", async () => {
+            const res = await app.request(
+                "https://worker.example.dev/test",
+                {},
+                { ...env, CRYSTALLIZE_MCP_PUBLIC_URL: "https://mcp.example.test" },
+            );
+
+            expect(res.status).toBe(401);
+            expect(res.headers.get("WWW-Authenticate")).toBe(
+                'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp"',
+            );
+        });
+
         it("keeps the 403 for missing credentials when OAuth is not configured", async () => {
             const res = await app.request("/test", {}, {});
 
