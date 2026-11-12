@@ -126,7 +126,8 @@ request-only function for these and a `connection()`-marked one for cart calls.
 
 ## Never cache
 
-- **Draft reads.** Preview reads (`publicationState: draft`) go straight to Discovery.
+- **Draft reads.** Preview reads (`publicationState: draft`) go straight to Discovery. In Next.js, switch on
+  `draftMode()` inside the cached client: see [preview.md](preview.md).
 - **Carts.** Every cart read and write is request data.
 - **Anything keyed on a cookie** that is not part of the cache key.
 

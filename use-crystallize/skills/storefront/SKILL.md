@@ -6,15 +6,16 @@ description: >
     bookings and subscriptions, Catalogue and Core only where named), which tokens and scopes each needs and what
     may run in the browser, the request path of category, product, search, cart and checkout pages, caching
     Discovery reads and revalidating on publish, translated paths and language/market routing, B2B contract prices
-    against a public Discovery, draft preview, performance, accessibility and security headers. Use when starting
-    or reviewing any frontend, choosing between Discovery, Catalogue, Core and the Shop API, wiring Next.js, Remix,
-    Astro, Nuxt or another SSR app to Crystallize, or debugging slow pages, wrong prices, missing orders, a stale
-    page after publish or a broken page after a model change. Trigger on "storefront", "frontend", "headless",
-    "web shop", "PLP", "PDP", "product listing", "product page", "category page", "cart drawer", "checkout",
-    "Discovery API", "Shop API", "which API", "use cache", "cacheTag", "revalidateTag", "revalidate on publish",
-    "webhook", "preview", "draft", "publicationState", "hreflang", "i18n routing", "market", "B2B price",
-    "contract price", "variantGroups", "variant(selected", "Core Web Vitals", "LCP", "accessibility",
-    "security headers", "CSP", "Next.js", "Cache Components", "PPR".
+    against a public Discovery, draft preview in Crystallize custom views, performance, accessibility and security
+    headers. Use when starting or reviewing any frontend, choosing between Discovery, Catalogue, Core and the Shop
+    API, wiring Next.js, Remix, Astro, Nuxt or another SSR app to Crystallize, or debugging slow pages, wrong
+    prices, missing orders, a stale page after publish or a broken page after a model change. Trigger on
+    "storefront", "frontend", "headless", "web shop", "PLP", "PDP", "product listing", "product page", "category
+    page", "cart drawer", "checkout", "Discovery API", "Shop API", "which API", "use cache", "cacheTag",
+    "revalidateTag", "revalidate on publish", "webhook", "preview", "draft", "draft mode", "custom view",
+    "publicationState", "hreflang", "i18n routing", "market", "B2B price", "contract price", "variantGroups",
+    "variant(selected", "Core Web Vitals", "LCP", "accessibility", "security headers", "CSP", "Next.js", "Cache
+    Components", "PPR".
 metadata:
     author: Crystallize
     version: "1.0"
@@ -318,36 +319,35 @@ An open Discovery serves every price variant and every market price list to anyo
 ## Draft preview
 
 Draft preview is a Discovery read with `publicationState: draft`, done server-side behind the editor's preview
-mode, and never cached.
+mode, and never cached. Editors open it from a **custom view** in the Crystallize App, which frames the storefront
+next to the item. Setup, code and verification: [references/preview.md](references/preview.md).
 
-```ts
-// Add publicationState: draft to every search/browse that takes `language: $language`.
-export const withState = (query: string, draft?: boolean) =>
-    draft ? query.replace(/\((language: \$language)/g, "($1, publicationState: draft") : query;
-
-const data = await discovery(
-    withState(
-        `query Resolve($language: [TenantLanguage!], $path: String!) {
-            search(language: $language, filters: { path: { equals: $path } }) { hits { itemId shape } }
-        }`,
-        draft,
-    ),
-    { language, path },
-    { draft },
-);
-```
-
-- Serve preview on its own route (`/preview/[...path]?language=…`), `noindex`, outside the storefront's layout,
-  rendering the same views from draft data. Register it as the tenant's frontend preview URL.
-- The App posts `{ crystallize: { reloadDueToStaleItem: true } }` when the editor saves: call
-  `router.refresh()` and answer `{ frontendPreview: { reloading: true } }`. Once mounted, post
-  `{ frontendPreview: { loaded: true } }` to the parent.
+- [ ] **Custom view** (Settings → Custom views): a URL template such as
+      `https://shop.example.com/api/preview?secret=…&language={{language}}&itemId={{itemId}}&path={{itemPath}}`.
+      Placeholders: `{{language}}`, `{{itemId}}`, `{{itemPath}}`, `{{itemExternalReference}}`, `{{variantSku}}`.
+      See the [Custom views](https://crystallize.com/docs/pim/catalogue/custom-views) doc.
+- [ ] **Always turn on "Show responsive device toolbar in preview".** The editor switches between mobile and
+      desktop in the App's toolbar; the storefront only has to be responsive and adds no device buttons or
+      preview chrome of its own.
+- [ ] **A preview route** checks a secret, resolves the item's storefront URL from its **draft**, by item id and
+      per language (paths are translated and have no `/{lang}` prefix), turns on preview mode (Next's
+      `draftMode().enable()`) and redirects. Redirect only to a path Discovery returned.
+- [ ] **Every Discovery read in preview mode adds `publicationState: draft`** (every field that takes `language`
+      accepts it, nested `items`/`variants` included). In Next.js, read `draftMode().isEnabled` inside the
+      `'use cache'` client: off while prerendering, so normal traffic stays cached; with the cookie nothing is
+      saved.
+- [ ] **No caching, `noindex`**, and the App's `frontend-preview-listener.js` loaded in preview mode only, so the
+      view reloads when the editor saves.
+- [ ] **Framing:** `frame-ancestors 'self' https://app.crystallize.com` on the preview route and preview-mode
+      responses only; every other page keeps `X-Frame-Options: SAMEORIGIN`.
+- [ ] **The preview cookie is `SameSite=None; Secure`** (it is set and read inside a third-party iframe), and
+      `Partitioned`. Next's draft cookie is `Lax` in `next dev`: test the framed preview on a production build.
 - **On an open Discovery every draft is public.** Anyone who sends `publicationState: draft` gets it, no
-  credentials needed (verified 2026-11-12 on two tenants, including unpublished drafts read anonymously). Don't
-  keep confidential or embargoed content in drafts on an open tenant. If drafts must stay private, restrict
-  Discovery and send the static token from the server.
-- **Never render drafts to crawlers or the public.** The preview route is `noindex`, not linked from the store,
-  not in the sitemap, and the storefront's own pages never pass `draft`.
+  credentials needed (verified 2026-11-12 on two tenants, including unpublished drafts read anonymously). The
+  preview secret guards the preview mode, not the data. Don't keep confidential or embargoed content in drafts on
+  an open tenant; if drafts must stay private, restrict Discovery and send the static token from the server.
+- **Never render drafts to crawlers or the public.** Preview responses are `noindex` and uncached, the preview
+  route is under a `Disallow`ed path and not in the sitemap, and nothing in the store links to it.
 
 ## Consistency the storefront has to live with
 
@@ -415,6 +415,7 @@ storefront, find one with the capabilities the user needs and read how it does i
 | [references/performance.md](references/performance.md)                           | LCP, prefetch, function region, prerendering, metadata in `<head>`             |
 | [references/accessibility.md](references/accessibility.md)                       | Drawers, skip link, focus, forms, live regions                                 |
 | [references/security-headers.md](references/security-headers.md)                 | Companion headers, CSP, frame-ancestors, cookies                               |
+| [references/preview.md](references/preview.md)                                   | Draft preview in a Crystallize custom view: route, draft reads, framing        |
 | [references/nextjs-pitfalls.md](references/nextjs-pitfalls.md)                   | Next.js 16 Cache Components and PPR traps                                      |
 
 ## Related skills

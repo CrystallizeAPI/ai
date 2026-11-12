@@ -25,6 +25,8 @@ const nextConfig: NextConfig = {
                     { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
                 ],
             },
+            // The one exception is editor preview in a Crystallize custom view: see "Routes embedded in
+            // Crystallize" below and preview.md.
             // Not on the OAuth pages: an MCP client may open the consent page in a popup and read the result
             // through window.opener after the redirect back, which COOP: same-origin would cut.
             {
@@ -44,12 +46,43 @@ const nextConfig: NextConfig = {
 
 ## Routes embedded in Crystallize
 
-A preview route, a custom view or a legacy App shown inside the Crystallize App must allow it as a frame
-ancestor, and only on those routes (from two builds with embedded views):
+Deny framing everywhere except where the Crystallize App frames you, and allow only the App there. The App runs on
+`https://app.crystallize.com` (`pim.crystallize.com` redirects to it); a `*.crystallize.com` wildcard is broader
+than needed.
+
+**Draft preview in a custom view.** The App frames the preview route, then the storefront pages it redirects to,
+in preview mode. Relax framing for the preview route and for requests carrying the preview cookie, and keep
+`X-Frame-Options` and `frame-ancestors 'self'` for everyone else (Next.js, where the cookie is
+`__prerender_bypass`):
 
 ```ts
 async headers() {
-    const csp = { key: "Content-Security-Policy", value: "frame-ancestors 'self' https://app.crystallize.com https://*.crystallize.com" };
+    const preview = "frame-ancestors 'self' https://app.crystallize.com";
+    const draftCookie = [{ type: "cookie" as const, key: "__prerender_bypass" }];
+    return [
+        {
+            source: "/:path((?!api/preview(?:/|$)).*)",
+            missing: draftCookie,
+            headers: [
+                { key: "X-Frame-Options", value: "SAMEORIGIN" },
+                { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+            ],
+        },
+        { source: "/:path*", has: draftCookie, headers: [{ key: "Content-Security-Policy", value: preview }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+        { source: "/api/preview/:path*", headers: [{ key: "Content-Security-Policy", value: preview }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+    ];
+}
+```
+
+The preview cookie is set and read inside a third-party iframe, so it must be `SameSite=None; Secure` (and
+`Partitioned`); a `Lax` cookie is never sent in the frame. Full setup: [preview.md](preview.md).
+
+**A custom view or a legacy App** with its own routes (from two builds with embedded views) gets the same
+`frame-ancestors`, on those routes only:
+
+```ts
+async headers() {
+    const csp = { key: "Content-Security-Policy", value: "frame-ancestors 'self' https://app.crystallize.com" };
     return [
         { source: "/app", headers: [csp] },
         { source: "/app/:path*", headers: [csp] },
@@ -102,7 +135,8 @@ The MCP endpoint itself answers CORS (`Access-Control-Allow-Origin: *`, and expo
 
 First-party session and cart cookies are `httpOnly`, `SameSite=Lax`, `Path=/`, and should be `Secure` with the
 `__Host-` prefix (which requires `Secure`, `Path=/` and no `Domain`). The audited stores had the first three and
-lacked `Secure` and the prefix.
+lacked `Secure` and the prefix. The exception is the preview cookie, which the Crystallize App's iframe needs as
+`SameSite=None; Secure; Partitioned` (see above).
 
 ```ts
 jar.set("__Host-cart", cart.id, {
