@@ -1,9 +1,9 @@
 ---
 name: js-api-client
-description: Use the @crystallize/js-api-client package to interact with Crystallize APIs in JavaScript/TypeScript. Use when setting up the Crystallize API client, configuring credentials (including the bearer token of a plugin), calling catalogueApi/discoveryApi/pimApi/nextPimApi/meApi or the Shop API callers (shopCartApi, shopOrderApi, shopCustomerApi, shopLockApi, shopSubscriptionContractApi, shopBookingApi), configuring Shop API token scopes, working with high-level helpers for catalogue fetching, cart management, Shop API orders (createFromCart, addPayments, setPayments, pipeline stages), Shop API customers, distributed locks, Core orders, customers, subscriptions, navigation, or using any helper from the @crystallize/js-api-client npm package (createCartManager, createShopOrderManager, createShopCustomerManager, createShopLock, createOrderManager, createCustomerManager, createBinaryFileManager, createSignatureVerifier, …).
+description: Use the @crystallize/js-api-client package to interact with Crystallize APIs in JavaScript/TypeScript. Use when setting up the Crystallize API client for a storefront (discoveryApi for catalogue reads, Shop API callers for carts, orders and customers, server-side only) or for back-office scripts, configuring credentials (including the bearer token of a plugin), calling catalogueApi/discoveryApi/pimApi/nextPimApi/meApi or the Shop API callers (shopCartApi, shopOrderApi, shopCustomerApi, shopLockApi, shopSubscriptionContractApi, shopBookingApi), configuring Shop API token scopes, working with high-level helpers for catalogue fetching, cart management, Shop API orders (createFromCart, addPayments, setPayments, pipeline stages), Shop API customers, distributed locks, Core orders, customers, subscriptions, navigation, or using any helper from the @crystallize/js-api-client npm package (createCartManager, createShopOrderManager, createShopCustomerManager, createShopLock, createOrderManager, createCustomerManager, createBinaryFileManager, createSignatureVerifier, …).
 metadata:
     author: Crystallize
-    version: "2.1"
+    version: "2.2"
 ---
 
 # Crystallize JS API Client
@@ -16,12 +16,16 @@ Before writing code, understand the context. Ask clarifying questions:
 
 1. **What are you trying to do?** Read data, write data, manage carts, handle webhooks?
 2. **Do you need raw GraphQL or a high-level helper?** Helpers reduce boilerplate for common workflows (orders, carts, navigation). Use raw GraphQL via API callers for custom queries or when helpers don't cover the use case.
-3. **Which API?** Catalogue/Discovery for storefront reads, Core (`nextPimApi`) for back-office reads and writes, the
-   Shop API for checkout: carts (`/cart`), orders made from them (`/order`), customers (`/customer`), locks (`/lock`).
-   Orders and customers exist on both sides — pick the helper for the side you are on (see
+3. **Which API?** Follow the storefront API contract ([[storefront]]): `discoveryApi` for every catalogue read; the
+   Shop API callers for everything about a shopper (carts, the customer's price, orders, payments, customers,
+   bookings, subscription contracts, locks); `catalogueApi` only for per-customer price display; Core (`nextPimApi`)
+   only for the back office (seeds, imports, jobs, admin tools), never in a storefront's request path. Orders and
+   customers exist on both sides, so pick the helper for the side you are on (see
    [Shop API](#shop-api-carts-orders-customers-locks)).
 4. **What auth do you have?** `staticAuthToken` is enough for read-only. PIM/Shop operations need `accessTokenId` + `accessTokenSecret`. A plugin passes its `backendToken` JWT as `bearerToken` — it becomes `Authorization: Bearer <jwt>` and works on the Core APIs only (see [Authentication](#authentication)).
-5. **Is this server-side or client-side?** The client works in both, but credentials should only live server-side.
+5. **Is this server-side or client-side?** The client works in both, but credentials live server-side only. In the
+   browser, only `discoveryApi` against an open Discovery works: the Shop API refuses other origins, and every other
+   caller needs a credential.
 
 ## Installation
 
@@ -41,24 +45,27 @@ const api = createClient({
     // For protected APIs, provide credentials:
     // accessTokenId: '…',
     // accessTokenSecret: '…',
-    // staticAuthToken: '…', // for read-only catalogue/discovery
+    // staticAuthToken: '…', // a restricted Discovery or Catalogue
     // bearerToken: '…',     // JWT sent as `Authorization: Bearer <jwt>` (plugin backendToken)
 });
 
-// Call any GraphQL API with string queries
-const { catalogue } = await api.catalogueApi(
-    `query Q($path: String!, $language: String!) {
-    catalogue(path: $path, language: $language) {
-      name
-      path
+// Catalogue reads go to Discovery. Leave optional variables out: Discovery rejects an explicit null.
+const { search } = await api.discoveryApi<{ search: { hits: { name: string; path: string }[] } }>(
+    `query ItemByPath($path: String!) {
+    search(language: en, filters: { path: { equals: $path } }, pagination: { limit: 1 }) {
+      hits { name path }
     }
   }`,
-    { path: "/shop", language: "en" },
+    { path: "/shop/plants" },
 );
 
 // Close when using HTTP/2 option
 api.close();
 ```
+
+`catalogueApi` is the fallback for one task, a specific customer's price-list prices for display (see [[query]]).
+`createCatalogueFetcher`, `createNavigationFetcher` and `createProductHydrater` are built on the Catalogue API, so
+they inherit that status: a storefront reads navigation and products from Discovery instead.
 
 ## Configuration
 
@@ -74,7 +81,7 @@ createClient(configuration, options?)
 | `tenantId`                            | Optional tenant ID                                                       |
 | `accessTokenId` / `accessTokenSecret` | For PIM/Shop operations                                                  |
 | `sessionId`                           | Alternative to token-based auth                                          |
-| `staticAuthToken`                     | For read-only catalogue/discovery                                        |
+| `staticAuthToken`                     | A restricted Discovery or Catalogue (server-side only)                   |
 | `bearerToken`                         | JWT forwarded as `Authorization: Bearer <jwt>` (a plugin `backendToken`) |
 | `shopApiToken`                        | A Shop API token; auto-fetched when omitted                              |
 | `shopApiStaging`                      | Use staging Shop API                                                     |
@@ -101,8 +108,8 @@ All callers share the same signature:
 
 | Caller                        | Purpose                                                                                                                                                                                   |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `catalogueApi`                | Catalogue GraphQL                                                                                                                                                                         |
-| `discoveryApi`                | Discovery GraphQL (search/browse)                                                                                                                                                         |
+| `catalogueApi`                | Catalogue GraphQL: fallback for per-customer price display                                                                                                                                |
+| `discoveryApi`                | Discovery GraphQL: every storefront catalogue read                                                                                                                                        |
 | `pimApi`                      | PIM GraphQL (legacy — prefer `nextPimApi`)                                                                                                                                                |
 | `nextPimApi`                  | PIM Next GraphQL (scoped to tenant, recommended)                                                                                                                                          |
 | `meApi`                       | Per-user GraphQL (`@me`) — call on behalf of the authenticated viewer                                                                                                                     |
@@ -157,6 +164,20 @@ who you are on `/@me`, which refuses a tenant-scoped access token. A bearer-only
 access token pair (it is sent instead of the pair) and a tenant-scoped pair all fail with
 `Could not fetch shop api token: …`.
 
+**Token lifetime: two defaults.** The client asks for `expiresIn: 3600 * 12` (12 hours) unless `shopApiToken.expiresIn`
+says otherwise; the API's own default, for a raw `POST …/auth/token` without `expiresIn`, is one day. The client posts
+to `…/@{tenant}/…`; the `@` is optional on the Shop API, so raw calls to `…/{tenant}/…` reach the same place.
+
+**Server only.** The Shop API's CORS refuses origins other than Crystallize's and localhost, and the token reads any
+customer's data, so keep every `shop*Api` caller and Shop helper in server code (route handlers, server actions,
+webhooks). One client per process is enough: it caches the token and refreshes it.
+
+**The Catalogue credential rides along.** The Shop API reads products from the Catalogue with the request's
+credentials. The Shop callers send the client's own credential header (by the priority under
+[Authentication](#authentication)) next to `Authorization: Bearer <shop token>`, so on a tenant whose Catalogue
+requires a static token, give the client that `staticAuthToken`, or the pair when the Catalogue requires the pair.
+`extraHeaders` never reaches the Shop callers. (Read from the 7.5.0 source.)
+
 ```typescript
 import { createCartManager, createClient, createShopOrderManager } from "@crystallize/js-api-client";
 
@@ -205,7 +226,11 @@ const read = await orders.fetch(order.id, { payments: { provider: true, transact
 - **`hydrate` takes a whole `context`.** Every `context` field above is required, or the client throws before calling.
   With no `context` at all, which only plain JavaScript allows, it sends the defaults: `en`, 30 days, `eur`, 0 decimals, the
   `default` price variant. The schema silently drops what it does not know, so `type`, `name`, `context.catalogue` and
-  `context.wishlist` never reach the API: use `shopCartApi` for those.
+  `context.wishlist` never reach the API: use `shopCartApi` for those. `context.catalogue` is not a credential: the API
+  takes `productVariantMaxAge` and `productVariantImages { maxCount, renditions { minWidth, maxWidth, formats } }`
+  there (introspected 2026-11-12).
+- **`hydrate` replaces the cart's items** with the list you send: send the whole basket every time, and batch client
+  changes into one call.
 - The cart manager also has `addSkuItem(id, item)`, `removeItem(id, { sku, quantity })`, `setMeta(id, { meta, merge })`
   (`merge` is required) and `setCustomer(id, customer)`. The rest of `/cart` (`addExternalItem`, `bookSkuItem`,
   `markAsWishlist`, `remove`, `orderIntent`, `carts`) has no helper: call it through `shopCartApi`.
@@ -233,6 +258,9 @@ const read = await orders.fetch(order.id, { payments: { provider: true, transact
 - `listByCustomer(identifier, { limit, skip })`, `setMeta(id, { meta, merge })`, `setCustomer(id, customer)` and
   `removeFromPipeline(id, pipeline)` complete the order manager. The `/order` `create` mutation (an order with no cart)
   has no helper: call it through `shopOrderApi`.
+- **`listByCustomer` reads a lagging store**: new orders appear after seconds to minutes and a few never did. Read
+  what you just wrote with `fetch(id)`, and never use the listing to decide whether an order already exists (see
+  [[query]]).
 
 ```typescript
 import { createShopCustomerManager, createShopLock } from "@crystallize/js-api-client";
@@ -271,12 +299,26 @@ if (await lock.acquire(`order-${cartId}`, 30)) {
 - **Lock keys keep only `a-z`, `0-9` and `-`**: any other character is dropped, so `Order:1` and `rder1` are the same
   lock.
 
-**Shop or Core?** An order made from a cart lives on the Shop API: create it with `createShopOrderManager`
-(`createFromCart`) and keep recording its payments there. `createOrderManager` writes Core orders (`register`,
-`update`, `setPayments`) — for orders that never had a cart (imports, POS, back office). A Core write on a Shop order
-is pushed back to the Shop order as a whole and can overwrite payments just set through the Shop API. The same split
-holds for customers (`createShopCustomerManager` vs `createCustomerManager`). The [payments skill](../payments/SKILL.md)
-shows the whole checkout.
+**Shop or Core?** Pick by who reads the order:
+
+- **A storefront, an account page or the Shop API lists it** (every cart checkout, and also POS sales, accepted quotes
+  and demo seeds): the Shop API. `createShopOrderManager.createFromCart` for a cart, raw `shopOrderApi` `create` for
+  an order without one, and every later write (payments, meta, stages) through the Shop API too.
+- **Nobody reads it from the edge** (an import into the back office): `createOrderManager.register` on Core. Each
+  later Core `update` of such an order adds **another copy** to the Shop store, and a Core write on a Shop order
+  overwrites it whole, payments included.
+
+The order store table in [[mutation]] (`shop-api-order-mutations.md`, "The Order Store and Core") is the rule. The
+same split holds for customers (`createShopCustomerManager` vs `createCustomerManager`). The
+[payments skill](../payments/SKILL.md) shows the whole checkout.
+
+**Subscription contracts and bookings have no Shop helper.** `createSubscriptionContractManager` and
+`createSubscriptionContractFetcher` are **Core** helpers. On a tenant whose contracts live on the Shop API (one store
+per tenant, see [[subscriptions]]), call `shopSubscriptionContractApi` raw, with a client whose `shopApiToken.scopes`
+are only `['subscription-contract', 'subscription-contract:admin']`, used for nothing else (a client unions the scopes
+of every endpoint it calls into one token): a token carrying every scope answered "Unexpected error" on `create`. `shopBookingApi` posts to `/booking`, which answers 404; call `/booking/admin` with
+your own `fetch` and a `booking:admin` token, and do holds and availability on `/cart` through `shopCartApi`
+([[bookable-resources]]).
 
 **Upgrading to 7.5:** nothing changes for `createClient` users. A hand-built `ClientInterface` (a typed test mock)
 needs the five new callers. Cart and Shop customer `birthDate` is now sent as an ISO string.
@@ -285,7 +327,7 @@ needs the five new callers. Cart and Shop customer `birthDate` is now sent as an
 
 | Auth Type                             | Header sent                                                           | Use Case                                                                               |
 | ------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `staticAuthToken`                     | `X-Crystallize-Static-Auth-Token: <token>`                            | Read-only catalogue/discovery                                                          |
+| `staticAuthToken`                     | `X-Crystallize-Static-Auth-Token: <token>`                            | A restricted Discovery or Catalogue; also sent on Shop calls (Catalogue hydrate)       |
 | `accessTokenId` + `accessTokenSecret` | `X-Crystallize-Access-Token-Id` + `X-Crystallize-Access-Token-Secret` | PIM/Shop operations                                                                    |
 | `sessionId`                           | `Cookie: connect.sid=<sessionId>`                                     | Alternative to token pair                                                              |
 | `bearerToken`                         | `Authorization: Bearer <jwt>`                                         | Plugins forward `envelope.backendToken`, the only JWT accepted; Core and PIM APIs only |
@@ -293,8 +335,10 @@ needs the five new callers. Cart and Shop customer `birthDate` is now sent as an
 
 **Priority** when multiple are set on the same client: `sessionId` > `bearerToken` > `staticAuthToken` > `accessTokenId`/`accessTokenSecret`. Only one is sent per request. Per-caller restrictions:
 
-- `discoveryApi` sends `bearerToken` or `staticAuthToken`, but Discovery reads only the static token: a bearer token is
-  ignored.
+- `discoveryApi` sends `bearerToken` or `staticAuthToken`, and **never the access token pair**. Discovery reads the
+  static token for a restricted tenant, and ignores a bearer token. Draft preview is a plain `discoveryApi` read with
+  `publicationState: draft`: on an open Discovery it needs no credential, which also means every draft is public. To
+  keep drafts private, restrict Discovery and give a server-only client the `staticAuthToken` (see [[query]]).
 - `catalogueApi` sends `bearerToken`, `staticAuthToken`, or `accessTokenId`/`accessTokenSecret`, but Catalogue reads only
   the credential the tenant requires, the static token or the pair: a bearer token is ignored.
 - `pimApi` and `nextPimApi` honor `sessionId`, `bearerToken`, and `accessTokenId`/`accessTokenSecret`.
