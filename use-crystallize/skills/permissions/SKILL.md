@@ -207,6 +207,16 @@ mutation CreateToken($tenantId: ID) {
 
 **Integrations run as a user.** Give each one a dedicated user, invited with a custom role that holds only what the integration needs, and sign in as that user to create the token. A person's token ties the integration to that person's role and account. Scope the token to the tenant, unless the integration also needs Shop API tokens: then leave it unscoped, and keep that user on a single tenant.
 
+### Storefront credentials
+
+A storefront is such an integration. Its server holds the credentials, and the browser holds none of them:
+
+- **Shop API**: an unscoped token pair on a dedicated user, used only on the server to mint the Shop API JWT from `POST https://shop-api.crystallize.com/{tenant}/auth/token`. A tenant-scoped pair is refused there (see above). The JWT is per tenant, not per shopper, so it never goes to the browser.
+- **Discovery and Catalogue**: no credential when open, or the static token when **Settings → API access** restricts them. Discovery is open by default, and an open Discovery serves everything it indexes to anyone, price variants and price lists included. Keep confidential terms out of it.
+- **Core**: never in the storefront's request path. Seeding, imports and webhook receivers use their own tenant-scoped pair.
+
+The API each storefront task uses is in [[storefront]]. Where these credentials come from on a new tenant is in [[agent-tenants]] ([tenant setup](../agent-tenants/references/tenant-setup.md#storefront-credentials)).
+
 ### Other credentials
 
 Only the Core and PIM APIs check role permissions.
@@ -284,7 +294,7 @@ Solution:
 2. Invite a dedicated user with this role, and sign in as them to generate a token scoped to the tenant
 3. Use this token in the job's API calls — even if compromised, it can't write data
 
-A storefront needs none of this: the Catalogue and Discovery APIs are read-only and do not use roles. Protect them with **Settings → API access** if they should not be public.
+A storefront needs none of this: the Catalogue and Discovery APIs are read-only and do not use roles. Protect them with **Settings → API access** if they should not be public. What it does need is an unscoped pair for Shop API tokens ([Storefront credentials](#storefront-credentials)).
 
 ## References
 
