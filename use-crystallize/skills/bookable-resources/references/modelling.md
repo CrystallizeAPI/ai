@@ -21,6 +21,15 @@ attribute — so the window is computed from data rather than from a hardcoded t
 Price tiers per period, currency per market and VAT all work as they do for any other variant — see
 [[pricing]].
 
+**Give each period variant its own image.** The admin's booking calendar shows the variant's image, not
+the product's, so rate-plan variants without one show blank tiles. (Boutique Universe build.)
+
+A window is one interval, so it may span the night: a 10-hour installation job booked Monday 07:00 to
+Tuesday 09:00 holds the team throughout. Counting working hours inside it is the storefront's job.
+
+For hires of arbitrary length, the variants can also be chained: see "`quantity` is units out of the
+pool" in [booking-flow](booking-flow.md#quantity-is-units-out-of-the-pool-not-the-length-of-the-window).
+
 ## Units are the real things
 
 A unit id should be the thing in the world: an asset tag, a room number, a registration number. Put
@@ -91,6 +100,10 @@ Discovery carries the **static** bookable configuration on the item:
 `bookable` also serves `policySnapshot { advanceWindow cancellationWindow … }`, so a calendar can be capped
 at the `advanceWindow` without a Shop call. Product shapes can filter, facet and sort on `bookable_kind`
 and `bookable_poolSize`, as in `filters: { bookable_kind: { equals: "units" } }`.
+
+A newly published bookable product on an already indexed shape appeared with its `bookable` pool about a
+minute after publish, with no ignite (Korsbakken build). A **new** shape, and in one build even a new folder
+on an existing shape, was not served until after `igniteDiscoApi` (Felleskjøpet build); see [[query]].
 
 **Discovery never serves availability.** Listing pages can say "5 machines, 3 depots" from `poolSize` and
 the pool; anything about a date is a Shop API call. Design the page so the calendar loads after the

@@ -37,11 +37,26 @@ slot reads `{ free: 0, bookable: true, reason: null }`: a calendar needs both.
   last visible day still fits.
 - **A run of open days does not prove the whole window is open.** Each slot is counted alone, so one unit
   can be free on Monday and another on Tuesday. Ask `checkBooking` before booking across several slots.
+- **The slots already include the policy's buffers, on both sides of every booking.** A booking 10:00–11:00
+  under a 15-minute buffer reads busy from 09:45 to 11:15 at 15-minute granularity: 09:45, because a new
+  booking ending at 10:00 would need its own buffer. So "this unit is free in every slot of
+  `[start, end)`" is the right admission test, and `bookSkuItem` refused exactly where the slots said busy.
+  (Korsbakken build, 2026-10.)
+- **Start the range on the booking grid, not on UTC midnight.** With `granularitySec: 86400` from UTC
+  midnight, a 07:00→07:00 Oslo hire falls into two slots, so every hire looks a day longer. Start the
+  range at the local period start (07:00) and the slots line up with the bookings. (Felleskjøpet build.)
 
 `nearestAvailability(productId, sku, around, durationSec, n, language)` answers "the next `n` windows of
 this length from this time" as `{ start, end }` — the right query behind a "next free slot" button. `n`
 defaults to 5, at most 100. It only walks forward, up to 30 days, in steps of `durationSec`: a 7-day
-window is tried once a week, not every day. A `durationSec` under 260 is refused.
+window is tried once a week, not every day. A `durationSec` under 260 is refused. The windows start at
+the time of day of `around`.
+
+**`nearestAvailability` knows no opening hours and searches the whole pool.** For a four-hour job it
+offered 16:00–20:00, and it takes no unit or region filter. Use it as a hint (jump the calendar to that
+week), then filter the slot starts to opening hours and to the units the shopper can use in code. Opening
+hours are not a booking concept; to make closed hours unbookable, `block` them on
+[`/booking/admin`](booking-admin.md#take-a-unit-out-of-service). (Korsbakken build.)
 
 `checkBooking(input: CartCheckBookingInput!)` is a dry run of one exact booking and returns
 `{ ok, reason }`, not a union. `reason` is `NotBookable`, `Conflict`, `InvalidRange` or `InvalidUnitId`:
@@ -93,7 +108,9 @@ mutation Book($id: UUID, $input: CartBookingItemInput!) {
 `bookSkuItem` is `addSkuItem` with a window: the line is priced from the SKU like any other line.
 
 **Check `__typename`.** The four refusals are results, not GraphQL errors, so a client that only looks at
-`errors` treats a refused booking as a success.
+`errors` treats a refused booking as a success. **Their `message` is only the type name**
+(`{ __typename: "ReservationConflict", message: "ReservationConflict" }`), apart from the cart-changed
+conflict below, so the storefront writes its own text per `__typename` and per language.
 
 ### `quantity` is units out of the pool, not the length of the window
 
@@ -111,7 +128,7 @@ So `quantity: 2` means _two machines_, or _two rooms_, for the same window — n
 nights". **Nothing in the booking inputs prices by duration.** A window twice as long costs the same
 unless the price says otherwise, and the price only comes from the SKU.
 
-Two ways out, and the first is the one to reach for:
+Three ways out, and the first is the one to reach for:
 
 1. **Sell the duration as variants** — a day SKU, a weekend SKU, a week SKU — and book the SKU whose
    length matches the window. See [modelling.md](modelling.md).
@@ -121,16 +138,34 @@ Two ways out, and the first is the one to reach for:
    `place` refuses a cart whose booked line went through `changeCartItemPricing` with `NotBookable`,
    even though the reservation itself survives it. A group discount works as a negative external line.
    (From the Boutique Universe build, a hotel on nightly rates.)
+3. **When period prices matter** (a weekend and a week cost less than seven days), chain period SKUs on
+   one unit: a 10-day hire is a weekend SKU plus a week SKU, the cheapest cover computed in the storefront,
+   booked back to back with one `bookSkuItem` each on the same `unitId`. This needs zero buffers and
+   periods that meet (every period 07:00→07:00). Each line carries its real SKU and price, a customer's
+   price list applies per line, and the calendar is blocked exactly. (Felleskjøpet build, machine hire.)
+
+`addExternalItem` needs the product on its variant: `variant: { price, product: { id, path } }`.
+Without `product` it fails with `Field "product" of required type "ProductInput!" was not provided`.
 
 **A `unitId` and `quantity: 1` belong together.** To hold two named units, book twice — once per unit.
 
 **A bookable SKU with no window is a plain line.** `addSkuItem`, or a `hydrate` line with no `booking`,
 reserves nothing, and `place` and `createFromCart` let it through: the order exists and the calendar never
-heard of it. Nothing warns you, so every line of a bookable product needs a `booking`.
+heard of it. That holds for every variant of a bookable product, not only the one you booked. Nothing
+warns you, so validate in the storefront that every line of a bookable product has a `booking`, unless
+you add such a line on purpose. The Korsbakken build did: one window for a set of installation jobs, booked
+on the first job's SKU, with the other jobs as plain lines tied to it by `meta`.
 
 **Put the customer on the cart before booking.** The reservation records who holds it at
-`bookSkuItem`/`hydrate` time, and only when the cart's customer has an identifier. Nothing sets it later.
-Create the cart with `hydrate(input: { customer, items: [] })`, or `setCustomer` before the first booking.
+`bookSkuItem`/`hydrate` time, and only when the cart's customer has an identifier. Nothing sets it later:
+`setCustomer` after `place` does not reach it. Create the cart with `hydrate(input: { customer, items: [] })`,
+or `setCustomer` before the first booking.
+
+**Seed bookings through the full flow too.** A seed that books, places and confirms with no customer and
+no order leaves reservations the admin shows as "No customer — admin-created / No order": 705 of them in
+the Boutique Universe build. The cart cannot cancel them once placed, and `clearBookable` + `setBookable`
+keep them. Cancel them on [`/booking/admin`](booking-admin.md) (`cancel`, `bulkCancel`), or better, seed
+with a customer, `createFromCart` and the second confirm, as a shopper would.
 
 **On `ReservationConflict`, walk the other `freeUnitIds`.** Between the availability query and the
 booking someone else may have taken that unit. The exception is a `message` that says the cart changed:
@@ -270,8 +305,19 @@ last one means a hold expired while payment was in flight; select its `missing` 
 is all or nothing: the surviving holds stay `PENDING`, and the shopper has to pick another window for
 the lost one.
 
-When payment is confirmed server-side by a gateway webhook, run the confirmation there rather than in the
-browser round trip.
+Every step here runs on the server: a server action for `place` and the first confirm, and the payment
+gateway's webhook for `createFromCart` and the second confirm (see [[payments]]). The browser holds only
+the cart id. The `cart.orderId` link took about 440 ms in one build and 500 ms in another, so the poll is
+required, not defensive.
+
+**Order meta comes from the cart.** `OrderFromCartInput` takes no `meta`; `createFromCart` copies the
+cart's meta onto the order. Write what the order needs (reference, the person who booked, the depot)
+with the cart's `setMeta` before `place`.
+
+**Give rentals their own pipeline** when the tenant also takes ordinary orders: pass both in
+`createFromCart`'s `pipelines` (ids, not names) — ordinary lines to an Orders pipeline, booked lines to a
+Rentals pipeline. Do not set `placeNewOrders: true` on the first stage of more than one pipeline: every
+new order then lands in all of them. (Tools Universe build.)
 
 **Do not call `fulfill`.** `createFromCart` already moves the cart to `ordered`, and the order id is the
 cart id.
@@ -311,3 +357,13 @@ cart id.
   pinned unit only. The order's `meta` adds `reservations`, a JSON string with one record per reservation,
   real unit included, which outlives the reservation itself. A `reservations.unconfirmed` key, there only
   when something went wrong, lists the ids no longer held. Watch for it: the order is created either way.
+- **The confirmation page needs no reservation lookup.** Each `reservations` record carries the id,
+  `unitId`, window, `state`, `frozenPolicy`, `customerId` and the line's meta, and `orderId` once the
+  second confirm has run. Read it from the order `createFromCart` returned, or from `order(id) { meta }`.
+  To verify `{ state: CONFIRMED, orderId }` server-side, `/booking/admin` `reservation(id)` reads any
+  reservation without its cart id.
+- **Self-service cancellation is yours to gate.** The cart refuses to cancel an ordered reservation, and
+  `/booking/admin` `cancel` ignores the cancellation window (it cancelled an ordered reservation in the
+  Korsbakken build). A "cancel my booking" action therefore checks, on the server, that the start is at
+  least `policySnapshot.cancellationWindow` seconds away and that the session's customer owns the order,
+  then calls `cancel`, then refunds through the payment provider.

@@ -57,8 +57,20 @@ Shop    createFromCart               the order. It only snapshots the reservatio
 Shop    confirmCartBooking           once the cart has its orderId (optionally also before payment)
 ```
 
-Everything a storefront does is on Discovery and the Shop API. **Core is for setup only** — policies,
-pools and publishing are admin-time work, never called from a storefront at runtime.
+## Which API does what
+
+| Task                                                         | API and endpoint                     | Who calls it                          |
+| ------------------------------------------------------------ | ------------------------------------ | ------------------------------------- |
+| The pool, unit meta and `policySnapshot` on a product page   | Discovery (`bookable { … }`)         | Storefront server, cached             |
+| Availability, `nearestAvailability`, `checkBooking`          | Shop API `/cart`                     | Storefront server, after the product  |
+| Hold, change, release; `place`; `confirmCartBooking`         | Shop API `/cart`                     | Storefront server, payment webhook    |
+| The order and its `reservations` snapshot                    | Shop API `/order` (`createFromCart`) | Payment webhook                       |
+| Read or cancel any reservation, maintenance blocks, calendar | Shop API `/booking/admin`            | Staff tools, server only              |
+| Policies, pools, `reapplyBookablePolicy`, publishing         | Core API                             | Setup scripts and admin, never a page |
+
+Everything a storefront does is on Discovery and the Shop API, and every Shop API call runs on the
+server (a server action or route): the Shop token never reaches the browser. **Core is for setup only.**
+Discovery never serves availability. The API contract for the whole storefront is in [[storefront]].
 
 ## Is this tenant bookable?
 
@@ -83,7 +95,31 @@ for the policies to find out whether this session can manage them:
 A connection means yes. `FORBIDDEN` means the role lacks the `bookingPolicies` permission. That
 usually happens on a custom role created before bookings existed, and it is fixed on the role, not in
 the query. Putting a pool on a product is a second permission: `setBookable`, `reapplyBookablePolicy`
-and `clearBookable` need `productBookable` on top of the right to edit the item.
+and `clearBookable` need `productBookable` on top of the right to edit the item. One earlier build
+(2026-09) got `ExperimentalFeaturesNotAvailableError` here instead: then booking is not enabled on that
+tenant, whatever the role.
+
+## Storefront rules
+
+Learned on four storefront builds (machine rental, a hotel, design appointments, machine hire). Each is
+detailed in [booking-flow](references/booking-flow.md).
+
+1. **Customer first, full flow, even for seeds.** A reservation records its customer only at
+   `bookSkuItem`/`hydrate`, and its order only from a `confirmCartBooking` after `createFromCart`.
+   Reservations seeded with `place` and a confirm, without a customer or an order, show "No customer / No
+   order" in the admin, and no cart call can repair them.
+2. **The availability buckets are the admission test.** They already include the policy's buffers on
+   both sides, so a window is free when every bucket of `[start, end)` has room.
+3. **Lay the day slots on the booking grid**, not on UTC midnight, or every hire looks a day longer.
+4. **Write the refusal text yourself.** A refusal's `message` is only its type name; branch on
+   `__typename`.
+5. **Validate bookable lines yourself.** A plain `addSkuItem` of any variant of a bookable product is
+   accepted, and nothing is reserved.
+6. **Build the confirmation page from the order.** Its meta carries a `reservations` snapshot, with
+   `orderId` after the second confirm. `OrderFromCartInput` has no `meta`: set it on the cart before `place`.
+7. **Enforce the cancellation window yourself after the order.** The cart cannot cancel an ordered
+   reservation, and `/booking/admin` `cancel` ignores the window. A "cancel my booking" page compares the
+   start with `policySnapshot.cancellationWindow` before it calls `cancel` on the server.
 
 ## Failure modes
 
@@ -107,6 +143,9 @@ rest name themselves.
 | `InvalidRange` on a date far ahead                           | The window is past the policy's `advanceWindow`                                  | Widen the policy, or cap the calendar at the shortest `advanceWindow` in the basket       |
 | `CancellationWindowClosed` when removing a basket line       | The window applies to holds that were never bought                               | Re-hydrate the cart without that line instead                                             |
 | `Unexpected error.` from `addCartItem` or `removeCartItem`   | They refuse a booking line                                                       | `hydrate` with the new quantity, or without the line                                      |
+| The calendar shows every hire one day longer                 | The `availability` range starts at UTC midnight, the periods at 07:00 local      | Start the range where the periods start                                                   |
+| "Next free slot" offers a time the shop is closed            | `nearestAvailability` knows no opening hours and searches the whole pool         | Use it as a hint; filter the starts to opening hours and units in code                    |
+| `Field "product" of required type "ProductInput!"`           | `addExternalItem` got a `variant` without `product`                              | Send `variant: { price, product: { id, path } }`                                          |
 | `BookablePoolKindChangeError`                                | Capacity → units while a capacity pool is published                              | `clearBookable`, publish, cancel or wait out open reservations, then set units            |
 | `BookingPolicyInUseError` on delete                          | Products still reference the policy (`stats.referencingProductCount`)            | Move those products to another policy and publish them                                    |
 
@@ -119,7 +158,9 @@ rest name themselves.
 - [references/booking-admin.md](references/booking-admin.md) — Shop API `/booking/admin`: maintenance
   blocks, the reservation calendar and list, moving a reservation to another unit.
 - [references/modelling.md](references/modelling.md) — periods as variants, units as real machines,
-  what Discovery serves, and how a rental relates to the product it is a rental of.
+  multi-day hires, what Discovery serves, and how a rental relates to the product it is a rental of.
 
-Related: [[mutation]] for the Core API mutations themselves, [[query]] for Discovery and the Shop API
-query surface, [[pricing]] for what a booked variant costs.
+Related: [[storefront]] for the API contract and the checkout request path, [[mutation]] for the Core API
+mutations themselves, [[query]] for Discovery and the Shop API query surface, [[pricing]] for what a
+booked variant costs, [[payments]] for the payment webhook that creates the order, and
+[[agentic-commerce]] for bookings made by an agent.
