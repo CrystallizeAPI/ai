@@ -173,6 +173,17 @@ labelled **EXPERIMENTAL**. What differs:
   `{ identifier, periodId }` — no `periodName`. `period` and `unit` have no default here: send them.
 - `create` checks the SKU, plan, period and metered variables against the **published** Catalogue in
   `context.language` (`en` if omitted). A draft-only product fails, with no more than "Unexpected error".
+- **Mint a token for this route family alone.** A token requested with every Shop scope reads
+  `/subscription-contract` fine, but `create` answers only "Unexpected error". The same call with a token
+  scoped to `subscription-contract` and `subscription-contract:admin` works. Cache one token per route
+  family on the server.
+- **Select only `id` from `create`.** Selecting `status { … }` in the response fails the request with
+  "Unexpected error", although the contract is created. A retry then makes a duplicate, so read the status
+  in a second query, and make retries check `meta` for your own key first.
+- **The contract you read back has no `item` and no `plan`.** The Shop `SubscriptionContract` type has
+  neither field (introspected 2026-11-12), so write the SKU, the plan identifier and the period into `meta`
+  at `create` if the account page shows them. `recurring.productVariants` is served.
+- `signedAt` on `create` back-dates, which suits "subscriber since" history.
 - The lifecycle behaves as above (`pause`, `resume`, `renew`, `cancel`, `deactivate`, `changeDates`),
   with three differences: `resume` after a cancel is silently ignored, `renew` on a paused contract makes
   it `active` (on Core it stays `paused`), and the only way to change what is billed is

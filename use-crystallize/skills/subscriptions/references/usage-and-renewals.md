@@ -70,6 +70,7 @@ usage(periodStart, now)                  the meter for the period that just ende
 price the tiers yourself                 graduated: (usage − threshold) × the tier's price, per tier
 charge                                   your payment provider; Crystallize takes no money
 registerOrder                            the invoice: plan line + an overage line so the total adds up
+                                         (Shop store: orderIntent(format: shop) → /order create, below)
 update meta.periodStart (and tier)       that same now, and nextTier → tier if it changed
 ```
 
@@ -89,7 +90,7 @@ update meta.periodStart (and tier)       that same now, and nextTier → tier if
 - **For a safety net against a missed webhook**, keep the `renewAt` you last billed in `meta` and sweep
   the contracts for any that have moved past it. There is no `renewAt` filter, so page through them.
 
-`registerOrder` writes the invoice. The shape that worked:
+On a Core-store tenant, `registerOrder` writes the invoice. The shape that worked:
 
 ```json
 {
@@ -136,10 +137,37 @@ It is a preview, not a charge. **`usage` is always 0** and `price` is the first 
 tracked in Core, and `format` only labels the result: the shape is the same. Treat it as a template to
 render, not as a source of truth for money.
 
-**`createFromSubscriptionContract` on the Shop `/order` endpoint is not implemented**: it is in the
-schema, and every call fails with "Unexpected error". A Shop `/order` `create` with a `type: subscription`
-line does work, but the metered `price` is **not** added to the order total. For renewal invoices, Core
-`registerOrder` is the path that held up.
+### Renewal orders per store
+
+Write the renewal order in the store that holds the contracts, so the account page lists it where it
+lists the rest of the customer's orders (see "pick one store" in the main skill).
+
+| Contracts in | Renewal order                                                             | Evidence                      |
+| ------------ | ------------------------------------------------------------------------- | ----------------------------- |
+| Core         | Core `registerOrder`, as above                                            | Screen Universe, every period |
+| Shop API     | `orderIntent(id, format: shop) { order }`, then `/order` `create` with it | Wee, standing-order renewals  |
+
+**`createFromSubscriptionContract` on the Shop `/order` endpoint does not work**: it is in the schema, and
+every call failed with "Unexpected error" on two tenants — trial, renewed, cancelled and basic contracts,
+with and without an initial phase, with `productVariants`, before and after an ignite. Use `orderIntent`
+instead: its `order` has `type: recurring`, the customer, the context and the lines with
+`subscriptionContractId` and the period's `subscription { start end period unit }`. Pass it to `create`
+with what it lacks, in the same write: `pipelines` (ids), `payments`, `paymentStatus`, and `meta` with
+your idempotency key (`renewalOf = <contract>:<renewAt>`).
+
+Two things to add yourself, because a Shop `create` does not:
+
+- **The metered charge.** The metered `price` inside `subscription.meteredVariables` is not added to the
+  total. Price the usage yourself (it is tracked on the Core copy, see [contracts](contracts.md#the-shop-api-endpoint)) and add it as its own
+  `type: service` line, with a `total` that includes it.
+- **The date, if you back-date.** Shop `create` ignored `createdAt` on one tenant and honoured it on
+  another; keep the intended date in `meta` (`orderedAt`) as well.
+
+Guard the webhook handler with the Shop API's `/lock` endpoint (`acquire(key, ttl)`, `release(key)`, scope
+`lock`), keyed on the contract and its `renewAt`, so two deliveries of one `renew` do not write two orders.
+Never use the order listing for that check: `orders(customerIdentifier:)` lags seconds to minutes behind
+`create`. In Screen Universe, Shop renewal orders kept `coreId: null` and never reached Core, which is
+fine on a Shop-store tenant and one more reason not to mix stores.
 
 ## Webhooks
 
