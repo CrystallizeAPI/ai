@@ -22,7 +22,10 @@ See the [Shop API Queries Reference](shop-api-queries.md) for token generation d
 
 ## Get a Single Order
 
-Retrieve an order by its Shop API UUID. An unknown id answers a GraphQL error, not `null`.
+Retrieve an order by its Shop API UUID. The argument is `UUID!`: a variable typed `ID` or `String` fails validation.
+An unknown id answers a GraphQL error, not `null`, and so can an order created a moment ago, so a confirmation page
+shows the order that `createFromCart` returned and retries `order(id:)` rather than reporting "not found". Several
+orders by id in one request (one alias each) worked well.
 
 ```graphql
 query GetOrder($id: UUID!) {
@@ -171,7 +174,26 @@ without being the last: `limit: 10` returned 5 orders and then 4 for a customer 
 build. Ask for everything a customer has in one page (`limit: 100`) rather than walking pages.
 
 For a company or a department there is no query by parent: read the people's orders and filter on your
-own `meta` (the ordering person, the cost centre).
+own `meta` (the ordering person, the cost centre). A seller or approval queue across customers is a back-office
+read: Core `orders(filter: { meta, pipelineStageIds, customer })` behind staff login, or an index fed by webhooks.
+
+### The listing lags, and is sometimes incomplete
+
+`orders(customerIdentifier:)` reads a second, eventually consistent store. Seen on five builds:
+
+- New orders appear after **seconds to minutes**. Six orders created one at a time all listed after about 60 s.
+- **Some never appear.** 47 orders created at concurrency 4: Core had all 47, the listing showed 29 and stayed there
+  (Felleskjøpet). Two hours after an import, `limit: 100` returned 6 of 8 and 4 of 5 orders for two customers
+  (WoolLand).
+- `coreId` is `null` on some orders that have reached Core.
+
+So:
+
+1. **Read what you just wrote by id**, never through the listing.
+2. **Never use the listing for idempotency** (has this seed or webhook already created the order?): it creates
+   duplicates on a quick rerun. Key on your own meta (`seedRef`) checked by id, keep a ledger, or take a `/lock`.
+3. The confirmation page and order history say that a new order can take a moment to appear.
+4. A seed checks the listing per customer afterwards and recreates what is missing, rather than trusting one pass.
 
 ## The Order Store and Core
 
@@ -198,13 +220,21 @@ So a storefront that lists orders with the Shop API should have them **created**
 stages** there. Seed demo orders with the Shop API, not with `registerOrder`: orders registered in Core
 showed up in the Shop store only sometimes. (Tools Universe.)
 
-Two smaller consequences:
+Smaller consequences:
 
 - **`pipelines` comes back as identifiers only** (`{ identifier, stage }`). A storefront that shows a
-  stage name has to map the ids to names itself; the names live in the admin APIs, so resolve them at
-  build or seed time rather than at runtime.
+  stage name maps the ids to names itself: read them with PIM `pipeline.getMany` at **build time** and write
+  them into the storefront's data, never at runtime.
 - **`coreId` can read `null`** on an order created with Shop `create` even after it has reached Core.
   Don't treat a null `coreId` as "not synced yet".
+- **`meta` is a JSON object** `{ key: value }`, on orders and on lines, although it is written as `[{ key, value }]`.
+- **An order line's `imageUrl` is a rendition** (`…/@200/x.jpeg`). Strip the `@<width>` segment before deriving
+  another size.
+- **Orders of type `test` count toward a promotion's `maxUsagePerCustomer`**, and Shop orders can't be deleted, so
+  never test with a demo persona's identifier.
+- **Renewal orders** of subscription contracts land in the store that holds the contracts: see [[subscriptions]].
+- **Does Core `deleteOrder` reach the Shop store?** Observed both ways: two builds saw the Shop copy stay, one saw it
+  disappear from the listing within a minute. Verify on your tenant before relying on either.
 
 ## Order Response Types
 

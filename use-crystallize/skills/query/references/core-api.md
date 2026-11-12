@@ -49,11 +49,10 @@ curl -X POST 'https://api.crystallize.com/@your-tenant' \
 - Customer management
 - Bulk data access
 
-**Use Discovery/Catalogue API for:**
-
-- Storefront product listings
-- Search and filtering
-- Public content access
+**Never in a storefront's request path.** Core is heavily rate limited, so it runs in seeds, imports, scheduled
+jobs, webhook receivers and admin or seller tools behind staff login, on your own server. A storefront reads the
+catalogue from Discovery and shopper data (carts, orders, customers) from the Shop API; see the contract in
+[[storefront]] and the query skill's SKILL.md.
 
 ## Reading a Core Response
 
