@@ -26,16 +26,31 @@ Use pieces for content that:
 
 ### Standard SEO Piece
 
-A reusable piece for SEO metadata, commonly added to products, folders (landing pages), and documents (articles):
+One SEO piece for the whole model, referenced from every product, folder and document shape that has a page:
 
 ```json
 {
     "identifier": "seo",
     "name": "SEO",
     "components": [
-        { "id": "title", "name": "Title", "type": "singleLine" },
-        { "id": "description", "name": "Description", "type": "richText" },
-        { "id": "image", "name": "Image", "type": "images" }
+        {
+            "id": "title",
+            "name": "Title",
+            "type": "singleLine",
+            "config": { "singleLine": { "multilingual": true, "discoverable": true, "max": 70 } }
+        },
+        {
+            "id": "description",
+            "name": "Description",
+            "type": "singleLine",
+            "config": { "singleLine": { "multilingual": true, "discoverable": true, "max": 160 } }
+        },
+        {
+            "id": "image",
+            "name": "Image",
+            "type": "images",
+            "config": { "images": { "discoverable": true, "max": 1 } }
+        }
     ]
 }
 ```
@@ -51,19 +66,19 @@ Usage in a shape:
 }
 ```
 
-### SEO Metadata
-
-Standard SEO fields for all content:
-
-```
-SEO Metadata (Piece)
-├── Meta Title (Single Line)
-├── Meta Description (Rich Text, max 160 chars)
-├── OG Image (Images, single)
-├── OG Title (Single Line)
-├── Canonical URL (Single Line)
-└── No Index (Boolean)
-```
+- **Plain text, not rich text.** The description goes into `<meta name="description">`, Open Graph and JSON-LD, which
+  take plain text. A Single Line keeps editors from adding formatting that would be stripped or leak as markup.
+- **No canonical URL field.** Canonicals and hreflang come from the item's generated paths (see
+  [[information-architecture]]). A typed canonical goes stale on the first rename, and nothing warns.
+- **No separate OG title or OG image.** `title` and `image` serve both. Add a field only when editors really need a
+  different value for social sharing.
+- **Discoverable, explicitly.** A storefront that reads only Discovery loses every field that isn't indexed, so set
+  `discoverable: true` on each component rather than relying on the default.
+- **Always have a fallback.** Most items will leave the piece empty. Fall back in a fixed order, for example: the SEO
+  title, then the item name; the SEO description, then the item's lead text (a tagline or intro), then a sentence
+  built from typed specs; the SEO image, then the first product image. See [[seo-geo]].
+- **Indexing rules are the storefront's job.** A `noindex` switch is only worth adding when editors decide it per
+  item; search results and filtered views get `noindex` or a canonical from the storefront's own rules.
 
 ### Environmental Impact
 
