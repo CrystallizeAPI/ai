@@ -129,6 +129,11 @@ entity, or with a `fetch*` helper (`references/templating.md`).
 
 `image/register` skips the operation if an image already carries that `resourceIdentifier`, but it does not
 write the field and no public API sets it on an image, so that match does not happen in practice.
+Observed otherwise on one tenant (2026-10): a re-run of `image/register` with an already-used
+resourceIdentifier was skipped with no log entry, so its key was lost, and `{{ upload url rid }}` without the
+operation-level `resourceIdentifier` returned the existing key. Treat this as unsettled: keep your own
+url → key cache, and to recover a lost key run `image/register` with `{{ upload url rid }}` and no
+operation-level `resourceIdentifier`, which logs the key.
 
 ## Which upserts are idempotent
 
@@ -158,7 +163,8 @@ doesn't exist create a new record under a generated id, not yours.
 ## Properties exposed to `_ref`
 
 An operation's `_ref` output is the normalised result of the command it ran. The same value is stored
-in `OperationLog.output`, which is the authoritative view. A failed or skipped operation stores `{}`.
+in `OperationLog.output` under `value` (`{ value: { id } }`), which is the authoritative view. A failed or
+skipped operation stores `{}`.
 
 **Verified** (at `version: "1.0.0"`):
 
@@ -263,6 +269,9 @@ counting the whole subtree; **50 items** per `item/flow/stage/addItems`; **500 c
     - `product/variant/price/modify` is flat: on a tiered price it replaces the whole ladder with one price.
 - **`variant.topicIds` is silently dropped.** Also stripped by the schema, and _not_ re-attached.
   Assign variant topics another way.
+- **The image showcase hotspot is spelled `hotpost`** in the mass-operation schema (`showcase[].hotpost { x, y }`),
+  where the Core API says `hotspot`. Use the schema's spelling here, or write showcases with Core `updateImage` or
+  item component content. See [[media]].
 - **`item/updateComponent/item` runs with content validation disabled.** Component content is
   written without validation, so malformed content lands silently. `item/updateComponent/sku` does
   not disable it.
