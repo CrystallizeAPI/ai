@@ -1,13 +1,17 @@
 ---
 name: agent-tenants
 description: >
-    Get a Crystallize tenant as an AI agent, for a user who has no Crystallize account, and hand it over
-    to them before it expires. Use when the user has no tenant or no access token and wants the agent to
-    set one up, asks for a sandbox or demo tenant, or wants an agent-made tenant handed over, claimed or
-    kept. Trigger on "create a tenant", "new tenant", "set up Crystallize for me", "I don't have a
+    Get a Crystallize tenant as an AI agent, for a user who has no Crystallize account, hand it over
+    to them before it expires, and get any new tenant ready to serve a storefront. Use when the user has no
+    tenant or no access token and wants the agent to set one up, asks for a sandbox or demo tenant, or wants
+    an agent-made tenant handed over, claimed or kept. Also use when setting up languages, the default
+    language, VAT types, price variants, stock locations, pipelines, markets or webhooks on a new tenant,
+    asking "which API creates X" (Core or the legacy PIM API), running the first Discovery ignite, debugging
+    "There is no ignited Tenant", getting storefront credentials, or wiring publish webhooks for cache
+    revalidation. Trigger on "create a tenant", "new tenant", "set up Crystallize for me", "I don't have a
     Crystallize account", "sign up", "provision", "agent tenant", "/agents/tenants", "hand over the
     tenant", "claim the tenant", "invite me", "createInviteToken", "tenantAdmin", "get-access", "tenant
-    expires", "tenant deleted".
+    expires", "tenant deleted", "tenant setup", "igniteDiscoApi", "createWebhook".
 metadata:
     author: Crystallize
     version: "1.0"
@@ -40,9 +44,11 @@ send them one link.
 3  Invite      createInviteToken(role: "tenantAdmin")  → invite token
 4  Hand off    the App's /get-access?token=… link      → the human joins as tenantAdmin
 5  Check       the tenant's members on the PIM API     → a human tenantAdmin = claimed
+6  Serve       publish, igniteDiscoApi, credentials    → a storefront can read it
 ```
 
-Only step 1 is specific to agents. Steps 2 to 5 are the API a human tenant admin already uses.
+Only step 1 is specific to agents. Steps 2 to 6 are the API a human tenant admin already uses, and step 6 applies
+to every new tenant.
 
 | Used for                  | Host                                  |
 | ------------------------- | ------------------------------------- |
@@ -232,6 +238,25 @@ Variables: `{ "id": "6adbb89b790dd26b73debb6b" }` (the `tenant.id` from step 1).
 only member is the agent: `role: "tenantAdmin"`, `firstName: "Agent"`, `email: null`, `kind: "agent"`. Once
 they join, a second member appears with `role: "tenantAdmin"` and `kind: "human"`, with their name and email.
 
+## 6 · Get it ready to serve
+
+A built tenant is not yet one a storefront can read. Do this before you hand over, or tell the user what is left:
+
+1. **Settings first.** Languages, the default language, VAT types, price variants, stock locations and pipelines
+   are split between the Core API and the legacy PIM API (same token headers). A fresh tenant already has `en`, a
+   `No Tax` VAT type, a `default` price variant in EUR and a `default` stock location.
+2. **Publish** the items. Discovery indexes only published content, and `publishItem` returns before the item is
+   published.
+3. **Ignite Discovery** once with `igniteDiscoApi(stacks: opensearch)` on the Core API. Until then Discovery answers
+   HTTP 404 with "There is no ignited Tenant" in a plain JSON body. Ignite again after new shapes, components, stock
+   locations or vocabularies.
+4. **Credentials.** The storefront's server needs the static token if Discovery or Catalogue is restricted, and an
+   access token pair that is **not tenant-scoped** to mint Shop API tokens. Core stays out of the request path.
+5. **Publish webhooks** (`concern: "items"`, plural) if the storefront caches Discovery reads.
+
+Every setting with its API and call, the `getMany` answer shapes, the ignite, the credentials table and a webhook
+example are in [references/tenant-setup.md](references/tenant-setup.md). The storefront side is in [[storefront]].
+
 ## Rules
 
 | Topic               | Rule                                                                                                                                                                                |
@@ -278,5 +303,6 @@ GraphQL calls answer HTTP 200 with the error inside the result union (`__typenam
 | An invite with no `expiresAt`, or one past the tenant's     | A link that still looks valid after the tenant is gone            | Pass the tenant's `expiresAt`                                                  |
 | Giving the link without the deadline                        | The user opens it on day four and finds nothing                   | Always state the date and time with the link                                   |
 | Saying "it's yours, nothing to transfer" after provisioning | The user never opens the invite, and the tenant is deleted        | The tenant is the agent's until a human `tenantAdmin` joins                    |
+| Handing over without publishing and igniting                | The storefront gets "There is no ignited Tenant" or no hits       | Publish, `igniteDiscoApi(stacks: opensearch)`, then hand over (step 6)         |
 
 Related: [[permissions]] for roles and access tokens once the human owns the tenant.
