@@ -6,10 +6,11 @@ description: >
     session from the placed cart, verifying webhooks, creating exactly one order per cart, recording payments, and
     capture, refund and cancellation from fulfilment pipelines. Use when adding a payment provider or method to a
     Crystallize storefront, building or fixing checkout payment or a payment webhook, stopping duplicate or unpaid
-    orders, a cart changed after paying (two tabs, back button), capturing on shipment or refunding. Trigger on
-    "payment", "payment gateway", "payment webhook", "capture", "refund", "place cart", "lock the cart",
-    "duplicate order", "paymentStatus", "addPayments", "setPayments", "createFromCart", "Stripe", "Adyen", "Klarna",
-    "Qliro", "Dintero", "Vipps", "MobilePay", "Mollie", "Montonio", "QuickPay", "Two", "Razorpay", "B2B invoice".
+    orders, a cart changed after paying (two tabs, back button), capturing on shipment or refunding, or a checkout
+    started by an AI agent. Trigger on "payment", "payment gateway", "payment webhook", "capture", "refund",
+    "place cart", "lock the cart", "duplicate order", "paymentStatus", "addPayments", "setPayments",
+    "createFromCart", "Stripe", "Adyen", "Klarna", "Qliro", "Dintero", "Vipps", "MobilePay", "Mollie", "Montonio",
+    "QuickPay", "Two", "Razorpay", "B2B invoice", "agent checkout", "MCP checkout", "cart hand-off".
 metadata:
     author: Crystallize
     version: "2.0"
@@ -44,7 +45,7 @@ only a server-to-server notification you have verified (most gateways sign them)
 fetched from the gateway yourself proves a payment. On Crystallize that becomes:
 
 ```text
-Storefront    hydrate → set customer, shipping, selections     everything the order needs, on the cart
+Server        hydrate → set customer, shipping, selections     everything the order needs, on the cart
 Shop /cart    place                                            cart frozen; place's total = what you charge
 Server        create provider session / intent                 amount from place, cart id as the reference
 Browser       pay                                              provider's hosted page or embedded component
@@ -144,7 +145,8 @@ The same skeleton for every provider:
    unless it is protected by a signed token.
 3. **Decide by the provider's status** (paid, authorized, pending, failed — the reference has the table).
    Pending and failed create nothing.
-4. **`createOrderOnce`**: reads the cart, creates the Core customer if needed, and calls `createFromCart` once.
+4. **`createOrderOnce`**: reads the cart, creates the Shop customer (synced to Core) if needed, and calls
+   `createFromCart` once.
    Deliveries that collide in the same instant are a trade-off: see
    [Serialising order writes](#serialising-order-writes-optional).
 5. **Answer fast.** 2xx when done or deliberately ignored; **5xx when it failed on your side**, so the
@@ -238,7 +240,7 @@ import { createShopLock } from "@crystallize/js-api-client";
 const lock = createShopLock(api);
 
 export async function withCartLock<T>(cartId: string, work: () => Promise<T>): Promise<T> {
-    const key = `order:${cartId}`;
+    const key = `order-${cartId}`; // lock keys keep only a-z, 0-9 and -: a colon would be dropped
     if (!(await lock.acquire(key, 60))) throw new RetryLater(`cart ${cartId} is being processed`); // → 5xx, retry
     try {
         return await work();
@@ -330,6 +332,11 @@ deal with both traps below; before any other Shop write to the order (`setMeta`,
   payments read `provider: "custom"`, and writing them back would put that on the Core record too. The helpers keep
   the real name in `meta` as `gateway` and restore it.
 
+**These Core reads are webhook code, not page code**: fine in a payment or stage webhook, never in a storefront
+request (the Pay route and return page use only the Shop API). To keep Core off the payment path entirely, move
+stages only through Shop `addToStage` (not the App), so `syncStages` has nothing to copy, and read the provider,
+`transactionId` and `state` from Shop `order(id)` (the cart id), its payment records and `meta`.
+
 ## Capture on shipment, from fulfilment pipelines
 
 Payment is the end of checkout and the start of the order's life. Put orders in a
@@ -408,6 +415,22 @@ invocation until someone presses **Retry** on it (Settings → Webhooks, or `ret
 Unlike a provider's webhook, a 5xx here retries nothing: subscribe a second webhook to concern **Webhooks**, event
 **Invocation failed**, to alert someone, or have a scheduled job re-check orders in the stage whose record is still
 `authorized`. Retrying is safe: `capture` is idempotent in every reference.
+
+## Checkout started by an agent
+
+An AI agent (an MCP server, an on-site assistant) builds the basket through tools, with no browser and no cookies.
+Two stores settled on this (see [[agentic-commerce]]):
+
+- **The cart id is the session.** The first cart tool `hydrate`s without an id and returns the `cartId`; later calls
+  pass it back. Keep no server state; the shopper comes from the call's own credentials (an OAuth token).
+- **The browser pays.** The tool returns a URL on your domain with the `cartId` and, when signed in, a short-lived
+  signed token for that shopper and cart (`/mcp/cart?id=…&as=<jwt>`). The route checks the cart is still in state
+  `cart` and the token names it, sets the cart cookie and the session, and redirects to the cart page. Then the
+  ordinary flow runs: `place`, the provider session, the webhook. An unsigned `as=` lets anyone shop as anyone.
+- **An agent never pays.** A `checkout` tool that orders by itself is marked destructive (`destructiveHint: true`) and
+  limited to methods that move no money at once, such as invoice or a quote for signed-in trade buyers. It runs the
+  server flow (`setCustomer`, cart `setMeta`, `place`, `createFromCart` with `paymentStatus: "unpaid"`), records later
+  payments with `addPayments`, and confirms bookings after the order, as in [[bookable-resources]].
 
 ## Choosing a provider
 

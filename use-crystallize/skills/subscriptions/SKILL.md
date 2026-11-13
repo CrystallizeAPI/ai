@@ -69,8 +69,19 @@ addressed through the Shop API at all.
   Core is rate limited and is not meant for storefront traffic, so put it behind your own server actions
   or API routes — never in a browser call, and never once per page view.
 - **Shop API for everything** when the storefront itself creates and changes contracts for the customer
-  in front of it, as Lab Universe does for standing orders. Then never create contracts for those
-  customers in Core.
+  in front of it, as Lab Universe and a third build do for standing orders. Then never create
+  contracts for those customers in Core. Metering still needs the Core copy; see
+  [contracts](references/contracts.md#the-shop-api-endpoint).
+
+Either way the calls run on the server — a server action, an API route, a webhook receiver. The Shop
+token and the Core token pair never reach the browser. The [[query]] and [[mutation]] skills defer to
+this choice; [[storefront]] has the API contract around it.
+
+**Renewal orders follow the store.** On a Core-store tenant, write them with Core `registerOrder`. On a
+Shop-store tenant, write them with the Shop API: read `orderIntent(id, format: shop)` and pass its order to
+`/order` `create`, so the order sits in the same store as the storefront's order history. Shop
+`createFromSubscriptionContract` is in the schema but failed on every contract on two tenants. See
+[usage-and-renewals](references/usage-and-renewals.md#renewal-orders-per-store).
 
 ## The pipeline
 
@@ -79,8 +90,8 @@ PIM     subscriptionPlan.create      periods and metered variables — the ids a
 Core    createProduct / updateProduct   variant prices per plan period and price variant
 Core    igniteDiscoApi               so the storefront can read the plan cards from Discovery
 Core    createCustomer               Core contracts need a customer; the Shop endpoint does not
-Core    createSubscriptionContract   the agreement: item, phases, dates, meta
-Core    registerOrder                the receipt for the first period (0 for a trial)
+Core    createSubscriptionContract   the agreement: item, phases, dates, meta   (Shop store: Shop create)
+Core    registerOrder                the receipt for the first period (Shop store: Shop /order create)
 Core    trackSubscriptionContractUsage   every metered event, with an idempotency key
 … then, every period, per contract ………………………………………………………………………
 Crystallize  renewalDue webhook      a week and a day before renewAt
@@ -88,6 +99,7 @@ Crystallize  renews the contract     at renewAt: dates move one period on, renew
 Core    usage(startDate, endDate)    the meter for the period that just ended
 you     charge                       your payment provider; Crystallize takes no money
 Core    registerOrder                the invoice: plan line + overage line, priced by you
+                                     (Shop store: orderIntent(format: shop) → /order create)
 Core    updateSubscriptionContract   meta.periodStart, so the next meter window starts here
 ```
 
@@ -114,21 +126,25 @@ Two rules follow, and both bite:
 
 ## Failure modes
 
-| Symptom                                                         | Cause                                                               | Fix                                                                                        |
-| --------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Nothing is charged and no order appears at `renewAt`            | There is no billing engine                                          | Bill from the `renew` webhook — see [usage-and-renewals](references/usage-and-renewals.md) |
-| `renewAt` moved two periods                                     | A job called `renewSubscriptionContract` after the platform renewed | Never renew what is already due; only bill it                                              |
-| A paused customer gets charged                                  | `renew` and `renewalDue` fire for paused contracts too              | Check `status.state` before charging                                                       |
-| A brand-new contract reads `cancelled`                          | `activeUntil` missing (Shop: also when only `renewAt` was sent)     | Send both; for a trial set both to the trial's end                                         |
-| `subscriptionContracts` errors on one element, the rest is data | A contract reached the Shop store under its Core id                 | Use one store; read with partial results in the meantime                                   |
-| A Shop `pause`/`renew` is not on the Core copy yet              | The copies sync asynchronously                                      | Don't read one store to confirm a write to the other                                       |
-| Usage tracked but the invoice has no overage                    | Nothing prices usage for you                                        | Read `usage(…)`, price the tiers yourself, add an overage line                             |
-| A trial shows the full price on the plan card                   | Discovery's `initial` repeats `recurring`                           | Read the trial from the plan (PIM, server-side), Catalogue or your own config              |
-| `MeteredVariableNotFoundError` when tracking                    | The metered variable's **id** was sent                              | Track by `identifier`                                                                      |
-| Variant prices or contracts stop resolving after a plan edit    | `subscriptionPlan.update` without ids mints new period ids          | Always pass the existing `id`s back                                                        |
-| A resumed contract lost the time it spent paused                | Pause freezes nothing; renewals kept rolling the dates              | On resume, set `renewAt`/`activeUntil` to now plus what was left                           |
-| A `state` filter misses contracts that ran out                  | The filter reads the state stored at the last write                 | Compare the dates yourself                                                                 |
-| `InvalidActiveUntilDateError` while seeding history             | Core refuses dates in the past (`InvalidRenewAtDateError` too)      | Back-date `signedAt` and the orders instead                                                |
+| Symptom                                                         | Cause                                                                | Fix                                                                                        |
+| --------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Nothing is charged and no order appears at `renewAt`            | There is no billing engine                                           | Bill from the `renew` webhook — see [usage-and-renewals](references/usage-and-renewals.md) |
+| `renewAt` moved two periods                                     | A job called `renewSubscriptionContract` after the platform renewed  | Never renew what is already due; only bill it                                              |
+| A paused customer gets charged                                  | `renew` and `renewalDue` fire for paused contracts too               | Check `status.state` before charging                                                       |
+| A brand-new contract reads `cancelled`                          | `activeUntil` missing (Shop: also when only `renewAt` was sent)      | Send both; for a trial set both to the trial's end                                         |
+| `subscriptionContracts` errors on one element, the rest is data | A contract reached the Shop store under its Core id                  | Use one store; read with partial results in the meantime                                   |
+| A Shop `pause`/`renew` is not on the Core copy yet              | The copies sync asynchronously                                       | Don't read one store to confirm a write to the other                                       |
+| Usage tracked but the invoice has no overage                    | Nothing prices usage for you                                         | Read `usage(…)`, price the tiers yourself, add an overage line                             |
+| A trial shows the full price on the plan card                   | Discovery's `initial` repeats `recurring`                            | Read the trial from the plan (PIM, server-side), Catalogue or your own config              |
+| `MeteredVariableNotFoundError` when tracking                    | The metered variable's **id** was sent                               | Track by `identifier`                                                                      |
+| Variant prices or contracts stop resolving after a plan edit    | `subscriptionPlan.update` without ids mints new period ids           | Always pass the existing `id`s back                                                        |
+| A resumed contract lost the time it spent paused                | Pause freezes nothing; renewals kept rolling the dates               | On resume, set `renewAt`/`activeUntil` to now plus what was left                           |
+| A `state` filter misses contracts that ran out                  | The filter reads the state stored at the last write                  | Compare the dates yourself                                                                 |
+| `InvalidActiveUntilDateError` while seeding history             | Core refuses dates in the past (`InvalidRenewAtDateError` too)       | Back-date `signedAt` and the orders instead                                                |
+| Shop `create` answers "Unexpected error", the token reads fine  | One token with every scope lacks subscription-contract access        | Mint a token for this route family alone: `subscription-contract` (+ `:admin`)             |
+| Shop `create` says "Unexpected error" but the contract exists   | `status { … }` was selected in the `create` response                 | Select only `id`; read the status later. A blind retry makes a duplicate                   |
+| `createFromSubscriptionContract` always "Unexpected error"      | Not working on the tenants tried                                     | `orderIntent(id, format: shop)` → `/order` `create`, or Core `registerOrder` on Core store |
+| The Shop contract read back has no product or plan              | `SubscriptionContract` on the Shop API has no `item` or `plan` field | Write the SKU, plan and period into the contract's `meta` at `create`                      |
 
 ## References
 

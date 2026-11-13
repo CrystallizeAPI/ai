@@ -148,7 +148,7 @@ When generating data, match component types exactly:
 | `datetime`                                                                                       | ISO 8601 date string.                                                                                                                                                                                                                                                                                            |
 | `images`                                                                                         | Array of image URLs/keys, or a single URL string for the value.                                                                                                                                                                                                                                                  |
 | `itemRelations`                                                                                  | Catalogue path (e.g., `/brands/nike`) — MUST be a path string starting with `/`, NOT a plain name. Convert names to paths: `Fender` → `/brands/fender`, `Nike` → `/brands/nike`. Check the "Available Catalogue Paths" section for valid paths. Paths that exist show GREEN; invalid paths show RED.             |
-| `selection`                                                                                      | MUST be an EXACT key from the options shown in `[options: ...]`. Do NOT invent values. E.g., if options are `["solid", "semi-hollow", "hollow", "acoustic"]`, use `"solid"` NOT `"solid-body"`. If options are `["6", "7", "8", "12"]`, use `"6"` NOT `"6-string"`. If no option fits, pick the closest match.   |
+| `selection`                                                                                      | MUST be an EXACT key from the options shown in `[options: ...]`. Do NOT invent values. E.g., if options are `["solid", "semi-hollow", "hollow", "acoustic"]`, use `"solid"` NOT `"solid-body"`. If options are `["6", "7", "8", "12"]`, use `"6"` NOT `"6-string"`. If no option fits, stop and ask the user.    |
 | `contentChunk`                                                                                   | Use **dot notation** for sub-components (see below).                                                                                                                                                                                                                                                             |
 | `piece`                                                                                          | Use **dot notation** for sub-components (see below).                                                                                                                                                                                                                                                             |
 | `propertiesTable`, `paragraphCollection`, `componentChoice`, `componentMultipleChoice`, `colors` | **Skip** — do NOT generate values for these complex types. `colors` entries are structured colour objects, not strings; author them through the API instead.                                                                                                                                                     |
@@ -165,17 +165,24 @@ A component with `required: true` must have a value, on create and again on publ
 For `contentChunk` and `piece` components that have sub-components listed in the shape definition, use **dot notation** to set each sub-component individually:
 
 ```json
-// Shape: specifications (contentChunk) → sub-components: weight(numeric), material(singleLine), dimensions(singleLine)
+// Shape: specifications (contentChunk) → sub-components: weight(numeric [units: kg]), material(singleLine),
+//        length, width, height (numeric [units: cm])
 {
     "components": {
-        "specifications.weight": 3.4,
+        "specifications.weight": { "value": 3.4, "unit": "kg" },
         "specifications.material": "Mahogany",
-        "specifications.dimensions": "40 x 15 x 5 inches"
+        "specifications.length": { "value": 102, "unit": "cm" },
+        "specifications.width": { "value": 38, "unit": "cm" },
+        "specifications.height": { "value": 13, "unit": "cm" }
     }
 }
 ```
 
 Format: `"parentId.subComponentId": value`. Each sub-component gets its own column in the grid.
+
+Measurements are one `numeric` per dimension, never a `"40 x 15 x 5 inches"` string: a string can't be
+filtered, ranked or turned into structured data (see [[content-model]]). If the shape only has a text field for
+dimensions, tell the user rather than packing numbers into it.
 
 **SKIP truly complex types**: `propertiesTable`, `paragraphCollection`, `componentChoice`, `componentMultipleChoice`, `colors` — do NOT generate values for these.
 
@@ -235,7 +242,7 @@ Before emitting a `json:itemData` block, verify:
 | Mistake                                                                               | Fix                                                                                                  |
 | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Putting `sku`/`price`/`stock` **inside** `components`.                                | They live at the **item level**, alongside `name` and `location`.                                    |
-| Inventing a `selection` key like `"solid-body"` when options list shows `"solid"`.    | Use the exact configured key. If none fits, pick the closest existing one.                           |
+| Inventing a `selection` key like `"solid-body"` when options list shows `"solid"`.    | Use the exact configured key. If none fits, stop and ask: a near match states a wrong fact.          |
 | Inventing a `numeric` unit like `"inches"` when units list shows `"in"`.              | Use the exact configured unit string.                                                                |
 | Setting `itemRelations` to a plain name (`"Nike"`).                                   | Always a path: `"/brands/nike"`.                                                                     |
 | Leaving `location` as `/` when the spreadsheet has Category/Subcategory columns.      | Combine the columns into a deep path like `/products/instruments/electric-guitars`.                  |
@@ -274,3 +281,9 @@ The API input differs from `json:itemData` at almost every field:
 | Dot notation                      | `piece: { identifier, components: [...] }`, `contentChunk: { chunks: [[...]] }`                                                                                                       |
 
 Created items stay unpublished until you publish them, and parent folders must exist first (`folder/upsert`, see [[information-architecture]]).
+
+**An item exists per language: create the language version before translating its components.** Write the
+name in the new language first (`updateProduct(id, language: "fi", input: { name })`, or an upsert in that
+language), then the components. `updateComponent(language: "fi")` on an item with no Finnish version fails
+with a bare `TypeError … reading 'shortcuts'`, and running the two writes concurrently makes it a race. See
+[[mutation]] for partial and translated writes.

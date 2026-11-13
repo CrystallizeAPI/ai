@@ -14,7 +14,7 @@ Choosing the right component for each piece of **additional** data determines ho
 | Formatted content with headings, links, lists, bold            | **Rich Text**            |
 | Long-form editorial with mixed media sections                  | **Paragraph Collection** |
 
-- **Single Line** → structured, unformatted, indexable. Ideal for labels, codes, and short metadata. Note: item `name` and variant `sku` are built-in fields, not Single Line components — but additional identifiers (GTIN, EAN, UPC, MPN) beyond the built-in SKU are valid Single Line components.
+- **Single Line** → structured, unformatted, indexable. Ideal for labels, codes, and short metadata. Note: item `name` and variant `sku` are built-in fields, not Single Line components. The `sku` is the merchant's own SKU; the GTIN (EAN, UPC) and the MPN are separate facts, each a Single Line of its own, on the variant. See [Typed Specs, Units and Identifiers](typed-specs.md#identifiers).
 - **Rich Text** → formatted text block. Stored as structured JSON, and the APIs return it as `json`, `html` and `plainText`. Supports headings, lists, links, bold, italic, inline code. Use for product descriptions, marketing copy, specification text.
 - **Paragraph Collection** → repeating sections, each with: title (single line) + body (rich text) + media (images/video). Use for blog posts, editorial storytelling, landing page content blocks, any content that alternates text and media.
 
@@ -25,24 +25,30 @@ Choosing the right component for each piece of **additional** data determines ho
 | A measurable value with a unit (weight, length, power) | **Numeric**          |
 | Arbitrary key-value specs (varied, not fixed)          | **Properties Table** |
 
-- **Numeric** → stores a number with one or more selectable units (e.g. g, mg, kg for weight; cm, m, in for length). Editors pick which unit applies when entering a value. Preferred when the metric is known and fixed — enables Discovery API filtering and sorting. Create one Numeric component per metric (e.g., `weight`, `length`, `power`).
-    - **Units config**: define the list of valid unit options in `config.numeric.units` as a string array — e.g. `["g", "mg", "kg"]`, `["cm", "m", "in"]`, `["W", "kW"]`. Editors can then select from these units when entering values. Leave empty if the unit is fixed/implied.
-    - **Example**: `{ "id": "weight", "name": "Weight", "type": "numeric", "config": { "numeric": { "units": ["g", "mg", "kg"] } } }`
-- **Properties Table** → key-value pairs in table format. Use when keys are arbitrary or user-defined. Does NOT enable typed filtering in Discovery. Use for: technical specification sheets where keys vary per product.
+- **Numeric** → stores a number with a unit. Preferred when the metric is known and fixed — enables Discovery API filtering, sorting and ranking. Create one Numeric component per metric (e.g., `weight`, `length`, `power`).
+    - **Units config**: the valid units go in `config.numeric.units` as a string array. Several units (`["g", "mg", "kg"]`) let editors pick one per value, but range filters then compare numbers in different units, so prefer one unit per component (`["kg"]`) and convert at import. Leave the list out if the unit is implied, or if the value is optional (see below).
+    - **Example**: `{ "id": "weight", "name": "Weight", "type": "numeric", "config": { "numeric": { "units": ["kg"], "decimalPlaces": 2 } } }`
+- **Properties Table** → key-value pairs in table format. Use when keys are arbitrary or user-defined. Does NOT enable typed filtering in Discovery, and gives no ranking signal, structured data or agent filter (see [Typed Specs](typed-specs.md#why-typed-specs)). Use only for specification sheets whose keys truly can't be known in advance.
     - **Fixed keys (configured in shape)**: Keys are predefined in the shape definition. Editors fill in values for preset keys. Useful when you know the specification names upfront but prefer a table layout over individual Numeric components.
     - **Fluid/Dynamic keys (defined at content entry)**: Editors define both keys AND values when adding content. Useful for flexible technical specifications where key names vary by product category or are unpredictable.
 
 **Rule of thumb**: If you always know the key name upfront → use Numeric. If the keys vary per item → use Properties Table.
 
+> **Keep one unit per Numeric.** Range filters compare the raw number and ignore the unit, so a component whose
+> items use different units can't be filtered. Choose unit strings that map to UN/CEFACT codes for schema.org: see
+> [Typed Specs, Units and Identifiers](typed-specs.md#numerics-and-units).
+
 > **A unit list makes a Numeric effectively required, unless you set `required: false`.** Content for a
 > numeric with `units` has to name one ("No unit provided for numeric item component `voltage`. Need to
 > specify one of the following units: V"), even when the list holds a single unit — and a numeric input
 > cannot carry a unit without a number, since `number` is non-null. So with `required` left out, every item
-> of that shape needs a value, on create **and** on every update that sends components. Two builds hit
-> this: a `vehicle` document for an electric car with no displacement, and a variant component that only
-> oils and chemicals fill, which made `updateProduct` fail on a filter for a component none of its variants
-> had. If the value is genuinely optional, set `required: false` on the numeric: an empty component then
-> skips the unit check, and a filled one must still name a unit.
+> of that shape needs a value, on create **and** on every update, even one that doesn't send the component.
+> Nine builds hit this, on create, update, upsert and publish: a `vehicle` document for an electric car with no
+> displacement, a variant component that only oils and chemicals fill, and an empty piece of unit-bound
+> numerics that blocked `publishItem`. If the value is genuinely optional, set `required: false` on the
+> numeric: an empty component then skips the unit check, and a filled one must still name a unit. Otherwise
+> drop the `units` list (the unit is still stored per value). The failures and workarounds are in
+> [Typed Specs](typed-specs.md#a-unit-list-makes-empty-values-fail).
 
 Component definitions also take a **`description`**, which shows up as editor help. It is the natural place
 for a mapping to an industry standard — one build stored the ETIM feature code there
@@ -56,7 +62,7 @@ for a mapping to an industry standard — one build stored the ETIM feature code
 | Product demos, tutorials, promo videos | **Videos** |
 | Downloadable files (PDFs, ZIPs, etc.)  | **Files**  |
 
-- **Images** → auto-transcoded to responsive sizes (Avif, WebP), served via Crystallize CDN. See [[responsive-images]] for rendering them efficiently — `srcset`, `sizes`, format choice and why not to use a framework image optimizer. Supports multiple images per component (galleries, carousels). Each image gets `url`, `variants` (with width/height/size), `altText`, `caption`. Note: product variant images are built-in — use an Images component for product-level lifestyle photos, document hero images, or other non-variant media.
+- **Images** → auto-transcoded to responsive sizes (Avif, WebP), served via Crystallize CDN. Discovery can't limit an images field to its first entry, so a listing card that shows one photo still carries the whole gallery with every rendition: add a one-image `cover` component (`max: 1`) for cards, and keep the gallery for the product page. See [[responsive-images]] for rendering them efficiently — `srcset`, `sizes`, format choice and why not to use a framework image optimizer. Supports multiple images per component (galleries, carousels). Each image gets `url`, `variants` (with width/height/size), `altText`, `caption`. Note: product variant images are built-in — use an Images component for product-level lifestyle photos, document hero images, or other non-variant media.
 - **Videos** → auto-transcoded for web/mobile streaming, CDN-delivered. Upload or embed.
 - **Files** → upload files for download. Use for manuals, datasheets, certificates, whitepapers.
 
@@ -95,7 +101,7 @@ for a mapping to an industry standard — one build stored the ETIM feature code
       Use when the options are a fixed, small set that don't need their own content. If options need enrichment (images, descriptions), use Item Relations instead (Semantic Bridge pattern).
     - **API option structure**: `{ key: "red", value: "Red", label: "Red", isPreselected?: Boolean }` — `key` is used in queries/filters, `value` is the option's value, `label` is what the App UI displays to editors
     - **Set `label` on every option** when creating or updating a selection component. It is optional, but good practice: the App UI displays it. Default it to the same text as `value`. Supported by the Core API (Next and legacy) and mass operations.
-- **Switch** → true/false toggle. Use for: "Featured", "On Sale", "Available in store", "Organic certified".
+- **Switch** → true/false toggle. Use for: "Featured", "On Sale", "Available in store", "Organic certified". **An unset Switch reads `false` in Discovery**, so "no" and "not stated" look the same: write `true` for what an item has, never `false` for "unknown", and use a yes/no Selection when "no" must be stated. See [Typed Specs](typed-specs.md#booleans).
 - **Datetime** → date with optional time (type: `datetime`). Use for: launch date, preorder availability, expiration, event scheduling.
 - **Location** → latitude/longitude. Use for: store locator, pickup points, product origin.
 
@@ -111,6 +117,7 @@ for a mapping to an industry standard — one build stored the ETIM feature code
     - **`customColorSpaces` decides what editors can type in the App.** With none set, the App shows no colour inputs at all, so a component with neither `customColorSpaces` nor `colorPresets` gives editors nothing to enter. Set it, usually to `["hex"]`. When it is set, the API rejects content in any other notation. When it is unset, the API accepts all of them.
     - **`colorPresets` with no `customColorSpaces` is how you hold editors to a brand palette.** Editors choose from the palette instead of typing hex values, which is the difference between a design system and 40 slightly different greys. This is an App rule: the API does not check content against the presets.
     - **`requireLabel: true`** forces every entry to be named ("Midnight Blue"). The label is what the storefront shows; the value is what it renders.
+    - **Discovery serves the entries as a plain list** (`palette { label hex rgb … }`), not wrapped the way the Core input is (`colors: { colors: [...] }`).
 
 **Content rules the API enforces**: `hex` is `#RRGGBB` or `#RRGGBBAA` (a short `#FFF` is rejected), `ral` is `RAL 1234`, `pantone` is `Pantone 485 C` or `485 C`, and each entry needs at least one of `hex`, `rgb`, `hsl`, `ral` or `pantone`, so a `cmyk`-only entry is rejected.
 
@@ -152,9 +159,11 @@ These are **structural components** — they don't store data directly but organ
       overwrites the others. A chunk holding text that should be translated leaves `multilingual` out: the
       rows stay shared and each field follows its own setting. `multilingual: true` also gives each language
       its own rows.
-    - **A chunk on a variant may not publish.** One build found a variant's chunk sitting in the draft while
-      the published version and Discovery had `chunks: []`, where a `singleLine` on the same variant
-      published fine. If that happens, move the data to the product and identify each row by SKU.
+    - **A chunk on a variant may not publish (observed both ways; verify on your tenant).** One build found a
+      variant's chunk sitting in the draft while the published version and Discovery had `chunks: []`, where a
+      `singleLine` on the same variant published fine. Another found variant chunks published and served by
+      Discovery as typed fields on `ProductVariantFor<Shape>`. Publish one item and read it back from Discovery
+      before relying on it. If it fails, move the data to the product and identify each row by SKU.
 - **Choice (componentChoice)** → select exactly ONE structure from a set. The editor picks which form applies, and only sees fields for that choice. Implements the **Polymorphic Choice** pattern. Use when a concept has multiple valid but mutually exclusive representations.
 - **Multiple Choice (componentMultipleChoice)** → select ONE OR MORE structures from a set. Similar to Choice but allows combining forms. Use when multiple structural forms can coexist on the same item.
     - **Common pattern**: Define each option as a **Piece** (reusable component group) for consistency across shapes
@@ -721,7 +730,12 @@ Does the data need grouping/structure?
 
 ## Discoverability Rules
 
-The **discoverable** flag determines whether a component is **indexed in the Discovery API at all**. It is **on by default**: a component is indexed unless it sets `discoverable: false`. This is not just about filtering — a component with `discoverable: false` will be completely absent from Discovery API responses.
+The **discoverable** flag determines whether a component is **indexed in the Discovery API at all**. It is **on by default** in the API: a component is indexed unless it sets `discoverable: false`. This is not just about filtering — a component that is not discoverable is completely absent from Discovery API responses.
+
+**Set it explicitly anyway.** Builds found components missing from Discovery that nobody had turned off: rich text, `images` components (no `images` field on the type even after an ignite), and on one tenant a Single Line and a piece whose components were created with no config at all (verified 2026-11-12: absent from the Discovery type, while siblings with `discoverable: true` were there). Components added in the App start with their own explicit values. For a storefront that reads only Discovery, set `discoverable: true` on everything it renders, including text, rich text, images, selections and relations inside page-builder blocks, then ignite and check the type with `__type(name: "<shape>")`.
+
+- **Turning a component discoverable after publishing needs a republish.** An ignite re-indexes the old published documents, which don't have the field, so it stays empty until each item is published again.
+- **Give every shape at least one discoverable component.** One build saw a shape with none get no Discovery type, which broke every search whose hits included one of its items ("Abstract type … was resolved to a type … that does not exist"). Another build saw the same error for minutes after an ignite on shapes that had discoverable components, so it may have been schema rollout (contested). Either way it costs nothing to avoid.
 
 **Discoverable left out, or `true`:**
 
@@ -780,17 +794,14 @@ not collapse into one bucket. See "Colors vs Selection" above.
 
 **Typical use case**: System integrations. When you integrate with ERP, CRM, WMS, or other backend systems, you often need to store reference IDs and integration metadata on catalogue items. Mark these fields as non-discoverable so they're available in Core/PIM/Catalogue APIs for your integrations, but never exposed in the customer-facing Discovery API used by your website.
 
-Remember: **non-discoverable does NOT mean "hidden"** — the data is still available in Core API, PIM API, and Catalogue API for authenticated backend use. Use permissions and access control for true security. The discoverable flag only controls whether data appears in the Discovery API (which is typically the public-facing search/filter API used on websites).
+Remember: **non-discoverable does NOT mean "hidden"** — the data is still available in Core API, PIM API, and Catalogue API for authenticated backend use. Use permissions and access control for true security: when the Catalogue API is open, it serves non-discoverable components to anyone. The discoverable flag only controls whether data appears in the Discovery API, which is open by default, and when open everything it serves is public.
 
 ### Discovery vs Catalogue API
 
-- **Discovery API** = fast search/filter engine with async indexing. Only includes discoverable component data. **Eventually consistent** — updates propagate after a short delay.
-- **Catalogue API** = full content retrieval. Includes ALL component data regardless of discoverable flag. **Always in sync** — reflects changes immediately.
+- **Discovery API** = the storefront's catalogue API: item by path, listings, search, facets, translated paths, prices and stock. Only includes discoverable component data. **Eventually consistent**: a publish is asynchronous, and new shapes and components need an ignite.
+- **Catalogue API** = full content retrieval, including non-discoverable components. It is a fallback, not a peer: on several tenants it returned `variants: []` for products that Discovery served.
 
-**When to use each:**
-
-- **Discovery API** — when you need fast search/filter/faceting and can tolerate eventual consistency (typically seconds to minutes). Works for listing pages AND product detail pages if real-time accuracy isn't critical.
-- **Catalogue API** — when you need complete data or real-time accuracy. Essential for: admin interfaces, real-time inventory checks, editorial previews, integrations requiring guaranteed up-to-date data.
+**When to use each:** model for Discovery. A storefront reads every catalogue page from Discovery, previews drafts with Discovery's `publicationState: draft`, and builds hreflang from Discovery. Catalogue is left for per-customer price display. Integrations and back-office tools that need non-discoverable data read the Core API. See [[storefront]] for the API contract and [[query]] for indexing behaviour.
 
 **Important**: Adding or removing discoverable components, and changing `searchable`, `filterable`, `sortable` or `facetable`, requires **re-igniting** the Discovery API (`igniteDiscoApi`) for the schema changes to take effect. Plan discoverability at shape design time to minimize re-ignitions.
 
@@ -845,7 +856,7 @@ Numeric has no min or max value: range checks belong in your application. `decim
 | Component     | Available validations                                                                         |
 | ------------- | --------------------------------------------------------------------------------------------- |
 | **Selection** | Min/max selections, required/optional                                                         |
-| **Switch**    | No validations (always boolean true/false)                                                    |
+| **Switch**    | No validations. Unset reads `false` in Discovery                                              |
 | **Datetime**  | Required/optional                                                                             |
 | **Location**  | Required/optional                                                                             |
 | **Colors**    | Min/max number of entries, require label, restrict available colour spaces, required/optional |
@@ -947,12 +958,12 @@ A **Piece** is a named collection of components that can be embedded into any sh
 
 ### Common Piece patterns
 
-| Piece name         | Components inside                                                                              | Used in                              |
-| ------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------ |
-| SEO Metadata       | meta-title (Single Line), meta-description (Rich Text), og-image (Images)                      | All product, document, folder shapes |
-| CTA Block          | headline (Single Line), body (Rich Text), button-label (Single Line), button-url (Single Line) | Landing pages, category folders      |
-| Environmental Data | carbon-footprint (Numeric, kg CO₂), recyclable (Switch), certifications (Item Relation)        | Product shapes                       |
-| Social Links       | website (Single Line), instagram (Single Line), twitter (Single Line)                          | Author/brand document shapes         |
+| Piece name         | Components inside                                                                                                    | Used in                              |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| SEO                | title (Single Line), description (Single Line), image (Images); see [Pieces Reference](pieces.md#standard-seo-piece) | All product, document, folder shapes |
+| CTA Block          | headline (Single Line), body (Rich Text), button-label (Single Line), button-url (Single Line)                       | Landing pages, category folders      |
+| Environmental Data | carbon-footprint (Numeric, kg CO₂), recyclable (Switch), certifications (Item Relation)                              | Product shapes                       |
+| Social Links       | website (Single Line), instagram (Single Line), twitter (Single Line)                                                | Author/brand document shapes         |
 
 ## Page Builder Pattern
 

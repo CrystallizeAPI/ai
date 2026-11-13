@@ -15,6 +15,7 @@ import {
     JSApiClientCallError,
 } from "@crystallize/js-api-client";
 
+// Server only. The pair mints the Shop API token, so it must NOT be a tenant-scoped access token (permissions skill).
 export const api = createClient(
     {
         tenantIdentifier: process.env.CRYSTALLIZE_TENANT_IDENTIFIER!,
@@ -156,6 +157,8 @@ export const readOrder = (id: string) => orders.fetch<OrderRead>(id, ORDER).catc
  * Each call here is a Shop write too, and no mutation sets the whole list at once. On an order in several pipelines,
  * the ones not synced yet move back until their turn comes, and every move fires the stage webhook, so that handler
  * must stay idempotent.
+ *
+ * It reads Core, so call it from webhooks only (payment provider, stage change), never from a storefront request.
  */
 export async function syncStages(order: OrderRead) {
     if (!order.coreId) return; // Core has not answered yet: nothing can have moved

@@ -374,7 +374,7 @@ export async function chooseCompany(cartId: string, lookupId: string, person: Re
     const [street, postalCode, city, country] = [a?.street_address, a?.postal_code, a?.city, a?.country];
     await carts.setCustomer(cartId, {
         ...person, // firstName, lastName, email, phone: Two requires all four
-        isGuest: false, // true skips the Core customer
+        isGuest: false, // true skips the Shop customer (which is synced to Core)
         identifier: person.email, // or your signed-in customer's identifier
         type: "organization",
         companyName: co.name,

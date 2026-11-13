@@ -141,7 +141,7 @@ Price lists override or adjust the base price (from price variants) for specific
     - **Price variants** — Which variant(s) this list adjusts
     - **Adjustment type** — Percentage, relative value, or absolute price
     - **Period** (optional) — Start and end dates
-    - **Target** — Market, customer group, or individual customer
+    - **Target** — Everyone, a market, or individual customers (customer groups: see "Contract prices")
 
 ### Via Core API
 
@@ -224,16 +224,22 @@ Price Lists:
 
 A market selling in pounds needs its own GBP price variant: `absolute 89` on this variant is €89.
 
-#### Customer Group Tiering
+#### Customer Tiering
 
 ```
 Price Variant: "b2b" (EUR) — Base price: €80
 
 Price Lists:
-  ├── "Wholesale Tier 1" → Group: tier-1 → Adjust: -10% → Final: €72
-  ├── "Wholesale Tier 2" → Group: tier-2 → Adjust: -20% → Final: €64
-  └── "Strategic Partner" → Group: strategic → Adjust: -30% → Final: €56
+  ├── "Wholesale Tier 1" → Market: tier-1 → Adjust: -10% → Final: €72
+  ├── "Wholesale Tier 2" → Market: tier-2 → Adjust: -20% → Final: €64
+  └── "Strategic Partner" → Customers: the partner organisations → Adjust: -30% → Final: €56
 ```
+
+Tiers are markets, not customer groups, because a list cannot target a group today (see "Contract
+prices"). The storefront maps the signed-in customer to its tier and sends that market in
+`context.price.markets`; listing customers on the market does not do it. Discovery serves a tier market's
+price to anyone who sends its identifier, so use markets for tiers you would publish anyway, and
+`customerIdentifiers` for terms that are confidential.
 
 #### Time-Based Campaigns
 
@@ -301,37 +307,62 @@ you do not need customer groups, and you do not need the customer's own price va
 
 **Customer groups are a dead end here for now.** A group created with Core `createCustomerGroup` is listed
 by `customerGroups`, but `createPriceList(targetAudience: { customerGroupIdentifiers })` answers
-`CustomerGroupNotFoundError`, also after a wait — seen on two tenants. Target the customers directly.
+`CustomerGroupNotFoundError` (or `NotFoundError — Entity not found: [object Object]`), also after a wait —
+seen on four tenants. Target the organisations by `customerIdentifiers`, or use markets. One build did get a
+group list to apply in a cart that sent `context.price.customerGroups`, which is how the cart side works if
+the list exists: the group is read from the context, never from the customer record. Use customer groups as
+folders for customers, not as price-list targets.
 
 ### Where each API resolves a price list
 
 This is the table to read before designing a B2B storefront, because the three APIs do not agree:
 
-| API           | Resolves a list for                                                                  | How                                                                                                                                                         |
-| ------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Discovery** | markets only — there is **no customer context**                                      | `<variant>PriceFor(marketIdentifiers:)`, `<variant>BestPriceListFor(…)`                                                                                     |
-| **Catalogue** | customer, customer group **or** market                                               | `priceVariant(identifier) { priceFor(count, customerIdentifiers, customerGroupIdentifiers, marketIdentifiers) { price identifier modifier modifierType } }` |
-| **Shop API**  | the cart's customer, plus `context.price.markets` and `context.price.customerGroups` | `hydrate` prices the lines                                                                                                                                  |
+| API           | Resolves a list for                                                                    | How                                                                                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Discovery** | markets only — there is **no customer context**                                        | `<variant>PriceFor(marketIdentifiers:)`, `<variant>BestPriceListFor(…)`                                                                                     |
+| **Catalogue** | customer, customer group **or** market                                                 | `priceVariant(identifier) { priceFor(count, customerIdentifiers, customerGroupIdentifiers, marketIdentifiers) { price identifier modifier modifierType } }` |
+| **Shop API**  | the cart's customer and its parents, plus `context.price.markets` and `customerGroups` | `hydrate` prices the lines                                                                                                                                  |
 
 `customerIdentifiers` is a **list** (`[String!]`), not a single string.
 
 A storefront that lists products from Discovery therefore cannot show a contract price from that query
 alone: `<variant>BestPriceList` comes back `null` for a customer-targeted list, since Discovery has no idea
-who is asking. Read the customer's terms from the **Catalogue API** server-side, cache them per
-organisation, and apply them where you render prices. The cart then agrees by itself, because the Shop API
-resolves the same list from the cart's customer.
+who is asking. Two server-side ways to show it, both cached per organisation:
+
+1. **A Shop API price check.** `hydrate` a throw-away cart with the signed-in customer
+   (`customer: { identifier, isGuest: false }`) and the SKUs on screen, and read the line prices. No
+   Catalogue access needed, and the numbers are by definition what checkout charges.
+2. **The Catalogue API** `priceFor(customerIdentifiers:)`, or `priceList(identifier) { productVariants }`
+   for the whole list at once. It resolves any customer, so it also serves seller tools.
+
+Apply the result where you render prices, behind a `<Suspense>` boundary so the rest of the page stays
+cached for everyone (a short cache, a few seconds, lets a new list show quickly). The cart then agrees by
+itself. Do not read price lists from Core for this: Core is not a storefront API. See [[storefront]].
 
 Note that every price variant generates its own Discovery fields — `nokPrice(count)`, `nokPriceTiers`,
 `nokPriceFor(marketIdentifiers, count)`, `nokBestPriceListFor(…)`, plus the filter/facet/sort field
 `price_nok`. A variant with no price for a product answers `null`, so `filters: { price_x: { exists: true } }`
-is a usable "is this on that price variant" filter. And because Discovery is public, anyone who knows a
-field name can read any price variant it exposes: keep genuinely confidential terms out of Discovery and
-read them from the Catalogue API server-side.
+is a usable "is this on that price variant" filter. Discovery is open by default, and when it is open,
+everything it serves is public: anyone who knows a field name can read any price variant, and anyone who
+knows a market identifier can read that market's list with `<variant>PriceFor(marketIdentifiers)` and its
+modifier with `<variant>BestPriceListFor`. Aiming an agreement at a market of its own (`avtale-<org>`) does
+make it show in Discovery about 8 s after `createPriceList`, but it publishes the terms. Keep confidential
+terms on `customerIdentifiers` and read them server-side as above.
+
+**Market prices are expensive at volume.** `<variant>PriceFor(marketIdentifiers)` added about 1.4 s per 100
+products (about 270 variants each) per market; four markets on 15,500 variants took 21 s and 13 MB. And
+`<variant>PriceForEveryone` makes Discovery evaluate every price list per variant: 250 products took 7–8 s
+per page, and under a 4,000-page build it answered "Response Error". Ask for market prices only for the SKUs
+on screen, never in candidate pools or prerender-wide listings. For a B2C sale, put the selling price on the
+variant and the before-price on its own price variant, read both from `priceVariants`, and keep lists for
+other discounts.
 
 ### Working with big lists
 
-- **One `createPriceList` call carries a whole catalogue.** A list with 2,211 SKUs went in as a single
-  `SOME_SKUS` call with a modifier per SKU; no batching needed. `updatePriceList` replaces the SKU
+- **One `createPriceList` call can carry a whole catalogue, but not always.** A list with 2,211 SKUs went
+  in as a single `SOME_SKUS` call on one tenant; about 2,200 SKUs on another answered HTTP 413 "Entity too
+  large" as plain text, not JSON. If you see 413, split above about 500 SKUs into several disjoint lists
+  with the same audience: Discovery and the cart resolve them all. `updatePriceList` replaces the SKU
   selection whole, so send the complete set every time. To change part of a list, use the legacy PIM API's
   `priceList { upsertSelectedProductVariants(tenantId, identifier, variants) removeSelectedProductVariants(tenantId, identifier, variants: [sku]) }`,
   or the mass operation intents `pricelist/selectedProductVariants/upsert` and `.../remove`.
@@ -356,6 +387,28 @@ There is no priority and no notion of the most specific list. Every list that ma
 4. **Audience** — `EVERYONE`, or at least one of its markets, customers or customer groups was passed. These are OR, not AND: a list aimed at a market and a customer group matches on either
 
 So an `EVERYONE` campaign at −30 % beats a customer's −20 % contract, and a +10 % list only applies if no other matching list is lower. The base price itself does not compete: a single matching +10 % list does raise the price.
+
+### Price lists that work
+
+What the B2B builds settled on, on top of the rules above:
+
+- **Target organisations by `customerIdentifiers`, or markets.** Not customer groups (see "Contract
+  prices"). A list on the organisation reaches its departments and people in the Catalogue and in the cart.
+- **Base discount plus exceptions is two lists on one audience**: an `ALL_SKUS` list for the base and a
+  `SOME_SKUS` list naming only the SKUs whose rule differs. Observed: −24 % `SOME_SKUS` over −18 % `ALL_SKUS`
+  for the named SKUs. That is the lowest price winning, so an exception can only deepen the base discount;
+  a shallower exception needs the base list to leave those SKUs out.
+- **A `PERCENTAGE` list keeps the variant's volume tiers; an `ABSOLUTE` list has none.** Make agreements
+  percentages (see "Contract prices").
+- **Put the modifier on every price variant the cart can select.** A cart that selects `campaign` and
+  falls back to `default` needs the modifier on both, in `priceVariants` and per SKU, or campaign-priced
+  SKUs stay at full price.
+- **Scoped agreements ("−6 % on feed and parts") are `SOME_SKUS` lists built from Discovery.** A list has no
+  selection by folder or topic: resolve the scope to SKUs with a Discovery query (`parentPaths`, `shape`,
+  `topics`) and send the full set. A rerun after the catalogue changes sends the whole set again, because
+  `updatePriceList` replaces it.
+- **Check the result in a cart** for one person under the organisation and for a guest: the person gets
+  the list, the guest the list price.
 
 ### Best Practices
 

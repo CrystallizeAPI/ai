@@ -1,16 +1,31 @@
 # Shop API Queries Reference
 
-The Shop API handles cart and checkout operations at the edge for low-latency commerce experiences. It is one
-GraphQL endpoint per concern, each with its own schema: `/cart`, `/order`, `/customer`, `/subscription-contract`
-and `/lock`.
+The Shop API is everything about a shopper: carts, the price for this customer and market, checkout, orders,
+payments, customers, bookings, subscription contracts and locks. It runs at the edge, **from your server only**. It
+is one GraphQL endpoint per route, each with its own schema and scope:
+
+| Route                    | Scope                                  |
+| ------------------------ | -------------------------------------- |
+| `/cart`                  | `cart`                                 |
+| `/cart/admin`            | `cart` and `cart:admin` (promotions)   |
+| `/order`                 | `order`                                |
+| `/customer`              | `customer`                             |
+| `/subscription-contract` | `subscription-contract` (and `:admin`) |
+| `/booking/admin`         | `booking:admin`                        |
+| `/lock`                  | `lock`                                 |
 
 ## Base URL
 
 ```
-https://shop-api.crystallize.com/{tenant-identifier}/cart
+https://shop-api.crystallize.com/{tenant-identifier}/{route}
 ```
 
-The endpoint also serves as a GraphQL playground for documentation.
+The `@` before the tenant is optional here. `GET https://shop-api.crystallize.com/{tenant-identifier}` lists the
+routes the tenant serves (seven on tools-universe, 2026-11-12), and each route serves a GraphQL playground.
+
+**Server only.** The Shop API's CORS allows Crystallize origins and localhost, so a browser call that works in
+development fails on your own domain (checked 2026-11-12: no `Access-Control-Allow-Origin` for another origin). The
+browser keeps the cart id in an httpOnly cookie, and server actions or routes make the calls.
 
 ## Authentication
 
@@ -31,7 +46,23 @@ curl -X POST 'https://shop-api.crystallize.com/YOUR_TENANT/auth/token' \
   -d '{"scopes":["cart","cart:admin","order"],"expiresIn":18000}'
 ```
 
-`expiresIn` is in seconds and defaults to one day. The response is `{ "success": true, "token": "..." }`.
+`expiresIn` is in seconds and defaults to one day in the API; js-api-client asks for 12 hours unless told otherwise.
+The response is `{ "success": true, "token": "..." }`.
+
+- **Mint it with an access token that is not tenant-scoped.** The token endpoint checks who you are on `/@me`, which
+  refuses a tenant-scoped access token and a plugin bearer token ([[permissions]]).
+- **The JWT is per tenant, not per shopper.** It reads any customer's orders and carts, so it never reaches the
+  browser, and the `customerIdentifier` you pass comes from your session.
+- **Cache it on the server and refresh it before it expires.** An expired token fails with
+  `"exp" claim timestamp check failed`; a missing or rejected one answers HTTP 401 with `{ "success": false, … }`
+  and no GraphQL `errors`.
+- **Request a separate token for `/subscription-contract`.** A token with every scope read contracts but answered
+  "Unexpected error" on `create`; one scoped to `subscription-contract` (and `:admin`) worked.
+- **The Shop API reads products from the Catalogue with the request's credentials**, and the Shop JWT is not one of
+  them. On a tenant whose Catalogue API requires authentication, send its `X-Crystallize-Static-Auth-Token` (or its
+  access token pair) as headers on every `/cart` call that reads a product, `hydrate` included, next to the
+  `Authorization` header ([[bookable-resources]]). `context.catalogue` is not the place: it carries only
+  `productVariantMaxAge` and `productVariantImages` (`maxCount`, `renditions { minWidth maxWidth formats }`).
 
 ### Token Scopes
 
@@ -100,6 +131,12 @@ query {
 - `items.price` is the **line** total (quantity × unit price). The unit price is `items.variant.price`.
 - `items.context` is a `HashMap` holding `taxRate`, `origin` (`crystallize` or `external`) and `managed`, so it
   takes no sub-selection.
+
+### Profile data without Core
+
+A storefront that needs per-shopper data (family members, sizes, saved lists) without Core can keep it on a
+`wishlist` cart: write it to `customer.meta` and find the cart again with
+`carts(customerIdentifier:, types: [wishlist], name:)`. Wishlists never expire.
 
 ### List Carts
 
@@ -175,7 +212,8 @@ query {
 
 `/subscription-contract` serves `subscriptionContract(id:)` and
 `subscriptionContracts(customerIdentifier:, limit:, skip:)`, which answers an empty list when no
-`customerIdentifier` is given. See [[subscriptions]].
+`customerIdentifier` is given. Contracts live in **one store per tenant**, the Shop API (marked experimental) or
+Core: read them where that tenant writes them. See [[subscriptions]].
 
 ## Cart Concepts
 

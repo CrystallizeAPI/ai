@@ -45,6 +45,11 @@ the order stays stable across pages.
 | `recency`      | `field`, `halfLifeDays` | —           | Exponential time-decay on the age of a date field: `0.5 ^ (ageInDays / halfLifeDays)`.                                                   |
 | `tasteCosine`  | `vocabulary`, `from`    | —           | Cosine to the shopper vector (`from: userTaste`) or to an anchor item (`from: nearestTo`). See [personalization.md](personalization.md). |
 
+**With a `term`, put `relevance` in the terms.** A `rankBy` replaces the text score: a search for "angle grinder"
+ranked only by `fieldBoost` and `tasteCosine` put cutting discs that mention angle grinders above the grinders. Add
+`{ signal: "relevance", weight: 2 }` (or whatever weight wins on your catalogue) whenever the query has a `term`;
+without one it contributes 0 and can stay in the terms harmlessly.
+
 `recency` needs a date field; `fieldBoost` and `inStockBoost` need a number field. `TenantRankByField`
 holds both kinds, so the wrong one passes schema validation and the query fails with
 `Field <name> not found`.

@@ -98,6 +98,7 @@ Grids → Homepage features, campaigns, seasonal collections
 - Product: Clothing Item
     - Variants: Size (XS-XXL), Color
     - Components: Material composition, care instructions, fit guide
+    - Variant components: body-size range as `fits-from` / `fits-to` numerics, so a range filter finds every size that fits
     - Relations: Brand (document), Collection (document), Materials (documents)
 
 **Topic Maps:**
@@ -139,7 +140,8 @@ Grids → Homepage features, campaigns, seasonal collections
 
 - Product: Electronic Device
     - Variants: Configuration (storage, RAM, color)
-    - Components: Technical specs (table), connectivity, dimensions
+    - Components: Technical specs (typed numerics, selections and switches behind a `specs` choice, see [Typed Specs](typed-specs.md)), connectivity, dimensions
+    - Variant components: `gtin` (Single Line, not translatable), next to the built-in `sku`
     - Relations: Compatible Accessories (products), Brand (document)
 
 **Topic Maps:**
@@ -321,6 +323,19 @@ Topic Maps:
   - Tags (flat)
 ```
 
+**Long-form Documents (handbooks, manuals, guides)**
+
+```
+Folder Shape: Handbook          (its children are Chapter documents, in tree order)
+  ├── Intro (Rich Text)
+  └── SEO (Piece)
+
+Document Shape: Chapter
+  └── Blocks (Multiple Choice) → text, table, image, callout pieces
+```
+
+Each chapter is a child document, and tree order is chapter order: `browse.<shape>(filters: { parentPaths: { equals } }, sorting: { position: asc })` returns them in order, with no relation to maintain. One query then renders the web page, a Markdown twin and a PDF.
+
 **Landing Pages with Sections**
 
 ```
@@ -429,7 +444,7 @@ Document Shape: Blog Post
   ├── Hero Image (Images)
   ├── Content (Paragraph Collection)
   ├── Author (Item Relations → author document, acceptedShapeIdentifiers: ["author"])
-  ├── SEO (Piece → seo-metadata)
+  ├── SEO (Piece → seo)
   └── topics → Category topic map, Tags topic map
 ```
 

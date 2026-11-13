@@ -36,6 +36,30 @@ Crystallize resolves prices through a layered hierarchy. Each layer can override
 2. Whether a price list overrides that variant (based on market, customer, customer group, time period). When several match, the lowest price wins
 3. Whether any promotions apply (based on cart contents, coupon codes, triggers)
 
+## Which price, from which API, for whom
+
+Read this before building a storefront. The three read APIs resolve price lists for different audiences,
+and only one of them knows the customer in the cart:
+
+| Price                            | API                                | Call                                                                                                            | Where                      |
+| -------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| List, sale and "from" price      | Discovery                          | `<variant>Price`, the `priceVariants` hash, `variantGroups.summary.price`                                       | Server, cached             |
+| Market price (public)            | Discovery: **markets only**        | `<variant>PriceFor(marketIdentifiers)`, `<variant>BestPriceListFor(marketIdentifiers)`, for the SKUs on screen  | Server, cached             |
+| Contract price for display (B2B) | Shop API price check, or Catalogue | A throw-away `hydrate` with the customer; or Catalogue `priceFor(customerIdentifiers)` for **any** customer     | **Server**, cached per org |
+| What the cart charges            | Shop API `/cart`                   | `hydrate` resolves the **cart's customer** (and its parents), plus `context.price.markets` and `customerGroups` | Server action              |
+
+- **Discovery has no customer argument anywhere.** `<variant>BestPriceList` answers `null` for a list aimed
+  at a customer, because Discovery does not know who is asking. Never use it for a contract price.
+- **Discovery is open by default, and when open, everything it serves is public**: every price variant and,
+  to anyone who knows a market's identifier, that market's price list. A "market per agreement" makes the
+  agreement readable without a token, so keep confidential terms out of it.
+- **The Shop API and the Catalogue resolve the same list**, so a contract price shown from either agrees
+  with the cart. The Shop API resolves only the cart's customer; the Catalogue resolves any customer, which
+  is what a seller tool or a cached per-organisation price table needs.
+- Core is never on this path. For the storefront as a whole, see [[storefront]]; for the tables behind each
+  row, see [references/price-lists-and-markets.md](references/price-lists-and-markets.md), "Where each API
+  resolves a price list".
+
 ## Quick Start Decision Tree
 
 ```
@@ -81,7 +105,7 @@ Price variants are **global definitions** — they define the _types_ of prices 
 
 Every Crystallize tenant comes with a `default` price variant. It **must always exist** — it cannot be deleted.
 
-**Best practice: Rename it to match your primary use case.** Only the display **name** changes: the identifier stays `default` for good, because `updatePriceVariant` takes `name`, `currency` and `tierConfig` and no identifier. Set its `currency` too: it is created without one and answers the tenant's default currency.
+**Best practice: give it a display name that matches your primary use case.** The identifier stays `default` for good: `updatePriceVariant` takes `name`, `currency` and `tierConfig` and no identifier, and `deletePriceVariant` refuses `default`. So do not plan a `retail` identifier for it; every API call keeps saying `default`. Set its `currency` too: it is created without one and answers the tenant's default currency (EUR on a fresh tenant). Make `default` your primary currency's price rather than adding a `nok` variant next to it, or you carry two copies of the same price.
 
 | Business Type     | Name `default`         | Currency             | Rationale                         |
 | ----------------- | ---------------------- | -------------------- | --------------------------------- |
@@ -248,7 +272,7 @@ Each price list can:
 - **Apply to all or specific products** (by drag-and-drop or bulk selection)
 - **Adjust by**: percentage, relative value, or absolute price
 - **Have a time period**: start/end dates for seasonal campaigns
-- **Be scoped to**: a market, customer group, or individual customer
+- **Be scoped to**: everyone, a market, or individual customers (organisations reach their people). Customer groups are accepted by the input but do not work today: see below
 
 ### Recommended Price List Patterns
 
@@ -265,10 +289,12 @@ Price Lists:
 
 ```
 Price Lists:
-  ├── "Wholesale Tier 1" — 15% off B2B variant, Customer Group: Tier 1
-  ├── "Wholesale Tier 2" — 25% off B2B variant, Customer Group: Tier 2
-  └── "Acme Corp Agreement" — Fixed prices, Customer: Acme Corp
+  ├── "Wholesale Tier 1" — 15% off B2B variant, Market: wholesale-tier-1
+  ├── "Wholesale Tier 2" — 25% off B2B variant, Market: wholesale-tier-2
+  └── "Acme Corp Agreement" — 12% off B2B variant, Customer: acme-corp (the organisation)
 ```
+
+Tiers are markets because price lists **cannot target customer groups**: `createPriceList` answers `CustomerGroupNotFoundError` (or `NotFoundError`) for a group that exists, seen on four tenants. The storefront then sends the tier's market in `context.price.markets`; a market's `customerIdentifiers` do not put a customer's cart in it. A tier market is public in Discovery, so it suits published tiers, not confidential terms. Keep an agreement a `PERCENTAGE` list so the variant's volume tiers survive, and send the whole SKU set on every `updatePriceList`: see [references/price-lists-and-markets.md](references/price-lists-and-markets.md), "Price lists that work".
 
 #### Seasonal Campaigns
 
@@ -407,21 +433,29 @@ Always recommend starting with the minimum viable setup and adding layers as the
 
 The Shop API `hydrate` mutation prices a cart from `input.context.price`. The storefront sends it on **every** hydrate: an omitted field goes back to its default, it does not keep the previous value.
 
-| `context.price`                        | Default   | Effect                                                                                     |
-| -------------------------------------- | --------- | ------------------------------------------------------------------------------------------ |
-| `selectedVariantIdentifier`            | `default` | The price variant that sets the price                                                      |
-| `fallbackVariantIdentifiers`           | none      | Tried in order when the selected variant has no price for the SKU                          |
-| `compareAtVariantIdentifier`           | none      | The "was" price, read before price lists. A gap to the selected price lands in `discounts` |
-| `markets`                              | `[]`      | Which market-targeted price lists and promotions can match                                 |
-| `customerGroups`                       | `[]`      | The same for groups. Not read from the customer record                                     |
-| `voucherCodes`                         | `[]`      | Coupon codes. `voucherCode` is deprecated                                                  |
-| `currency`                             | `eur`     | A label, and what `triggers.currencies` tests. It selects no variant and converts nothing  |
-| `decimals`                             | `0`       | Rounds every amount returned. **Left at 0, 39.99 comes back as 40**                        |
-| `pricesHaveTaxesIncludedInCrystallize` | `false`   | Whether the stored price is gross, see below                                               |
-| `taxRate`                              | none      | 0–1, overrides the product's tax group                                                     |
-| `discountOnNetPrices`                  | `false`   | Promotions and `minValue` work on net instead of gross                                     |
+| Input                                               | Default   | Effect                                                                                                                      |
+| --------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `customer` on the cart (`hydrate` or `setCustomer`) | guest     | Customer-targeted price lists, **inherited from parent customers**: a person under an organisation gets its list            |
+| `selectedVariantIdentifier`                         | `default` | The price variant that sets the price                                                                                       |
+| `fallbackVariantIdentifiers`                        | none      | Tried in order when the selected variant has no price for the SKU: `campaign` then `default` prices campaign-or-list        |
+| `compareAtVariantIdentifier`                        | none      | The "was" price (or the RRP next to a B2B price), read before price lists. A gap to the selected price lands in `discounts` |
+| `markets`                                           | `[]`      | Which market-targeted price lists and promotions can match. Not read from the market's `customerIdentifiers`                |
+| `customerGroups`                                    | `[]`      | The same for groups. Not read from the customer record                                                                      |
+| `voucherCodes`                                      | `[]`      | A list of coupon codes. `voucherCode` is deprecated. Check one with `validateVoucher(voucher)`                              |
+| `currency`                                          | `eur`     | A label, and what `triggers.currencies` tests. It selects no variant and converts nothing                                   |
+| `decimals`                                          | `0`       | Rounds every amount returned. **Left at 0, 39.99 comes back as 40.** Send `4`, see below                                    |
+| `pricesHaveTaxesIncludedInCrystallize`              | `false`   | Whether the stored price is gross, see below                                                                                |
+| `taxRate`                                           | none      | A **fraction** (`0.25`, not `25`), overrides the product's tax group                                                        |
+| `discountOnNetPrices`                               | `false`   | Promotions and `minValue` work on net instead of gross                                                                      |
 
-A SKU with no value on the selected variant or on any fallback silently takes its **first** price variant, possibly in another currency. Was/now in a cart:
+A SKU with no value on the selected variant or on any fallback silently takes its **first** price variant, possibly in another currency, and a variant with no price at all hydrates at 0, not as an error.
+
+- **`compareAtVariantIdentifier` falls back too.** When the SKU has no value on the compare-at variant, the cart compares with its first variant: a $64 line without a `usd-before` price reported a 1,172 "discount" (90 %) against the NOK price. Send it only for SKUs that have a before-price.
+- **Ask for `decimals: 4` and round for display only, half up.** With 2 decimals, a percentage list on a small unit price drifts a cent between the cart and the product page. The Shop API rounds half up (11.70 × 0.85 = 9.945 → 9.95), while `Math.round(x * 100) / 100` gives 9.94: round via `toFixed(4)` first.
+- **A cart line's `price` is the line total**, while order lines carry the unit price. Divide before you compare with a product page.
+- **A PERCENTAGE list must carry every price variant the cart can select.** With `campaign` selected and `default` as fallback, a list with a modifier on `default` only leaves campaign-priced SKUs at full price.
+
+Was/now in a cart:
 
 ```graphql
 context: {
@@ -430,11 +464,13 @@ context: {
         fallbackVariantIdentifiers: ["default"]
         compareAtVariantIdentifier: "default"
         currency: "USD"
-        decimals: 2
+        decimals: 4
         markets: ["us-retail"]
     }
 }
 ```
+
+**A contract price for display without the Catalogue API** is a throw-away `hydrate` on the server: a cart with the signed-in customer and the SKUs on screen, read once, cached per organisation, then `remove(id)`. It answers what the real cart will charge.
 
 ## Tax & Pricing
 
@@ -448,43 +484,14 @@ The Shop API calculates the tax. The rate is the first of: `taxRate` on the cart
 
 ## Migration Paths
 
-Start simple and add layers as your business requires. Here are common upgrade paths:
+Start simple and add layers as the business requires them:
 
-### Single variant → Sales pricing
-
-```
-Before: default (USD)
-After:  retail (USD) + sales (USD)
-```
-
-Name the `default` variant "Retail" (its identifier stays `default`). Create a new `sales` variant in the same currency. Only set `sales` on products that are currently on sale.
-
-### Single currency → Multi-currency
-
-```
-Before: retail (USD) + sales (USD)
-After:  retail (USD) + sales (USD) + retail-eur (EUR) + sales-eur (EUR)
-```
-
-Keep your primary market variants as-is. Add new variant pairs for each additional currency. Create Markets for each region and Price Lists if you need regional adjustments beyond the base variant prices.
-
-### B2C only → B2C + B2B
-
-```
-Before: retail (USD) + sales (USD)
-After:  retail (USD) + sales (USD) + b2b (USD)
-```
-
-Add a `b2b` variant. Create a Market for B2B customers (e.g. `us-b2b`). Use Price Lists for customer-specific or tiered B2B pricing.
-
-### Static pricing → Campaigns
-
-```
-Before: Price variants only
-After:  Price variants + Promotions
-```
-
-Keep your variant structure unchanged. Add Promotions for time-limited, cart-level discounts (coupons, buy-X-get-Y, seasonal sales). If you need persistent regional adjustments, add Price Lists instead of (or alongside) Promotions.
+| From → to                   | Add                                                                       | Keep                                                       |
+| --------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| One variant → sales pricing | A `sales` variant in the same currency, set only on products on sale      | `default`, with the display name "Retail"                  |
+| One currency → several      | A `retail-{currency}` / `sales-{currency}` pair per currency, and markets | The primary market's variants as they are                  |
+| B2C → B2C + B2B             | A `b2b` variant, a B2B market, price lists per organisation or tier       | The consumer variants                                      |
+| Static pricing → campaigns  | Promotions for time-limited cart discounts                                | The variant structure; price lists for lasting adjustments |
 
 ## Further Reading
 

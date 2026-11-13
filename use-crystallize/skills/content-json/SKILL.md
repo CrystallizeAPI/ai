@@ -143,20 +143,31 @@ Rich text input is `json`, `html`, or both, each a list. It is the same on a `ri
 
 The `html` conversion loses content. Send `json` for any of these:
 
-| In `html`      | What gets stored                                                                                                                   |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `<table>`      | Rows under a `table-body`, even with no `<tbody>` in the HTML, so the App drops them all                                           |
-| `<blockquote>` | A `type: null` node, not `quote`, which the App drops if it wraps a `<p>`. Same for any tag the format does not map, such as `<s>` |
-| `<div>`        | `container`. With only text, the App loses the text. With inline content at the root, the App cannot open the field                |
-| `<pre>`        | Line breaks are removed, so multi-line code becomes one line. Without an inner `<code>`, the App loses the text                    |
-| `<img>`        | `image` without `src` or `alt`                                                                                                     |
-| Attributes     | Only `id`, and `href` and `target` on `<a>`, are kept                                                                              |
+| In `html`      | What gets stored                                                                                                                                                              |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<table>`      | Rows under a `table-body`, even with no `<tbody>` in the HTML (a `<thead>` becomes `table-head`), so the App drops them all. Discovery still serves them: see Reading It Back |
+| `<blockquote>` | A `type: null` node, not `quote`, which the App drops if it wraps a `<p>`. Same for any tag the format does not map, such as `<s>`                                            |
+| `<div>`        | `container`. With only text, the App loses the text. With inline content at the root, the App cannot open the field                                                           |
+| `<pre>`        | Line breaks are removed, so multi-line code becomes one line. Without an inner `<code>`, the App loses the text                                                               |
+| `<img>`        | `image` without `src` or `alt`                                                                                                                                                |
+| Attributes     | Only `id`, and `href` and `target` on `<a>`, are kept                                                                                                                         |
 
 ## Reading It Back
 
 Rich text output on the Core and Catalogue APIs has `json`, `html` and `plainText`, with one `html` and one `plainText` string per `json` entry. On the Discovery API, a `richText` field and a paragraph's `body` take `format: json` (the default), `html` or `plainText`, and `html` comes back as one string.
 
 - **A `json` entry is a node or an array of nodes**, the second from `html` input with several top-level elements. Handle both when editing. Before rendering, flatten with `json.flat()`: `<ContentTransformer>` from `@crystallize/reactjs-components` renders nothing for an array entry.
+- **Discovery serves `html`-written tables as semantic nodes.** A `<table>` with `<thead>` and `<tbody>`, sent in
+  `html`, comes back from Discovery with `format: json` as `table` → `table-head` / `table-body` → `table-row` →
+  `table-head-cell` / `table-cell`, and with `format: html` as clean `<table><thead>…<tbody>` markup. So a storefront
+  that reads Discovery can render or convert these tables (for example to Markdown) without loss. The App is the part
+  that drops them: it expects `table-row` directly under `table` (see [Table with a header row](#table-with-a-header-row)
+  and "What the Crystallize App Keeps"). Write tables as `html` when only the storefront reads them, and as App-shaped
+  `json` when editors will open the field. Lists come back as `unordered-list` / `ordered-list` / `list-item` and bold
+  as `strong`.
+- **Rich text inside a piece in a `componentMultipleChoice`** has been reported to come back from Discovery as an
+  array of arrays. A re-read on the same tenant (148 entries, 2026-11-12) gave one node per entry, so this is most
+  likely the array-entry case above (several top-level elements in one `html` string). Flatten either way.
 - **`Invalid crystallize-content-chunk:`** at the start of a Core API `html` or `plainText` string means that `json` entry is malformed, for example a `textContent` that is not a string.
 
 ## Examples

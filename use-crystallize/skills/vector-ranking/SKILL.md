@@ -100,9 +100,10 @@ Introspect all three rather than guessing:
 | **Discovery** | `https://api.crystallize.com/<tenant>/discovery` | none by default   | querying                                          |
 
 Core takes `@tenant` with an at-sign; Discovery takes the bare `tenant`. Vocabulary and index mutations
-live on **Core**, not on the PIM API. Everything before Discovery is authenticated and server-side; the
-queries themselves need no credentials, so a browser can build the shopper vector client-side and call
-Discovery directly. A tenant that protects search answers `401` until each request carries its static
+live on **Core**, not on the PIM API, and never run in a storefront request. Everything before Discovery is
+authenticated and server-side; the queries themselves need no credentials, so a browser can build a vector from
+sliders or session state and call Discovery directly. A vector built from the shopper's orders or identity is built
+on the server, from the Shop API (see [references/personalization.md](references/personalization.md)). A tenant that protects search answers `401` until each request carries its static
 token in `X-Crystallize-Static-Auth-Token`.
 
 ## Five concepts
@@ -126,7 +127,7 @@ Two properties fall out of this and drive every design decision:
 
 ```text
 Core        upsertVocabulary                    once per vocabulary — FULL REPLACE, not a patch
-Core        setItemTaste                        once per item, per vocabulary — writes the DRAFT
+Core        setItemTaste                        per item, vocabulary, language — DRAFT; ONE AT A TIME per item
 Core        publishItem                         per item and language — the step that is easy to miss
 Core        igniteDiscoApi(stacks: opensearch)  LAST; poll bulkTask until "complete" ("error" is blocking)
 Discovery   { __typename }                      probe before reporting success
@@ -176,24 +177,30 @@ windowed path — see [references/ranking-signals.md](references/ranking-signals
 
 Several of these produce **no error at all** — they are the reason this skill exists.
 
-| Symptom                                  | Cause                                                                                              | Fix                                                                                                                |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Order unrelated to taste, no errors      | Taste is on the draft only                                                                         | `publishItem`, wait until it is published, retest                                                                  |
-| Order unchanged after `upsertVocabulary` | No index run since the change                                                                      | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                          |
-| Ignition `complete`, no ranking args     | `igniteDiscoApi` run without `stacks: opensearch`, or with `both`                                  | Re-run with `stacks: opensearch`                                                                                   |
-| Ignition task ends in `error`            | e.g. ignited before any shape existed, or `stacks` left out on a tenant already served for ranking | Read `bulkTask.info.traces`, fix what it names, then ignite again. Never re-run it unchanged                       |
-| `{ __typename }` fails after `complete`  | Discovery cannot build the tenant's schema                                                         | Do not re-ignite in a loop. Report it with the tenant identifier and the response body                             |
-| Rankings subtly wrong, no errors         | `magnitude` miscomputed client-side                                                                | Assert `sqrt(Σ w²)` against a known case                                                                           |
-| Ranked list misses obvious matches       | The window is the first N by `sorting`, `itemId` descending when none                              | Send `sorting: { score: desc }` with a `term`, or raise `options.rerankWindow`                                     |
-| `rankScore` comes back `null`            | No rerank ran — no `rankBy`, `context` or `nearestTo`, or every `rankBy` term had `weight: 0`      | Give at least one term a non-zero weight                                                                           |
-| Vocabulary "does not exist in enum"      | No index run since it was created                                                                  | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                          |
-| `Vocabulary <name> not found`            | No vocabulary indexed yet; the argument is still a `String`                                        | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`, then pass the enum value unquoted                       |
-| `context` / `rankBy` unknown in schema   | Ranking not enabled for the tenant, or not indexed                                                 | `igniteDiscoApi(stacks: opensearch)`, wait for `complete` plus propagation. Detect the capability, don't assume it |
-| `Malformed taste entry key`              | Key has no colon                                                                                   | Use `dimensionId:value`                                                                                            |
-| `Unknown dimension`                      | Prefix is not a declared dimension                                                                 | Add it to the vocabulary, or fix the key                                                                           |
-| `tieBreaker` validation error            | Required field missing                                                                             | Add a `tieBreaker`                                                                                                 |
-| `Field <name> not found`                 | `recency` on a number, or `fieldBoost` / `inStockBoost` on a date                                  | Point the term at a field of the right kind                                                                        |
-| Page 2 empty under ranking               | `skip` ran past the rerank window                                                                  | Raise `options.rerankWindow` (default 500, cap 2000)                                                               |
+| Symptom                                        | Cause                                                                                              | Fix                                                                                                                |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Order unrelated to taste, no errors            | Taste is on the draft only                                                                         | `publishItem`, wait until it is published, retest                                                                  |
+| Order unchanged after `upsertVocabulary`       | No index run since the change                                                                      | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                          |
+| Ignition `complete`, no ranking args           | `igniteDiscoApi` run without `stacks: opensearch`, or with `both`                                  | Re-run with `stacks: opensearch`                                                                                   |
+| Ignition task ends in `error`                  | e.g. ignited before any shape existed, or `stacks` left out on a tenant already served for ranking | Read `bulkTask.info.traces`, fix what it names, then ignite again. Never re-run it unchanged                       |
+| `{ __typename }` fails after `complete`        | Discovery cannot build the tenant's schema                                                         | Do not re-ignite in a loop. Report it with the tenant identifier and the response body                             |
+| Rankings subtly wrong, no errors               | `magnitude` miscomputed client-side                                                                | Assert `sqrt(Σ w²)` against a known case                                                                           |
+| Ranked list misses obvious matches             | The window is the first N by `sorting`, `itemId` descending when none                              | Send `sorting: { score: desc }` with a `term`, or raise `options.rerankWindow`                                     |
+| `rankScore` comes back `null`                  | No rerank ran — no `rankBy`, `context` or `nearestTo`, or every `rankBy` term had `weight: 0`      | Give at least one term a non-zero weight                                                                           |
+| Vocabulary "does not exist in enum"            | No index run since it was created                                                                  | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`                                                          |
+| `Vocabulary <name> not found`                  | No vocabulary indexed yet; the argument is still a `String`                                        | `igniteDiscoApi(stacks: opensearch)`, wait for `complete`, then pass the enum value unquoted                       |
+| `context` / `rankBy` unknown in schema         | Ranking not enabled for the tenant, or not indexed                                                 | `igniteDiscoApi(stacks: opensearch)`, wait for `complete` plus propagation. Detect the capability, don't assume it |
+| Items missing whole vocabularies               | Concurrent `setItemTaste` calls on one item: last write wins, no error                             | Write one item's calls in sequence, items in parallel; read back with `... on Item { taste }`                      |
+| `Vocabulary <name> not found` after `complete` | Propagation: lasted about 5 minutes on one tenant although the enum listed it                      | Probe a real `context` query per vocabulary before reporting success                                               |
+| Everything scores 0 with `context`             | `userTaste` sent as a map keyed by vocabulary                                                      | Send a list: `[{ vocabulary, weights, magnitude }]`                                                                |
+| A term search ranks off-topic items high       | `rankBy` replaces text relevance                                                                   | Add a `relevance` term whenever there is a `term`                                                                  |
+| Every shopper sees nearly the same order       | Equal weights on many entries: tastes collapse                                                     | Positional weights (`[1.0, 0.5, 0.35]`) on the dimension                                                           |
+| A test vocabulary will not go away             | There is no `deleteVocabulary`                                                                     | Do not create throwaway vocabularies on a real tenant                                                              |
+| `Malformed taste entry key`                    | Key has no colon                                                                                   | Use `dimensionId:value`                                                                                            |
+| `Unknown dimension`                            | Prefix is not a declared dimension                                                                 | Add it to the vocabulary, or fix the key                                                                           |
+| `tieBreaker` validation error                  | Required field missing                                                                             | Add a `tieBreaker`                                                                                                 |
+| `Field <name> not found`                       | `recency` on a number, or `fieldBoost` / `inStockBoost` on a date                                  | Point the term at a field of the right kind                                                                        |
+| Page 2 empty under ranking                     | `skip` ran past the rerank window                                                                  | Raise `options.rerankWindow` (default 500, cap 2000)                                                               |
 
 ## How ranking composes with the rest of the query
 
@@ -217,6 +224,8 @@ Several of these produce **no error at all** — they are the reason this skill 
 ## Related skills
 
 Use [[query]] for the rest of the Discovery API — filters, facets, pagination, browse vs search.
+Use [[storefront]] for where the ranked reads sit in the request path and how they are cached, and
+[[agentic-commerce]] for ranking every MCP or assistant tool result by the shopper's taste.
 Use [[mutation]] for the Core API mutations these sit next to, and [[js-api-client]] to call either
 from JS/TS. Vocabularies overlap conceptually with topic maps: [[taxonomy]] designs the classification,
 and a taste entry can be **derived** from a topic assignment — see "Keep one source of truth" in

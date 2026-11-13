@@ -73,9 +73,13 @@ const originalExt = (image: { url: string }) => {
 ### Putting it together
 
 ```ts
+const escapeAttr = (value: string) =>
+    value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 function pictureHtml(
     image: { url: string; altText?: string; width?: number; height?: number; variants?: Variant[] | null },
     sizes: string,
+    { priority = false }: { priority?: boolean } = {}, // true for the LCP image only
 ) {
     const variants = image.variants ?? [];
     const modern = pickModernFormat(variants);
@@ -90,8 +94,9 @@ function pictureHtml(
     return `
 <picture>
   ${sources}
-  <img src="${image.url}" alt="${image.altText ?? ""}"
-       width="${biggest?.width ?? image.width ?? ""}" height="${biggest?.height ?? image.height ?? ""}" loading="lazy">
+  <img src="${image.url}" alt="${escapeAttr(image.altText ?? "")}"
+       width="${biggest?.width ?? image.width ?? ""}" height="${biggest?.height ?? image.height ?? ""}"
+       ${priority ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'}>
 </picture>`;
 }
 ```

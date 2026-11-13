@@ -1,6 +1,8 @@
 # Core API Mutations Reference
 
-The Core API provides full read/write access to items, shapes, customers, orders, and configuration.
+The Core API provides full read/write access to items, shapes, customers, orders, and configuration. It is for the
+back office (seeds, imports, scheduled jobs, webhook receivers, admin tools behind staff login) and never for a
+storefront's request path: shopper writes go to the Shop API ([[storefront]]).
 
 See [SKILL.md](../SKILL.md) for endpoint URLs and authentication headers.
 
@@ -16,11 +18,17 @@ Two things decide the shape of every call on this page:
 
 - [Reading a result](#reading-a-result) - The union pattern every mutation uses
 - [Item Mutations](#item-mutations) - Create, publish, unpublish, delete, move
+- [Id argument types](#id-argument-types) - Which mutation takes `ID!` and which `String!`
+- [What a partial write replaces](#what-a-partial-write-replaces) - Updates that wipe what you did not send
+- [Unit-bound numerics](#unit-bound-numerics) - Numerics with a unit list that block writes and publishing
 - [Component Updates](#component-updates) - Update individual fields on items and variants
 - [Product Variants](#product-variants) - SKUs, pricing, stock, images
 - [Customer Mutations](#customer-mutations) - Create, update, delete, hierarchies
 - [Order Mutations](#order-mutations) - Update orders and their metadata
-- [Media & Images](#media--images) - Upload images for items and variants
+- [Media & Images](#media--images) - Pointer to the media skill
+- [Pipelines](#pipelines) - Stage traps
+- [Webhooks](#webhooks) - Publish webhooks for cache revalidation
+- [List quirks](#list-quirks) - Filters and limits that behave unexpectedly
 - [Flow Mutations](#flow-mutations) - Manage item workflows
 - [Vector Ranking Mutations](#vector-ranking-mutations) - Vocabularies, item taste, re-indexing
 - [Only in the legacy PIM API](#only-in-the-legacy-pim-api) - What Core does not have
@@ -272,14 +280,17 @@ The item mutations are not patches. Sending a component list means "these are th
 the calls that look narrow have the widest blast radius. Every row below cost a build a round of
 re-imports.
 
-| Call                                                 | What it does to everything you did not send                         |
-| ---------------------------------------------------- | ------------------------------------------------------------------- |
-| `updateProduct` / `updateDocument` with `components` | **Replaces the whole component set** for that language              |
-| `updateProduct` / `updateDocument` with only `name`  | Leaves components alone — the safe way to rename                    |
-| `updateProductVariant` **without** `components`      | **Empties that variant's components** in that language              |
-| `updateComponent(itemId, language, component)`       | Touches that one component only — use it for partial edits          |
-| `product/upsert` and friends in a mass operation     | Replace all components, so send every one, not only the changed one |
-| `setItemTaste`                                       | Empties every **variant's** components on the draft (see below)     |
+| Call                                                 | What it does to everything you did not send                             |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| `updateProduct` / `updateDocument` with `components` | **Replaces the whole component set** for that language                  |
+| `updateProduct` / `updateDocument` with only `name`  | Leaves components alone, but **changes the path** (see below)           |
+| `updateDocument(input: { topicIds })` alone          | Keeps every component: topics can be rewritten on each run              |
+| `updateProductVariant` **without** `components`      | **Empties that variant's components** in that language                  |
+| `updateComponent(itemId, language, component)`       | Touches that one component only — use it for partial edits              |
+| `updateComponent` with a `piece`                     | Replaces **every sub-component of the piece**: resend them all          |
+| `updateProductVariant(images)` in one language       | Writes that language only: write variant images per language            |
+| `product/upsert` and friends in a mass operation     | Replace all components, so send every one, not only the changed one     |
+| `setItemTaste`                                       | Emptied every **variant's** components on one tenant (contested, below) |
 
 **Translating is where this bites.** Writing two fields in a second language with
 `updateProduct(language: "no", input: { components: [tagline, summary] })` fails with "Need to provide at
@@ -287,20 +298,69 @@ least 1 related items for component brand" — and had it passed, it would have 
 sent. Translate with `updateComponent` per component, and rename with `update*(input: { name })`. Shared
 (non-multilingual) components then keep showing in every language, untouched.
 
-**`setItemTaste` has a side effect on variants.** After writing taste, the draft's variant components were
+**Renaming changes the path.** `update*(input: { name })` regenerates the item's path from the new name (lower case,
+æ → ae, ø → o, å → a, other diacritics stripped, every run of non-alphanumerics → `-`) and writes the old path to
+`history`. To keep a legacy URL, pick a name that slugifies to the old slug and keep the display title in a
+component, or add aliases; otherwise 301 from `history` ([[information-architecture]]).
+
+**Create the language version before translating components.** `updateComponent(language: "fi")` on an item with
+no Finnish version fails with a bare `TypeError — Cannot read properties of undefined (reading 'shortcuts')`.
+Write `update*(id, language: "fi", input: { name })` first, then the components, and not concurrently.
+
+**`createdAt` is accepted and ignored** on `CreateDocumentInput`, `UpdateDocumentInput` and `document/upsert`: the
+item gets "now". Keep an original publish date in a component of its own.
+
+**`setItemTaste` has a side effect on variants — contested.** After writing taste, the draft's variant components were
 gone in every language while product components survived, and the publish that follows taste then
 published them empty. Order the pipeline: taste first, then (re)write variant components, then publish.
-(Tools Universe. The same build first blamed a shape update and re-ran it, which changed nothing.)
+(Tools Universe. The same build first blamed a shape update and re-ran it, which changed nothing. Four later tenants
+did not see it: keep a read-back check rather than a rule; [[vector-ranking]].)
 
-**A variant's content chunks may not publish at all.** On the same tenant a variant chunk sat in the
+**A variant's content chunks may not publish at all — contested.** On the same tenant a variant chunk sat in the
 draft, but after `publishItem` the `current` version — and Discovery — had `chunks: []`, while a
 `singleLine` on the same variant and a numeric on another shape's variants published fine. If a variant
-chunk disappears on publish, move that data to the product (one row per variant, with the SKU in it).
+chunk disappears on publish, move that data to the product (one row per variant, with the SKU in it). Another
+tenant published variant chunks fine and Discovery served them, so check on yours.
 
 **Creating an item validates its required components**, so create is not "create then fill": a document
 whose relation has `minItems: 1`, or a numeric with a unit list, fails `createDocument` with
 `ComponentContentValidationFailedError` unless those components are in the create input. Send everything
 on create.
+
+## Unit-bound numerics
+
+A numeric component with a **unit list** is the most common write failure across builds (nine of them). The rule, in
+one place:
+
+- **It fails create, `updateProduct` and an upsert's update for any product or variant that has no value**, even
+  when you didn't send the component and even when it isn't required: `No unit provided for numeric item component
+  runtime. Need to specify one of the following units: min`.
+- **The empty value then blocks publishing** too.
+- The unit is stored per value, so range filters in Discovery compare raw numbers across units ([[content-model]]).
+
+Workarounds that worked:
+
+| Workaround                                                | Cost                                                                              |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Drop the `units` list from the component config           | None for writes; the unit is still stored per value. Keep one unit per numeric    |
+| Create with `{ number: 0, unit }`, then `removeComponent` | Two writes per item                                                               |
+| `updateComponent` per component instead of `update*`      | One call per component                                                            |
+| `publishItem(disableComponentValidation: true)`           | Also hides shape-limit violations (relations over `max`), so check those yourself |
+
+## Id argument types
+
+The Core item mutations don't agree on the type of the id, and a shared `$id` variable with the wrong type fails
+validation before anything runs (introspected 2026-11-12):
+
+| Mutation                                          | Id argument                                   |
+| ------------------------------------------------- | --------------------------------------------- |
+| `updateFolder`, `updateDocument`, `updateProduct` | `id: String!`                                 |
+| `updateComponent`                                 | `itemId: ID` (or `sku: String` for a variant) |
+| `publishItem`, `unpublishItem`                    | `id: ID!`                                     |
+| `deleteItem`                                      | `itemId: ID!`                                 |
+| `removeComponent`                                 | `itemId: ID!`, `componentId`, `sku`           |
+| `updateProductVariant`                            | `sku: String!`                                |
+| `addVariantTopics`                                | `sku: String!`, `topicIds: [String!]!`        |
 
 ---
 
@@ -592,8 +652,21 @@ subscription contracts and customer-targeted price lists all name it. An address
 ```
 
 `type` on a parent is `customer` or `customerGroup`, and a customer can have more than one — too many answers
-`TooManyCustomerParentsProvidedError`. This is how a B2B contact belongs to its company, which in turn decides
-whose orders it sees and which contract prices apply — see [[pricing]].
+`TooManyCustomerParentsProvidedError`.
+
+- **Customer groups are the folder concept, and they nest.** `CustomerType` is only `individual | organization`;
+  `createCustomerGroup` takes other groups as `parents`. A three-level tree works: groups → organisations
+  (`parents: [{ type: customerGroup }]`) → people (`parents: [{ type: customer }]`). `childCount` reads it back.
+  Use groups as folders, not as price-list targets ([[pricing]]).
+- `customers(filter: { parent: { identifier, type: customer } })` returns **direct children only**.
+- `customers(filter: { meta: { key, value } })` finds customers by one meta pair, and `metaProperty(key)` reads one
+  value. People often carry their department's keys too, so add a `kind` key or check `type`.
+- **Meta presets** (`createMetaPreset`) apply to an entity through a **limitation keyed by the entity** (`customer`,
+  `order`, `order-item`, `subscription-contract`, `asset`) with the values `["no-limitations"]` for "all". An enum
+  value is stored as a **JSON array of option keys** (`["NOK"]`); anything else renders as nothing selected, and a
+  filter on such a key passes the array string.
+- A PIM market's `customerIdentifiers` must name existing customers: create the customers first. This is how a B2B contact belongs to its company, which in turn decides
+  whose orders it sees and which contract prices apply — see [[pricing]].
 
 ### Update and Delete
 
@@ -656,8 +729,12 @@ mutation UpdateOrder($id: ID!, $input: UpdateOrderInput!) {
 `updateOrderMetadata(id:, key:, value:)` is narrower and does not touch the rest;
 `deleteOrderMetadata(id:, key:)` removes one.
 
-`registerOrder(input: RegisterOrderInput!)` writes an order that did not come from a cart — a renewal invoice, a
-POS sale, an import. It answers `{ id, createdAt }` before the order is stored, so a call right behind it can
+`registerOrder(input: RegisterOrderInput!)` writes an order that did not come from a cart, **for orders nobody reads
+from the edge** (an import into the back office, renewals on a tenant whose contracts live in Core). A POS sale, an
+accepted quote or a demo seed that a storefront lists is a Shop API `create` instead (see the store table in
+[Shop API Order Mutations](shop-api-order-mutations.md#the-order-store-and-core)). Quotes are `type: quote` with the
+order made from them pointing back through `relatedOrderIds`. The order `reference` can't be set (Core gives each
+order a random one), so keep your own order number in meta. It answers `{ id, createdAt }` before the order is stored, so a call right behind it can
 get `OrderNotFoundError`. Before using it, read what it does to an order a storefront lists, in
 [shop-api-order-mutations.md](shop-api-order-mutations.md).
 
@@ -665,22 +742,83 @@ get `OrderNotFoundError`. Before using it, read what it does to an order a store
 
 ## Media & Images
 
-Media is registered in the tenant's library first, then referenced **by key** in components or on
-variants. Six mutations cover it:
+Importing images and video (`copyRemoteAsset`, presigned uploads, `registerImage`, `registerImageRevision`,
+`updateImage`, showcases, `deleteImage`) and getting them indexed has its own skill: see [[media]].
 
-| Mutation                                                                     | Notes                                                                                                                          |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `copyRemoteAsset(sourceUrl:, type: image, targetFilename:, requestHeaders:)` | Crystallize fetches the URL. A **bulk task**: it returns `targetKey` before the file lands, and it registers the image for you |
-| `generatePresignedUploadRequest(filename:, contentType:, type: MEDIA)`       | A target to POST your own bytes to — the only path for video                                                                   |
-| `registerImage(imageKey:)`                                                   | Registers an uploaded key. Takes nothing else. Not needed after `copyRemoteAsset`                                              |
-| `registerImageRevision(imageKey:, revisionKey:)`                             | Repoints the library entry — Discovery follows only once the items using it are indexed again                                  |
-| `updateImage(key:, language:, input:)`                                       | `altText`, `caption`, `focalPoint`, `meta`, `topicIds`, `showcase` — per language                                              |
-| `deleteImage(key:, force:)`                                                  | Refuses while any item version references it; `force: true` overrides                                                          |
+---
 
-An import that follows these six in the obvious order still breaks in four different ways — keys whose
-file never arrives, renditions that are not ready, revisions the storefront does not show yet, and
-deletes that refuse. **See [Media & Images](media.md)** for the working pipeline, what to verify after an
-import, and how to replace an image later.
+## Pipelines
+
+Pipelines and stages are **created** in the legacy PIM API (below); orders are moved between them on the Shop API
+(`addToStage`) when a storefront reads the orders.
+
+- **`moveStage` fails and deletes the stage it was moving.** Stages can't be reordered: to change the order, delete
+  and recreate the (empty) pipeline.
+- **`placeNewOrders: true` on a stage pulls every new order into that pipeline.** With it on the first stage of
+  three pipelines, every order landed in all three. For typed pipelines (orders, rentals, quotes), leave it off and
+  place each order explicitly.
+- Read pipeline and stage ids with PIM `pipeline.getMany` at build time and write them into the storefront's data;
+  `edges` is `null` on a tenant with no pipelines.
+
+---
+
+## Webhooks
+
+A storefront revalidates its Discovery cache on publish through a Core webhook. No other skill covers them.
+
+```graphql
+mutation Hook($input: CreateWebhookInput!) {
+    createWebhook(input: $input) {
+        __typename
+        ... on Webhook {
+            id
+        }
+        ... on BasicError {
+            errorName
+            message
+        }
+    }
+}
+```
+
+```json
+{
+    "input": {
+        "name": "Revalidate storefront",
+        "concern": "items",
+        "event": "publish",
+        "method": "POST",
+        "url": "https://shop.example.com/api/revalidate",
+        "headers": [{ "name": "x-secret", "value": "…" }],
+        "graphqlQuery": "query ($id: ID!, $language: String!) { item(id: $id, language: $language) { ... on Item { tree { path } } } }",
+        "graphqlQueryTarget": "next",
+        "preserveDefaultPayload": true
+    }
+}
+```
+
+- **`concern` and `event` are plain strings and are not validated.** The concern that fires for item publishes is
+  `items` (plural): `item` and `product` are accepted and never fire, and so is `nope`. Check what fires with the
+  `webhookInvocations` query.
+- Register one webhook per event: `publish` and `unpublish` (two builds did this, and both fired).
+- The default payload has no path. Add a `graphqlQuery` (`graphqlQueryTarget` is `current` or `next`) with
+  `preserveDefaultPayload: true` when the receiver needs the path or the language.
+- The receiver is a server route that verifies the request and clears the storefront's Discovery cache tag. Expect
+  Discovery to lag the webhook by seconds ([Discovery Indexing](../../query/references/discovery-indexing.md)).
+  Crystallize does not retry a failed delivery by itself; `retryWebhookInvocation(id:)` re-sends one.
+- Set webhooks up once per tenant, in a setup script, not from the storefront.
+
+---
+
+## List quirks
+
+- `first` is capped at 100 and asking for more returns 100 without a warning; `shapes(first:)` and `pieces(first:)`
+  above 100 fail instead. Paginate.
+- `items(filter: { itemIds })` ignored the filter and returned the first 100 items by name: read `item(id:)` per
+  item.
+- `items(filter: { shapeIdentifiers: [...] })` (plural) returned unrelated items with a correct `totalCount`; the
+  singular `shapeIdentifier` works and paginates. Query once per shape.
+- The `orders` sort is `{ field: createdAt, direction: desc }`, not `{ createdAt: desc }`.
 
 ---
 

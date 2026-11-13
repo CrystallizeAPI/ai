@@ -9,7 +9,8 @@ description: >
     payload and Backend Token, encrypting installation secrets, talking to the App from the iframe with
     `@crystallize/plugin-signal`, or testing a plugin locally with `issuePluginPayload`.
     Also use when the user mentions Crystallize plugins, plugin revisions, plugin store, marketplace, plugin
-    installations, plugin payload, or plugin permissions.
+    installations, plugin payload, or plugin permissions, or a legacy Crystallize App (PIM `app.create`,
+    `crystallizeSignature`, an iframe view in the App).
 metadata:
     author: Crystallize
     version: "1.0"
@@ -20,6 +21,8 @@ metadata:
 A Crystallize Plugin is a **vendor-hosted application** that extends the Crystallize App UI inside iframes at predefined placement points. Plugins do **not** run code in the App UI itself — they receive a scoped **Backend Token** to act on behalf of the signed-in user via Crystallize APIs, and any secrets they need are encrypted client-side with the vendor's own public key.
 
 The full normative contract — entities, fields, JWE/JWT specs, request shapes, sequence diagrams — lives in [references/plugin-contract.md](references/plugin-contract.md). This SKILL.md is the **builder's guide**: how to ship a plugin end-to-end. Read the contract when a field, security guarantee, or wire format is in question.
+
+**Legacy Apps are not plugins.** A tenant can also frame a page as an App, registered with PIM `app.create`. An App gets only `?crystallizeSignature=<JWT>` (tenant and user, no item id or language), so **use a plugin when the view needs the item**. Apps, their signature, `frame-ancestors` and custom views (`tenant.setPreferences(frontends)`) are in [references/legacy-apps.md](references/legacy-apps.md).
 
 ## Consultation Approach
 
@@ -479,6 +482,7 @@ The [Crystallize plugins monorepo](https://github.com/CrystallizeAPI/plugins) sh
 ## References
 
 - [Plugin Contract](references/plugin-contract.md) — normative spec: entities, fields, JWE/JWT formats, sequence diagrams, entity context, App channel, security model, V1 vs V2 behavior.
+- [Legacy Apps](references/legacy-apps.md) — PIM API iframe views: `app.create`, https `baseUrl`, `crystallizeSignature` and `signatureSecret`, `frame-ancestors`, custom views, and when to pick a plugin instead.
 - [Official documentation](https://crystallize.com/docs/developer/plugins)
 - Companion skill: [js-api-client](../js-api-client/SKILL.md) — `createClient`, `createPluginPayloadDecrypter`, all API callers.
 - CLI helpers: `crystallize plugin create`, `crystallize plugin keygen`, `crystallize plugin encrypt-secret --public-key <path>`, `crystallize plugin decrypt-payload --private-key <path>`.

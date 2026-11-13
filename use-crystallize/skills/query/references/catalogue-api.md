@@ -1,6 +1,8 @@
 # Catalogue API Reference
 
-The Catalogue API provides path-based access to items in your Crystallize tenant. It offers strong consistency for deterministic reads.
+The Catalogue API provides path-based access to items in your Crystallize tenant. In a storefront it is a
+**fallback for one named task**: showing a specific customer's price-list prices. Every other catalogue read,
+including item by path, draft preview and hreflang, goes to the Discovery API ([[storefront]]).
 
 ## Base URL
 
@@ -23,13 +25,22 @@ A restricted Catalogue API takes the `X-Crystallize-Static-Auth-Token` header, o
 
 ## When to Use Catalogue API
 
-Use the Catalogue API when you need:
+| Task                                                | Use                                                                                                       |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| A specific customer's price-list price, for display | **Catalogue**, server-side, cached per organisation ([Prices for one customer](#prices-for-one-customer)) |
+| Item by path, listings, search, facets, variants    | Discovery `search(filters: { path: { equals } })`, `browse`                                               |
+| Editor draft preview                                | Discovery `publicationState: draft`                                                                       |
+| hreflang, translated paths, sitemaps                | Discovery, one aliased query per language by `itemId`                                                     |
+| The price this customer pays in a cart              | Shop API `hydrate` with the customer on the cart ([[pricing]])                                            |
+| A back-office check that a publish landed           | Catalogue (or Core) by path, from a script                                                                |
 
-- **Deterministic exports** - Payload must reflect exact current state
-- **Path-based reads** - You know the exact path to the item
-- **Strong consistency** - Cannot tolerate async delays
+**It is not a peer of Discovery.** On three tenants (Screen Universe and two others) `variants` came back `[]` on
+products while `defaultVariant` worked, so a product page built on it showed one variant or none. It did not
+reproduce on tools-universe (2026-11-12). If you read variants here at all, check for an empty list.
 
-For search, filtering, and faceting, use the Discovery API instead.
+Its stronger consistency is a reason to use it in **seed and verification scripts** (did every path publish?), not
+in the storefront's request path. A storefront that falls back to Catalogue whenever Discovery lags gets two code
+paths and two failure modes for one page.
 
 ## Query Structure
 
@@ -45,7 +56,8 @@ For search, filtering, and faceting, use the Discovery API instead.
 }
 ```
 
-`catalogue` also takes `version` (`published` by default, or `draft`) and `pathResolutionMethods`. That one
+`catalogue` also takes `version` (`published` by default, or `draft`; for editor preview use Discovery's
+`publicationState: draft` instead) and `pathResolutionMethods`. That one
 defaults to `[canonical]`, so an alias, a historic path or a shortcut answers `null` unless you ask for
 `alias`, `history`, `shortcut` or `any`.
 
@@ -190,9 +202,10 @@ Use the Discovery API for these capabilities.
 
 ## Prices for one customer
 
-The Catalogue API is the only storefront API that resolves a price list for a **customer**. Discovery knows
-markets only, so this is where a B2B storefront reads an account's agreed prices — server-side, cached per
-organisation:
+This is the task the Catalogue API is still for. Discovery knows markets only. The Shop API resolves a customer's
+price list for **the cart's** customer (inherited from parent customers), which a throw-away `hydrate` can use as a
+price check. The Catalogue API resolves it for **any** customer you name, so this is where a B2B storefront reads an
+account's agreed prices for display: server-side, cached per organisation, never from the browser.
 
 ```graphql
 query ContractPrice($skus: [String!]!, $customers: [String!]) {
@@ -215,3 +228,13 @@ query ContractPrice($skus: [String!]!, $customers: [String!]) {
 `marketIdentifiers`. A percentage list applies on top of the variant's volume tiers, and a list aimed at an
 organisation resolves for its child customers too — see [[pricing]] for the measurements and the caveats
 (`productVariants(skus:)` caps at 150 SKUs, and `priceFor` is slow enough to need caching).
+
+**Size and speed** (Lab Universe):
+
+- `productVariants(skus:)` takes at most 150 SKUs (`TOO_MANY_SKUS_PROVIDED`), and `priceFor` took about 2 s per
+  150 SKUs.
+- For a whole agreement, read the list once instead: `priceList(identifier:) { productVariants(language:, first:)
+  { edges { node { sku priceVariant(identifier:) { priceList(identifier:) { modifier modifierType } } } } } }` took
+  3.5 s for 2,211 SKUs. Its `pageInfo.hasNextPage` stays `true` past the last SKU, so stop on an empty page.
+- Either way, cache per organisation, and apply the cached rules to the Discovery prices on the page. A slow cache
+  miss during a Next.js prerender is cut off.

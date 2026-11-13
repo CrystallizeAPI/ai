@@ -8,7 +8,15 @@ See [SKILL.md](../SKILL.md) for endpoint URLs and authentication headers. This f
 
 Convert a placed cart into an order. The cart must be in "placed" state first (via `place` mutation on the `/cart` endpoint). Any other state fails, so a second call on the same cart fails too: the first one left it `ordered`.
 
-**The order is saved just after the answer.** An `addPayments` or `addToStage` sent right behind `createFromCart` can miss it, and an immediate read can lag. Pass `paymentStatus`, `payments` and `pipelines` in this input instead of chaining calls.
+**The order is saved just after the answer.** An `addPayments`, `addToStage` or `setMeta` sent right behind `createFromCart` can fail with "Order … not found", and an immediate `order(id:)` read can too. Pass `paymentStatus`, `payments` and `pipelines` in this input instead of chaining calls, and show the confirmation page from the order this mutation returns.
+
+Run it on your server, normally in the payment provider's webhook after verifying the payment ([[payments]]). After `place` the cart is locked, so if this call fails the shopper needs a new cart.
+
+- **Cart meta becomes order meta.** `OrderFromCartInput` has no `meta`: set it on the cart (`hydrate(input: { meta })` or `setMeta`) before `place`. The order gets the cart's meta plus `cartId`, `cartState` and `cartType`, and keeps `customer.meta`.
+- **The order belongs to the cart's customer.** For B2B, put the organisation's identifier on the cart so `orders(customerIdentifier: "<company>")` lists the company's orders, and the ordering person in meta.
+- `additionalInformation: null` is refused ("Output validation error"): leave the field out.
+- `coreId` is `null` in the answer; the Core copy arrived within about 20 s with the meta and the stage.
+- `appliedPromotions` and `reference` came back `null` in the answer even when the cart had a promotion.
 
 ```graphql
 mutation CreateOrderFromCart($id: UUID!, $input: OrderFromCartInput) {
@@ -68,7 +76,11 @@ Variables:
 
 ## Create Order Directly
 
-Create an order without a cart (e.g., for POS, imports, or manual order creation).
+Create an order without a cart: a POS sale, an accepted quote, a manual order, or a demo seed. **Use this, not Core `registerOrder`, whenever a storefront or the Shop API lists the order**; `registerOrder` is for imports nobody reads from the edge (see [The Order Store and Core](#the-order-store-and-core)).
+
+- `relatedOrderIds` takes **Core** ids (`coreId`): an order made from an accepted quote points back at the quote.
+- **`createdAt` was observed both ways**: honoured on one tenant, ignored ("now") on another. For back-dated seeds, keep the intended date in meta (`orderedAt`) as well and read it from there.
+- Seeds: create orders one at a time or at low concurrency, then check by id. The per-customer listing lags and can stay incomplete (47 created, 29 listed), so never use it to decide what still needs creating; key on a meta `seedRef` and keep a ledger.
 
 ```graphql
 mutation CreateOrder($input: OrderInput!) {
@@ -172,7 +184,7 @@ Variables:
 | `relatedOrderIds`         | `[String]`             | No       | Related **Core** order ids (`coreId`), for returns and replacements. A Shop id fails the sync to Core       |
 | `additionalInformation`   | `String`               | No       | Free-text additional info                                                                                   |
 | `meta`                    | `[KeyValueInput]`      | No       | Arbitrary key-value metadata                                                                                |
-| `createdAt`               | `DateTime`             | No       | Override creation timestamp                                                                                 |
+| `createdAt`               | `DateTime`             | No       | Override creation timestamp. Ignored on some tenants: keep the date in meta too                             |
 
 ### OrderItemInput
 

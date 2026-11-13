@@ -1,9 +1,9 @@
 ---
 name: information-architecture
-description: Design folder hierarchies and navigation structures in Crystallize. Create category trees, organize products and content, plan URL structures, and build scalable information architectures. Use when designing storefront navigation, category pages, collection structures, content organization, mega menus, breadcrumbs, or site maps. Also use when the user mentions organizing their catalog, planning their store structure, restructuring navigation, placing an item in several folders with shortcuts, moving or renaming folders without breaking URLs, or asks how to organize products or content in Crystallize — even if they don't explicitly say "information architecture."
+description: Design folder hierarchies and navigation structures in Crystallize. Create category trees, organize products and content, plan URL structures, and build scalable information architectures. Use when designing storefront navigation, category pages, collection structures, content organization, mega menus, breadcrumbs, or site maps. Also use when the user mentions organizing their catalog, planning their store structure, restructuring navigation, placing an item in several folders with shortcuts, moving or renaming folders without breaking URLs, translated paths per language, hreflang alternates, redirects from old paths, canonical URLs, slug collisions, or asks how to organize products or content in Crystallize — even if they don't explicitly say "information architecture."
 metadata:
     author: Crystallize
-    version: "1.1"
+    version: "1.2"
 ---
 
 # Crystallize Information Architecture Skill
@@ -61,13 +61,65 @@ This skill focuses on hierarchical organization. For topic maps and taxonomic cl
 
 Crystallize generates every canonical path. No folder input takes a path or a slug, so these rules decide the URLs you get:
 
-- **A path is the parent's path plus the slugified `name`.** `Men's Shoes` under `/shop` becomes `/shop/mens-shoes`: lower case, hyphens for spaces, and whatever cannot be reduced to ASCII letters, digits or hyphens is dropped.
-- **Paths are per language.** Each language builds its own path from its own name and the parent's path in that language, so `/shop/men` can be `/boutique/hommes` in French. Create and translate parents first: a child whose parent has no path in that language gets a placeholder path (`/placeholder/missing-parent-translation/...`). `paths { hreflangs { language path } }` on the Catalogue API lists the published path of each language.
-- **A collision never fails.** If another item already uses the path as a canonical path, alias or shortcut in that language, the new item silently gets a random suffix (`/shop/men-x7k2q`), so two same-named siblings both succeed. A path in another item's `history` counts as free, and publishing it removes it from that history.
-- **Renaming or moving changes the path of the whole subtree.** A new `name` regenerates the path in that language. A new parent regenerates it in every language.
+- **A path is the parent's path plus the slugified `name`.** `Men's Shoes` under `/shop` becomes `/shop/mens-shoes`: lower case, hyphens for spaces, and whatever cannot be reduced to ASCII letters, digits or hyphens is dropped. In practice: `æ` → `ae`, `ø` → `o`, `å` → `a`, other diacritics stripped, `&` → `and` (`Batteries & chargers` → `/batteries-and-chargers`), and dots and slashes dropped (`6.0 Ah` → `60-ah`, `5233/6234` → `52336234`). Source slugs do not survive an import either (`komplette-sett-2` → `komplette-sett`, `1-2` → `12`).
+- **Join on `itemId` or `externalReference`, never on a path.** Paths are re-slugged, suffixed on collision and regenerated on rename, so a slug from the old platform or a path from another language is not a key. Keep the source system's id in `externalReference` (or the mass operation's `resourceIdentifier`) and look items up by that.
+- **Paths are per language.** Each language builds its own path from its own name and the parent's path in that language, so `/shop/men` can be `/boutique/hommes` in French, and localised URLs need nothing more than translated names. The depth can differ too: an untranslated or renamed level changes the trail, so never derive one language's path from another's. Get every language's path by `itemId` instead (see [Paths per language, hreflang and redirects](#paths-per-language-hreflang-and-redirects)).
+- **Translate parents first.** A child named in a language before its parent gets a placeholder path (`/missing-path-for-language/<parent>/<language>`), and it stays there after the parent is translated. Repair it by moving the item to a sibling folder and back with `moveItemTreeNode`, then publishing: moving it to the parent it already has is a no-op. Publishing a language in which an item has no content puts an empty document in that language's Discovery index (`name: "MISSING_NAME_FOR_LANGUAGE"`, `path: "/missing-path-for-language/<id>/<language>"`), so a storefront that falls back to another language tests for content (`<component>: { exists: true }`), not for hits.
+- **A collision never fails.** If another item already uses the path as a canonical path, alias or shortcut in that language, the new item silently gets a random suffix (`/shop/men-x7k2q`), so two same-named siblings both succeed, and so does a rerun of a failed import that creates the same items again. A path in another item's `history` counts as free, and publishing it removes it from that history.
+- **Paths are unique within a folder, not across the tree.** The same product name under `/women/` and `/men/` gives the same last segment twice (one store had 37 shared slugs in 787 products). Route on the full path, and never resolve a URL by its last segment with `limit: 1`; if the URL scheme drops the folders, add a disambiguator such as the style number.
+- **Renaming or moving changes the path of the whole subtree.** A new `name` regenerates the path in that language, on folders, products and documents alike: an `updateProduct` or `updateDocument` that only sets `name` is a URL change too. A new parent regenerates it in every language. To keep a legacy URL, pick a name that slugifies to it and keep the display title in a component, or add an alias.
 - **Moves, renames and reorders are drafts until the item is published.** The published item keeps its old path and position until then. Publishing a moved or renamed folder is enough for what is under it: its published descendants follow in that language without being republished.
 - **Old paths are kept.** Publishing a changed path adds the previous one to `paths.history`, on the item and on each published descendant, up to the last 100 per language.
 - **An alias is the way to choose a path.** `item/paths/addAliases`, or `addItemTreeNodeAliases(input: { itemId, language, paths })` on the Core API, adds an extra path for one language. Unlike a generated path, a taken alias fails. It needs a publish too.
+
+### Paths per language, hreflang and redirects
+
+A storefront reads paths from the Discovery API, like the rest of the catalogue (see [[storefront]] for the API contract, and [[seo-geo]] for sitemaps and the `<head>` they go in). Discovery holds one document per item and language, keyed by `itemId`, so every cross-language and old-URL question is answered by `itemId`.
+
+**The item's path in every language: one aliased query.** Discovery has no `hreflangs` field. Ask for the item in each language in one request:
+
+```graphql
+query PathsForItem($id: String!) {
+    en: search(language: en, filters: { itemId: { equals: $id } }) {
+        hits {
+            path
+        }
+    }
+    no: search(language: no, filters: { itemId: { equals: $id } }) {
+        hits {
+            path
+        }
+    }
+    # … one alias per tenant language
+}
+```
+
+A language with no hit has no published version: leave it out of the alternates. Filter on `itemId`, not `id` (`id` is the document id, `<itemId>-<language>-published`). For a sitemap, read one listing per language and join the rows on `itemId`; `updatedAt` on each hit is the `lastModified`.
+
+**hreflang values are BCP 47 tags, not tenant language codes.** Map them once: a tenant's `no` holds Norwegian Bokmål, which is `nb` (`no` is the macrolanguage). Emit `<link rel="alternate" hreflang="nb" href="…">` for every language the item has, itself included, plus `hreflang="x-default"` pointing at the default language's URL. Put the language in the URL path (`/nb/…`), not a cookie, so crawlers see every language.
+
+**Folders that are separate items per language.** When each language has its own folder items instead of one translated folder, `itemId` doesn't join them. Use a language-independent key: the folder's topic path (the longest `/category/…` in `topicPaths`), or a shared `externalReference`.
+
+**Redirect old URLs from `history`.** Publishing a rename or move keeps the old path in the item's `history`. When a request path doesn't resolve, look it up as a history path, then send a 301 to the item's current path in that language:
+
+```graphql
+query OldPath($path: String!) {
+    search(language: en, path: $path, pathResolutionMethod: [history]) {
+        hits {
+            itemId
+            pathResolutionMethod
+        }
+    }
+}
+```
+
+Read the current path by `itemId` with the query above. Keep history paths out of the sitemap and out of hreflang, which list canonical paths only. `item/paths/addHistory` seeds old paths from a previous platform, and needs a publish.
+
+**Canonicals.** Every page declares one `<link rel="canonical">`, built from the item's generated path, never from a URL typed into a component (it goes stale on the first rename; [[content-model]] has no canonical field for this reason).
+
+- **A shortcut path is a duplicate URL.** It serves the same item, so its canonical points at the item's canonical path, unless the market page is meant to rank on its own and carries market-specific content.
+- **Filtered and sorted category views** (`?brand=…&sort=…`) point at the clean category path.
+- **An alias** is a deliberate URL: decide whether it or the generated path is canonical, and redirect the other.
 
 ## Best Practices
 
@@ -101,6 +153,8 @@ Paths become URLs, so:
 - Use descriptive, keyword-rich names
 - Keep paths readable and logical
 - Avoid IDs or codes in paths
+- Name each folder in its own language: the name is the slug, per language
+- Plan the redirects and canonicals that renames and shortcuts need (see [Paths per language, hreflang and redirects](#paths-per-language-hreflang-and-redirects))
 
 ### 5. Plan for Growth
 
@@ -113,14 +167,16 @@ Ask: "Where will new products/categories go?"
 ```
 /
 ├── shop/
-│   ├── category-1/
-│   ├── category-2/
-│   └── category-3/
+│   ├── clothing/
+│   ├── shoes/
+│   └── accessories/
 ├── brands/
-├── sale/
-├── new-arrivals/
+├── sale/              # landing page listing the "sale" topic; holds no products
+├── new-arrivals/      # landing page listing the "new" topic; holds no products
 └── about/
 ```
+
+`sale/` and `new-arrivals/` are pages, not homes for products: each product stays in its one category folder and carries a topic, and the landing page lists that topic (see [Anti-Patterns](#anti-patterns)).
 
 ### Fashion Store
 
@@ -140,7 +196,7 @@ Ask: "Where will new products/categories go?"
 ├── collections/
 │   ├── summer-2024/
 │   └── basics/
-└── sale/
+└── sale/                  # topic-driven landing page
 ```
 
 ### Electronics Store
@@ -191,8 +247,7 @@ When customers need to browse by multiple dimensions (category AND brand):
 │   │   ├── adidas/
 │   │   └── puma/
 │   └── collections/
-│       ├── summer-2024/
-│       └── sale/
+│       └── summer-2024/
 ├── brands/           # Brand landing pages
 └── about/
 ```
@@ -265,8 +320,8 @@ Create them with `item/paths/addShortcuts` in a mass operation, where `position`
 ```
 /
 ├── shop/                  # B2C storefront
-│   ├── category-1/
-│   └── category-2/
+│   ├── power-tools/
+│   └── hand-tools/
 ├── wholesale/             # B2B section
 │   ├── price-lists/
 │   └── bulk-orders/
@@ -356,7 +411,7 @@ Second-level → Dropdown/mega menu
 Third-level → Sub-navigation or sidebar
 ```
 
-Top-level folders are the children of the root item, so read the menu from `catalogue(path: "/")` with `subtree(type: folder)`, which keeps products and documents out. `createNavigationFetcher(client).byFolders('/', 'en', 3)` builds the nested query for you, but it reads every published child at each level: add `type` through its `perLevel` argument and filter out what is not a folder.
+Top-level folders are the children of the root item. On the Discovery API, `search(language, filters: { type_in: [folder], depth: { range: { lte: 2 } } }, sorting: { position: asc })` returns the folders of the first two levels, with `path`, `depth` and `position`; group them by `parentId`. A wildcard path is not a "direct children" filter: `path: "/shop/*"` matches every depth below `/shop`. For one folder's children use `parentId: { equals }`, or `parentPaths: { equals }` for everything below it. `position` orders siblings within one folder only, so sort per parent rather than across depths.
 
 ### Breadcrumbs
 
@@ -366,7 +421,7 @@ The folder path gives the shape of the trail, but it holds slugs, not display na
 /shop/men/shoes → Home > Shop > Men > Shoes
 ```
 
-Take the labels from the API. Discovery `breadcrumbs` answers one trail per location of the item, from the top-level folder down to the item, and each crumb carries `id`, `name`, `path`, `shape` and `isShortcut`. `breadcrumbs(withShortcuts: false)` keeps the canonical trail only. On the Catalogue API, walk `parent`.
+Take the labels from the API. Discovery `breadcrumbs` answers one trail per location of the item, from the top-level folder down to the item itself (the last crumb is the page you are on), and each crumb carries `id`, `name`, `path`, `shape` and `isShortcut`. `breadcrumbs(withShortcuts: false)` keeps the canonical trail only.
 
 ### URL Routing
 
@@ -377,7 +432,7 @@ Crystallize path: /shop/men/shoes
 Frontend URL: https://store.com/shop/men/shoes
 ```
 
-`catalogue(path:)` resolves canonical paths only by default, so a storefront that also serves shortcut, alias or old URLs passes `pathResolutionMethods` (`canonical`, `shortcut`, `alias`, `history` or `any`). The answer's `path` echoes the path you asked for, `pathResolutionMethod` says how it matched, and `paths { canonical }` is the real location.
+Resolve the request path with Discovery `search(language, path: $path)`. It matches canonical, alias, shortcut and history paths by default, and each hit says how it matched in `pathResolutionMethod`. Pass `pathResolutionMethod: [canonical, shortcut, alias]` for the page lookup and handle `history` as a redirect (see [Paths per language, hreflang and redirects](#paths-per-language-hreflang-and-redirects)). On the Catalogue API, `catalogue(path:)` resolves canonical paths only unless you pass `pathResolutionMethods`, but a storefront should not need it for this.
 
 ### Topics (Cross-cutting)
 
@@ -396,7 +451,7 @@ When a user already has a folder structure and wants to improve it:
 1. **Audit the current tree** — Ask the user to describe (or export) their current folder hierarchy. Identify pain points: too deep, inconsistent naming, duplicated products, orphaned folders.
 2. **Identify what's working** — Don't propose a full rewrite if only part of the tree is problematic. Preserve paths that are already indexed by search engines or bookmarked by customers.
 3. **Propose incremental changes** — Restructuring everything at once is risky. Suggest changes in phases: rename and flatten first, then reorganize, then clean up.
-4. **Consider URL redirects** — Changing folder paths changes URLs. Remind the user to set up redirects from old paths to new ones in their frontend to avoid broken links and SEO penalties. Crystallize keeps the old paths, so the frontend can drive this itself: when a path does not resolve, query `catalogue(language: "en", path: "/old/path", pathResolutionMethods: [history]) { paths { canonical } }` and redirect to the result. `item/paths/addHistory` seeds old paths from a previous platform, and needs a publish like any other path change.
+4. **Consider URL redirects** — Changing folder paths changes URLs. Remind the user to set up redirects from old paths to new ones in their frontend to avoid broken links and SEO penalties. Crystallize keeps the old paths, so the frontend can drive this itself from `history` (see [Paths per language, hreflang and redirects](#paths-per-language-hreflang-and-redirects)). `item/paths/addHistory` seeds old paths from a previous platform, and needs a publish like any other path change.
 5. **Move existing items, do not recreate them** — `folder/upsert` only reuses a folder it can find by `resourceIdentifier` or `itemId`, so for a folder made without one it creates a duplicate. Use `folder/update` (or `product/update`, `document/update`) with `itemId` and `tree: { parentId, position }`, or `moveItemTreeNode` on the Core API, then publish the moved item in each language. A folder cannot move under one of its own descendants.
 6. **Do not delete or unpublish a folder to empty it** — Deleting a folder deletes everything under it, in the background and with no prompt. Unpublishing it takes everything under it offline in that language. Move what stays first.
 

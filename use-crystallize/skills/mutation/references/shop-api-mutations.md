@@ -524,7 +524,8 @@ mutation {
 
 ## Complete Checkout Flow
 
-The full checkout flow spans the Core API, `/cart` endpoint, and `/order` endpoint:
+The full checkout flow spans the `/cart` and `/order` endpoints (and `/customer` when you keep customer records),
+all called from your server. No step uses the Core API:
 
 ```
 0. (Optional) Create Customer → POST /customer — customer(input:)
@@ -542,7 +543,8 @@ separate fulfill step.
 Customers can be created **before** checkout, on the Shop API or the [Core API](core-api.md), or **inline** during hydration:
 
 - **Shop API `/customer`** (from a storefront): `customer(input: { identifier, ... })` creates or updates the customer, and `addAddress`, `setAddress`, `removeAddress` and `setMeta` edit it. The token needs the `customer` scope.
-- **Core API** (persistent customer records, from a back office): Use `createCustomer` with `type: individual` or `type: organization`. The customer's `identifier` (typically email) can then be passed to `hydrate`.
+- **Core API** (from a back office or a seed, never from the storefront's request path): `createCustomer` with `type: individual` or `type: organization`, and `parents` for a company hierarchy. The customer's `identifier` (typically email) can then be passed to `hydrate`.
+- **B2B, ordering on behalf of a company**: put the **organisation's** identifier on the cart customer, so the order belongs to the company and `orders(customerIdentifier: "<company>")` lists it, and put the person who ordered in cart meta (`orderedBy`). The Shop API has no "orders of a parent" query.
 - **Inline during hydrate** (recommended for checkout): Pass `customer: { identifier, firstName, lastName, isGuest }` directly in the hydrate input. This associates the customer with the cart without requiring a separate API call.
 
 For guest checkout, set `isGuest: true` in the hydrate customer input.

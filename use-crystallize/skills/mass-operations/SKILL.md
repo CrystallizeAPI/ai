@@ -114,6 +114,16 @@ and all `item/paths/*`. Everywhere else it is either rejected at runtime or sile
 `image/register` only looks it up and never stores it — the full table is in `references/intents.md`
 § "Where `resourceIdentifier` actually works".
 
+**Use only letters, digits and `. - _ / @`.** The runtime error says the value may include
+`;:+@( )._-"=`, but spaces, colons and parentheses are refused (`Invalid identifier … can only include …`),
+and every affected operation fails with `Failed to instantiate command`. Write `folder/controls-2` or
+`page-home`, not `folder:controls-2`, and sanitise SKUs such as `15 081 10` before using them as keys.
+
+**Only a mass operation can write `resourceIdentifier`.** Core create and update inputs have no such field
+and Core `items` can't filter on it (it can read it). Write identity through `product|document|folder
+/create|upsert` and mirror the same value into `externalReference`, which Core can filter on with
+`items(filter: { externalReferences })`. See [[mutation]] for the Core side.
+
 ### 5. Order operations as a dependency tree
 
 **A thing must exist before anything references it.** Execution is strictly sequential, so every
@@ -137,9 +147,12 @@ content model. There is no deferred resolution and no second pass.
 Chain with `_ref` where there is no natural identifier, and with a shared `identifier` /
 `resourceIdentifier` where there is.
 
-Shapes or pieces that reference each other in a cycle: create them first with `"components": []`
-(`shape/create`, `piece/create`), then send the full definition with `shape/upsert` / `piece/upsert`.
-`dump-content-model` writes files in this form.
+Shapes and pieces that reference each other: create every one of them empty first, then fill them,
+pieces before shapes. This is the 4-phase order in [[content-model]] (empty pieces, empty shapes, full
+pieces, full shapes). The empty phase can be `piece/upsert` / `shape/upsert` without `components`, or
+`piece/create` / `shape/create` with `"components": []`, which is the form `dump-content-model` writes.
+Skip the empty phase for a shape or piece the tenant already has: an upsert replaces the whole
+definition, so a run that stops after it leaves the existing one empty.
 
 **Nothing checks this for you.** The schema validates structure, not existence, so a file referencing
 something that isn't there yet uploads and starts happily — it fails partway through, after earlier
@@ -180,6 +193,11 @@ even when individual operations failed — each failure is logged and the runner
 operation. There is no rollback. Per-operation `status` is `success`, `partial`, or `failure`, with
 `statusCode` `200`, `206`, or `500` respectively.
 
+**The reason for a failure is nested.** The log's top-level `message` is only `Operation failed.`; read
+`output.value.error.message`. Successful outputs are wrapped the same way: `output` is `{ value: { id } }`,
+while `_ref` sees the unwrapped `{ id }`. Logs do not come back in file order, so match them to operations
+by `resourceIdentifier` or the rendered id in `input`, never by position.
+
 Three ways an operation can leave **no log entry at all**:
 
 - its converter returned no command (see `references/intents.md` § "Silent skips"),
@@ -215,6 +233,26 @@ the ignition task like any other bulk task, treat `error` as blocking, and probe
   omitted `priceVariants`, `stockLocations`, `images`, `videos` and `attributes` reset to empty. To change
   one component use `item/updateComponent/*`. An upsert also re-applies `tree.parentId`, moving the item
   back if someone moved it.
+- **An upsert in a second language empties shared relation components.** Item relations are not per
+  language, so a `product/upsert` in `en` that leaves out the relations set by the `no` run clears them for
+  every language. Write relations after the last language run (or send them in every run), then check
+  relation counts in Discovery.
+- **Optional numerics with a `units` list fail the update path.** A `product/upsert` (or `update`) that hits
+  an existing product fails with `No unit provided for numeric item component …` for any variant that has
+  no value for such a component, even when the operation does not send it. On several tenants the create
+  of the same item passed, so the first run works and the rerun fails; on others the create failed too.
+  Workarounds that worked: drop the `units` list
+  from optional numerics (the unit is still stored per value), or patch only what changed with
+  `item/updateComponent/*` and `product/update` without `variants`. See [[content-model]] for the model side.
+- **Validation differs per intent.** Upserts check relation minimums (`Need to provide at least 1 related
+  items for component brand`) and `item/updateComponent/item` checks nothing (`references/limits.md`).
+  `item/publish` has no `disableComponentValidation`, so an item with an empty unit-bound numeric never
+  publishes through it: use Core `publishItem(s)(…, disableComponentValidation: true)`, which also hides
+  shape-limit violations, so keep the normal publish validated.
+- **Large products can fail to create.** A `product/upsert` create with 100 variants failed with a bare
+  `Operation failed.` for some products, deterministically, while siblings of the same size succeeded.
+  Create with up to 50 variants, then send the rest with a second `product/upsert` or
+  `product/variant/upsert`.
 - **At `version: "1.0.0"` there is no upsert return-shape trap for items.** The v1.0.0 converters normalise
   `product|document|folder /upsert` to a flat `{id}` and `piece|shape|customer /upsert` to `{identifier}`.
   The `{{#if x.id.id}}…{{else}}…{{/if}}` guard seen in the public docs is legacy `0.0.1` behaviour —
@@ -258,7 +296,8 @@ the ignition task like any other bulk task, treat `error` as blocking, and probe
   and `order/register` is asynchronous, so a later operation in the same file can miss the order. Read
   `references/intents.md` § "Schema quirks worth knowing" before importing orders.
 - **`item/publish` is one item at a time and only a request.** `includeDescendants` validates and is
-  ignored, and `success` means accepted, not yet published.
+  ignored, and `success` means accepted, not yet published. A log entry with status `success` can still
+  hold the item in its result's `failure` list: read the result, then check the published version.
 - **Never guess an intent name.** The union in `references/intents.md` is exhaustive as of v6.17.0.
 - **Presigned URLs are short-lived.** Upload immediately after requesting one.
 
