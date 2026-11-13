@@ -31,7 +31,7 @@ structured data and text **from the same rows**, so the page, the JSON-LD and th
 The storefront side (Discovery reads, caching, routing) is in [[storefront]]. Letting agents act on the store
 (MCP, WebMCP, an assistant) is in [[agentic-commerce]]; this skill is the passive half.
 
-> Built and checked on three Crystallize storefronts (Tools Universe, Photo Store, Høiax), September–November
+> Built and checked on three Crystallize storefronts (Tools Universe and two others), September–November
 > 2026, and audited against Chrome's Modern Web Guidance v1.0 on 2026-11-12. The JSON-LD of the live Tools
 > Universe pages passes the vocabulary check in [references/validation.md](references/validation.md).
 

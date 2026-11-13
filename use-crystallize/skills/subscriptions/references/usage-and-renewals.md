@@ -145,7 +145,7 @@ lists the rest of the customer's orders (see "pick one store" in the main skill)
 | Contracts in | Renewal order                                                             | Evidence                      |
 | ------------ | ------------------------------------------------------------------------- | ----------------------------- |
 | Core         | Core `registerOrder`, as above                                            | Screen Universe, every period |
-| Shop API     | `orderIntent(id, format: shop) { order }`, then `/order` `create` with it | Wee, standing-order renewals  |
+| Shop API     | `orderIntent(id, format: shop) { order }`, then `/order` `create` with it | Standing-order renewals       |
 
 **`createFromSubscriptionContract` on the Shop `/order` endpoint does not work**: it is in the schema, and
 every call failed with "Unexpected error" on two tenants — trial, renewed, cancelled and basic contracts,

@@ -1,7 +1,7 @@
 # Showcases (hotspots)
 
-A showcase links a point on an image to products, SKUs or documents: the "shop the look" feature. (Armaturjonsson,
-Fashion Universe, WoolLand, Wee and YIT, September to November 2026.)
+A showcase links a point on an image to products, SKUs or documents: the "shop the look" feature. (Fashion
+Universe and four other builds, September to November 2026.)
 
 ## Writing them (Core)
 

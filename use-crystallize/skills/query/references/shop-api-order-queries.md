@@ -183,8 +183,8 @@ read: Core `orders(filter: { meta, pipelineStageIds, customer })` behind staff l
 
 - New orders appear after **seconds to minutes**. Six orders created one at a time all listed after about 60 s.
 - **Some never appear.** 47 orders created at concurrency 4: Core had all 47, the listing showed 29 and stayed there
-  (Felleskjøpet). Two hours after an import, `limit: 100` returned 6 of 8 and 4 of 5 orders for two customers
-  (WoolLand).
+  (one tenant). Two hours after an import, `limit: 100` returned 6 of 8 and 4 of 5 orders for two customers
+  (another tenant).
 - `coreId` is `null` on some orders that have reached Core.
 
 So:

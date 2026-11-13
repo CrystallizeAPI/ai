@@ -445,7 +445,7 @@ component fields available directly. This is the recommended approach for storef
 
 **Sort keys apply in schema order, not in the order you write them.** In `{ price_default: asc, itemId: asc }`,
 `itemId` comes before the price fields in `TenantSort`, so it became the primary key and the price order was lost
-(Felleskjøpet; reproduced on tools-universe, 2026-11-12). Use one key per sort, or check the field order in the generated sort input before adding a second.
+(one build; reproduced on tools-universe, 2026-11-12). Use one key per sort, or check the field order in the generated sort input before adding a second.
 `score` is first, so it is safe as the primary. For a full scan, `{ itemId: asc }` alone gave stable cursor paging.
 Note that `sorting` does **not** compose predictably with ranking, see below.
 
@@ -492,7 +492,7 @@ Use `paginationToken` (returned as `endToken` in summary) for efficient, consist
 > (`after`). `skip` becomes increasingly expensive on large result sets. **The exception is ranked
 > queries** — see below.
 
-- **Page size**: `limit: 500` worked on Høiax, and `limit: 1000` returned all 540 documents of tools-universe in
+- **Page size**: `limit: 500` worked on one tenant, and `limit: 1000` returned all 540 documents of tools-universe in
   one page (2026-11-12). No cap was hit below that; page anyway for anything larger.
 - `limit` is ignored under `nearestTo`.
 - Many aliased lookups in one request scale badly: batch about 25 aliases per request.
@@ -613,7 +613,7 @@ Every price variant and stock location becomes its own set of fields on `Product
 | `priceVariants`, `priceVariantFor(identifier:, marketIdentifiers:)` | The same by identifier, as a hash or one value                |
 | `<location>Stock` (`oslStock`), `stockLocations`                    | Stock per location; `stock_<location>` to filter              |
 
-- **Market prices are slow**: about 1.4 s per 100 products per market (Oslo VVS). Read them only for the SKUs on
+- **Market prices are slow**: about 1.4 s per 100 products per market (one tenant). Read them only for the SKUs on
   screen, never for a whole listing, and cache per market. `…PriceForEveryone` is slow under build load too.
 - Discovery knows **markets only**. A price for a specific customer is a Shop API (cart) or Catalogue read, on the
   server ([[pricing]]).

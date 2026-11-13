@@ -102,8 +102,8 @@ at the `advanceWindow` without a Shop call. Product shapes can filter, facet and
 and `bookable_poolSize`, as in `filters: { bookable_kind: { equals: "units" } }`.
 
 A newly published bookable product on an already indexed shape appeared with its `bookable` pool about a
-minute after publish, with no ignite (Korsbakken build). A **new** shape, and in one build even a new folder
-on an existing shape, was not served until after `igniteDiscoApi` (Felleskjøpet build); see [[query]].
+minute after publish, with no ignite (observed in one build). A **new** shape, and in one build even a new folder
+on an existing shape, was not served until after `igniteDiscoApi` (another build); see [[query]].
 
 **Discovery never serves availability.** Listing pages can say "5 machines, 3 depots" from `poolSize` and
 the pool; anything about a date is a Shop API call. Design the page so the calendar loads after the

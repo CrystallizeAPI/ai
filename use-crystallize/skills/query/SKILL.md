@@ -73,7 +73,7 @@ hours. The browser holds only the cart id, in an httpOnly cookie. The token rule
 
 `GET https://shop-api.crystallize.com/{tenant}` lists the routes a tenant serves. A token requested with every scope
 at once read `/subscription-contract` but answered "Unexpected error" on `create`, while a token scoped to that route
-alone worked (Wee). Minting, expiry and the error shapes are in [Shop API Queries](references/shop-api-queries.md).
+alone worked. Minting, expiry and the error shapes are in [Shop API Queries](references/shop-api-queries.md).
 
 ## Discovery API
 

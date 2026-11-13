@@ -34,7 +34,7 @@ A restricted Catalogue API takes the `X-Crystallize-Static-Auth-Token` header, o
 | The price this customer pays in a cart              | Shop API `hydrate` with the customer on the cart ([[pricing]])                                            |
 | A back-office check that a publish landed           | Catalogue (or Core) by path, from a script                                                                |
 
-**It is not a peer of Discovery.** On three tenants (Høiax, Screen Universe, WoolLand) `variants` came back `[]` on
+**It is not a peer of Discovery.** On three tenants (Screen Universe and two others) `variants` came back `[]` on
 products while `defaultVariant` worked, so a product page built on it showed one variant or none. It did not
 reproduce on tools-universe (2026-11-12). If you read variants here at all, check for an empty list.
 

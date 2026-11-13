@@ -320,7 +320,7 @@ did not see it: keep a read-back check rather than a rule; [[vector-ranking]].)
 draft, but after `publishItem` the `current` version — and Discovery — had `chunks: []`, while a
 `singleLine` on the same variant and a numeric on another shape's variants published fine. If a variant
 chunk disappears on publish, move that data to the product (one row per variant, with the SKU in it). Another
-tenant (Felleskjøpet) published variant chunks fine and Discovery served them, so check on yours.
+tenant published variant chunks fine and Discovery served them, so check on yours.
 
 **Creating an item validates its required components**, so create is not "create then fill": a document
 whose relation has `minItems: 1`, or a numeric with a unit list, fails `createDocument` with

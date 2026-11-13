@@ -149,7 +149,7 @@ each. The register log's `input.value.operation.key` is the key; cache it. Three
 
 - `{{ upload }}` names the file after the URL's basename, so an extension-less URL (`…/product-images/4846/default`)
   gives a key that registers but is **never processed**. Append a query whose last segment is a file name
-  (`…/default?name=/korsbakken-4846.jpg`).
+  (`…/default?name=/product-4846.jpg`).
 - `image/register` with a resourceIdentifier that is already registered is **skipped silently**: no log, no key.
 - Registered images get language `en` and no alt text: write metadata afterwards with `updateImage` per language.
 

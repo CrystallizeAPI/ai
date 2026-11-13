@@ -28,8 +28,8 @@ Core, no extra state.
 This is the active half. Being found and quoted (JSON-LD, llms.txt, Markdown twins, crawlers) is in [[seo-geo]];
 the storefront it runs inside is [[storefront]].
 
-> Built and running on two Crystallize stores, Tools Universe (18 tools, typed ETIM specs, rentals) and Photo
-> Store (15 tools, typed lens and camera specs), September–November 2026, on Next.js 16 and the MCP TypeScript SDK
+> Built and running on two Crystallize stores, Tools Universe (18 tools, typed ETIM specs, rentals) and a
+> camera store (15 tools, typed lens and camera specs), September–November 2026, on Next.js 16 and the MCP TypeScript SDK
 > with `@modelcontextprotocol/ext-apps`. WebMCP is designed but not shipped by either: it is an early preview
 > behind a Chrome flag.
 

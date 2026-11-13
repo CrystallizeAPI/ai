@@ -79,7 +79,7 @@ Variables:
 Create an order without a cart: a POS sale, an accepted quote, a manual order, or a demo seed. **Use this, not Core `registerOrder`, whenever a storefront or the Shop API lists the order**; `registerOrder` is for imports nobody reads from the edge (see [The Order Store and Core](#the-order-store-and-core)).
 
 - `relatedOrderIds` takes **Core** ids (`coreId`): an order made from an accepted quote points back at the quote.
-- **`createdAt` was observed both ways**: honoured on WoolLand, ignored ("now") on Wee. For back-dated seeds, keep the intended date in meta (`orderedAt`) as well and read it from there.
+- **`createdAt` was observed both ways**: honoured on one tenant, ignored ("now") on another. For back-dated seeds, keep the intended date in meta (`orderedAt`) as well and read it from there.
 - Seeds: create orders one at a time or at low concurrency, then check by id. The per-customer listing lags and can stay incomplete (47 created, 29 listed), so never use it to decide what still needs creating; key on a meta `seedRef` and keep a ledger.
 
 ```graphql

@@ -41,10 +41,10 @@ slot reads `{ free: 0, bookable: true, reason: null }`: a calendar needs both.
   under a 15-minute buffer reads busy from 09:45 to 11:15 at 15-minute granularity: 09:45, because a new
   booking ending at 10:00 would need its own buffer. So "this unit is free in every slot of
   `[start, end)`" is the right admission test, and `bookSkuItem` refused exactly where the slots said busy.
-  (Korsbakken build, 2026-10.)
+  (One build, 2026-10.)
 - **Start the range on the booking grid, not on UTC midnight.** With `granularitySec: 86400` from UTC
   midnight, a 07:00→07:00 Oslo hire falls into two slots, so every hire looks a day longer. Start the
-  range at the local period start (07:00) and the slots line up with the bookings. (Felleskjøpet build.)
+  range at the local period start (07:00) and the slots line up with the bookings. (Another build.)
 
 `nearestAvailability(productId, sku, around, durationSec, n, language)` answers "the next `n` windows of
 this length from this time" as `{ start, end }` — the right query behind a "next free slot" button. `n`
@@ -56,7 +56,7 @@ the time of day of `around`.
 offered 16:00–20:00, and it takes no unit or region filter. Use it as a hint (jump the calendar to that
 week), then filter the slot starts to opening hours and to the units the shopper can use in code. Opening
 hours are not a booking concept; to make closed hours unbookable, `block` them on
-[`/booking/admin`](booking-admin.md#take-a-unit-out-of-service). (Korsbakken build.)
+[`/booking/admin`](booking-admin.md#take-a-unit-out-of-service). (Observed in one build.)
 
 `checkBooking(input: CartCheckBookingInput!)` is a dry run of one exact booking and returns
 `{ ok, reason }`, not a union. `reason` is `NotBookable`, `Conflict`, `InvalidRange` or `InvalidUnitId`:
@@ -142,7 +142,7 @@ Three ways out, and the first is the one to reach for:
    one unit: a 10-day hire is a weekend SKU plus a week SKU, the cheapest cover computed in the storefront,
    booked back to back with one `bookSkuItem` each on the same `unitId`. This needs zero buffers and
    periods that meet (every period 07:00→07:00). Each line carries its real SKU and price, a customer's
-   price list applies per line, and the calendar is blocked exactly. (Felleskjøpet build, machine hire.)
+   price list applies per line, and the calendar is blocked exactly. (Observed in a machine-hire build.)
 
 `addExternalItem` needs the product on its variant: `variant: { price, product: { id, path } }`.
 Without `product` it fails with `Field "product" of required type "ProductInput!" was not provided`.
@@ -153,7 +153,7 @@ Without `product` it fails with `Field "product" of required type "ProductInput!
 reserves nothing, and `place` and `createFromCart` let it through: the order exists and the calendar never
 heard of it. That holds for every variant of a bookable product, not only the one you booked. Nothing
 warns you, so validate in the storefront that every line of a bookable product has a `booking`, unless
-you add such a line on purpose. The Korsbakken build did: one window for a set of installation jobs, booked
+you add such a line on purpose. One build did: one window for a set of installation jobs, booked
 on the first job's SKU, with the other jobs as plain lines tied to it by `meta`.
 
 **Put the customer on the cart before booking.** The reservation records who holds it at
@@ -363,7 +363,7 @@ cart id.
   To verify `{ state: CONFIRMED, orderId }` server-side, `/booking/admin` `reservation(id)` reads any
   reservation without its cart id.
 - **Self-service cancellation is yours to gate.** The cart refuses to cancel an ordered reservation, and
-  `/booking/admin` `cancel` ignores the cancellation window (it cancelled an ordered reservation in the
-  Korsbakken build). A "cancel my booking" action therefore checks, on the server, that the start is at
+  `/booking/admin` `cancel` ignores the cancellation window (it cancelled an ordered reservation in one
+  build). A "cancel my booking" action therefore checks, on the server, that the start is at
   least `policySnapshot.cancellationWindow` seconds away and that the session's customer owns the order,
   then calls `cancel`, then refunds through the payment provider.

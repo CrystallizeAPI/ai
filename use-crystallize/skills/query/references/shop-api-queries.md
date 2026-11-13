@@ -136,7 +136,7 @@ query {
 
 A storefront that needs per-shopper data (family members, sizes, saved lists) without Core can keep it on a
 `wishlist` cart: write it to `customer.meta` and find the cart again with
-`carts(customerIdentifier:, types: [wishlist], name:)`. Wishlists never expire. (WoolLand.)
+`carts(customerIdentifier:, types: [wishlist], name:)`. Wishlists never expire.
 
 ### List Carts
 

@@ -69,7 +69,7 @@ addressed through the Shop API at all.
   Core is rate limited and is not meant for storefront traffic, so put it behind your own server actions
   or API routes — never in a browser call, and never once per page view.
 - **Shop API for everything** when the storefront itself creates and changes contracts for the customer
-  in front of it, as Lab Universe and a third build (Wee) do for standing orders. Then never create
+  in front of it, as Lab Universe and a third build do for standing orders. Then never create
   contracts for those customers in Core. Metering still needs the Core copy; see
   [contracts](references/contracts.md#the-shop-api-endpoint).
 
