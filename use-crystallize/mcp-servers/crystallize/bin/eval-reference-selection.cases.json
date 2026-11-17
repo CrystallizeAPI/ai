@@ -42,8 +42,8 @@
     },
     {
         "task": "upload product images from external URLs and attach them to items",
-        "skills": ["mutation"],
-        "expected": ["mutation/media"]
+        "skills": ["mutation", "media"],
+        "expected": ["media/import"]
     },
     {
         "task": "my bulk task is stuck in running, and how many operations can one file hold?",
@@ -89,5 +89,40 @@
         "task": "create a custom role with the API and assign it to a user",
         "skills": ["permissions"],
         "expected": ["permissions/role-api"]
+    },
+    {
+        "task": "upload a product video and wait until it has been transcoded",
+        "skills": ["media"],
+        "expected": ["media/video"]
+    },
+    {
+        "task": "revalidate product and category pages when an item is published",
+        "skills": ["storefront"],
+        "expected": ["storefront/caching-and-revalidation"]
+    },
+    {
+        "task": "build the cart and checkout on the server with the Shop API",
+        "skills": ["storefront"],
+        "expected": ["storefront/cart-checkout"]
+    },
+    {
+        "task": "add Product JSON-LD with offers, prices and units to our product pages",
+        "skills": ["seo-geo"],
+        "expected": ["seo-geo/json-ld"]
+    },
+    {
+        "task": "publish llms.txt and Markdown versions of our product pages for AI crawlers",
+        "skills": ["seo-geo"],
+        "expected": ["seo-geo/llms-and-markdown"]
+    },
+    {
+        "task": "expose our catalogue and cart as an MCP server so AI agents can shop",
+        "skills": ["agentic-commerce"],
+        "expected": ["agentic-commerce/mcp-server"]
+    },
+    {
+        "task": "let an AI assistant sign in on behalf of a customer and place an order",
+        "skills": ["agentic-commerce"],
+        "expected": ["agentic-commerce/oauth"]
     }
 ]
