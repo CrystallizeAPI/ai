@@ -137,7 +137,9 @@ What do you need to do?
 
 ## Orders: which store, which call
 
-Shop API orders and Core orders are the same orders in two stores, synced asynchronously. Where an order is **born**
+Shop API orders and Core orders are meant to be one order in two stores, synced asynchronously. Shop `/order` is
+the entry for volume: asynchronous, a FIFO queue, built for millions of orders, so an answer means accepted, not
+stored. Core is synchronous but rate limited, so it suits imports and back-office edits. Where an order is **born**
 decides what later writes do to it, so choose by who reads it:
 
 | The order                                                                              | Create with                    | Change with                                 |
@@ -146,8 +148,9 @@ decides what later writes do to it, so choose by who reads it:
 | Has no cart but a storefront or the Shop API lists it (POS, accepted quote, demo seed) | Shop `/order` `create`         | The same Shop calls                         |
 | Nobody reads it from the edge (an import into the back office)                         | Core `registerOrder`           | Core `updateOrder`                          |
 
-- **A Core edit of a Core-born order adds another copy to the Shop store**: three `updateOrder` calls left three Shop
-  orders with one `coreId`, and a storefront summing the list counted the money three times. A Core edit of a
+- **A Core edit of a Core-born order adds another copy to the Shop store** (a sync bug, reported): three
+  `updateOrder` calls left three Shop orders with one `coreId`, and a storefront summing the list counted the money
+  three times. Until it is fixed, readers group by `coreId`. A Core edit of a
   Shop-born order overwrites it whole.
 - **`createFromCart`**: the cart must be `placed`; pass `pipelines`, `paymentStatus` and `payments` in the input
   rather than chaining calls, because the order is saved just after the answer. It copies the cart's `meta` (plus

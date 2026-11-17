@@ -558,8 +558,15 @@ there is nothing left to link: do not follow it with `fulfill`.
 
 ## The Order Store and Core
 
-Shop API orders and Core orders are the same orders in two stores, synced asynchronously in both
-directions. Where an order was born decides what a Core write does to it.
+Shop API orders and Core orders are meant to be one order in two stores, synced asynchronously in both
+directions. The two entries do different jobs:
+
+- **Shop `/order` is the entry for volume.** It is asynchronous: it puts orders on a FIFO queue and writes them to
+  the database after it answers, and it is built to take millions of orders. An answer means accepted, not stored,
+  so read the order back by id, with a retry.
+- **Core is synchronous but rate limited.** Use it for imports and back-office edits, not for storefront orders.
+
+Where an order was born decides what a Core write does to it today.
 
 **Shop → Core.** An order created here gets its `coreId` in about ten seconds, and `addToStage`
 moves the Core stage with it. (`coreId` can still read `null` in the answer of a Shop `create` even after
@@ -568,7 +575,7 @@ the order has reached Core, so don't use it as a sync flag.)
 | Born in                               | Core `updateOrder`                                     | Core `deleteOrder`             |
 | ------------------------------------- | ------------------------------------------------------ | ------------------------------ |
 | Shop API (`create`, `createFromCart`) | Rewrites the same Shop order with Core's whole version | Removes it from the Shop store |
-| Core (`registerOrder`)                | **Adds another copy** to the Shop store                | Removes only the latest copy   |
+| Core (`registerOrder`)                | **Adds another copy** to the Shop store (a sync bug)   | Removes only the latest copy   |
 
 **A stage moved in Core or the App does not reach the Shop store, and the next Shop write puts it back.**
 Every `/order` mutation sends the whole Shop order to Core, and Core makes the order's pipelines match it: a
@@ -578,16 +585,18 @@ stage may have moved, read the stages from Core and copy them over with `addToSt
 **Seed demo orders with the Shop API, not with `registerOrder`**, if a storefront is going to list them:
 orders registered in Core showed up in the Shop store only sometimes.
 
-**Editing an order born in Core adds another copy of it to the Shop store.** Such an order has no Shop id
-to come back to, so every change arrives as a new order. Three `updateOrder` calls on one seeded order left
-three orders in `orders(customerIdentifier:)` — new Shop ids, the same `coreId`, different `updatedAt`. A
+**Editing an order born in Core adds another copy of it to the Shop store.** This is a sync bug, reported to the
+platform team: Core and Shop `/order` should work on one order. Until it is fixed, plan for it. Such an order has
+no Shop id to come back to, so every change arrives as a new order. Three `updateOrder` calls on one seeded order
+left three orders in `orders(customerIdentifier:)` — new Shop ids, the same `coreId`, different `updatedAt` — and
+on a sandbox tenant (2026-11-17) one `registerOrder` plus three `updateOrder` calls left four. A
 storefront that sums that list counts the same money several times over; the Lab Universe build read a
 department budget of NOK 1,249,299 instead of 411,775. So:
 
 - **Change orders through the Shop API** (`setMeta`, `addToStage`, `setPayments`) whenever a storefront
   reads them. On an order born here, a Core edit also overwrites whatever the Shop wrote just before it.
 - If an order born in Core must be edited there anyway, have the reader **group by `coreId` and keep the
-  most recently updated copy**.
+  most recently updated copy**. This is a workaround for the bug, not how the stores are meant to work.
 
 **There is no delete on the Shop API.** Cancelled or mistaken orders stay in the list until `deleteOrder`
 on the Core order removes them. Otherwise archive them with `setMeta` (`archived: true`) and filter them
