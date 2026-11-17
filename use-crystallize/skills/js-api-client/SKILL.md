@@ -159,10 +159,10 @@ you use up front to get a single token. A `shopApiToken` passed in the configura
 except that a token with no `scopes` claim is trusted for any endpoint; with `doNotFetch: true` it is used as is and
 nothing is ever fetched.
 
-**The fetch needs an access token pair or a session.** The token endpoint does not read a `bearerToken`, and it checks
-who you are on `/@me`, which refuses a tenant-scoped access token. A bearer-only client, a `bearerToken` set next to an
-access token pair (it is sent instead of the pair) and a tenant-scoped pair all fail with
-`Could not fetch shop api token: …`.
+**The fetch needs an access token pair or a session.** The token endpoint does not read a `bearerToken`. A bearer-only
+client and a `bearerToken` set next to an access token pair (it is sent instead of the pair) fail with
+`Could not fetch shop api token: …`. A tenant-scoped pair works for its own tenant; for any other the error ends in
+"User is not a member of tenant X", even when the user is a member.
 
 **Token lifetime: two defaults.** The client asks for `expiresIn: 3600 * 12` (12 hours) unless `shopApiToken.expiresIn`
 says otherwise; the API's own default, for a raw `POST …/auth/token` without `expiresIn`, is one day. The client posts

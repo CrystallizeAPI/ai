@@ -187,7 +187,8 @@ Every access token belongs to a user. There is no tenant-level or service token,
 - **Secret shown once** — `secret` is only returned at creation
 - **Limit** — 50 tokens per user
 - **Tenant scope** — `tenantId` (the id, not the identifier) limits a token to one tenant the user belongs to. Without it, the token reaches every tenant the user is on
-- **A tenant-scoped token is refused on `/@me`** with a 403. It cannot call the Me API, and it cannot fetch a Shop API token, which goes through `/@me` too
+- **A tenant-scoped token is refused on `/@me`** with a 403, so it cannot call the Me API
+- **Shop API tokens are per tenant.** A token pair that isn't tenant-scoped mints a Shop API JWT for any tenant its user belongs to; a tenant-scoped pair mints one for its own tenant only. For any other tenant `/auth/token` answers 400 "User is not a member of tenant X", even when the user is a member, so check the token's scope first
 - **SSO** — On a tenant that enforces SAML login, a token with no tenant scope only works for a Tenant Admin. Other users need a tenant-scoped token
 
 ```graphql
@@ -205,13 +206,13 @@ mutation CreateToken($tenantId: ID) {
 }
 ```
 
-**Integrations run as a user.** Give each one a dedicated user, invited with a custom role that holds only what the integration needs, and sign in as that user to create the token. A person's token ties the integration to that person's role and account. Scope the token to the tenant, unless the integration also needs Shop API tokens: then leave it unscoped, and keep that user on a single tenant.
+**Integrations run as a user.** Give each one a dedicated user, invited with a custom role that holds only what the integration needs, and sign in as that user to create the token. A person's token ties the integration to that person's role and account. Scope the token to the tenant. A tenant-scoped pair also mints Shop API tokens for that tenant, so a storefront needs no unscoped token.
 
 ### Storefront credentials
 
 A storefront is such an integration. Its server holds the credentials, and the browser holds none of them:
 
-- **Shop API**: an unscoped token pair on a dedicated user, used only on the server to mint the Shop API JWT from `POST https://shop-api.crystallize.com/{tenant}/auth/token`. A tenant-scoped pair is refused there (see above). The JWT is per tenant, not per shopper, so it never goes to the browser.
+- **Shop API**: a token pair on a dedicated user, scoped to the store's tenant, used only on the server to mint the Shop API JWT from `POST https://shop-api.crystallize.com/{tenant}/auth/token`. The JWT is per tenant, not per shopper, so it never goes to the browser.
 - **Discovery and Catalogue**: no credential when open, or the static token when **Settings → API access** restricts them. They are two separate settings: Discovery follows the **Search & Discovery** entry (shared with the Search API), Catalogue its own entry. Discovery is open by default, and an open Discovery serves everything it indexes to anyone, price variants and price lists included. Keep confidential terms out of it.
 - **Core**: never in the storefront's request path. Seeding, imports and webhook receivers use their own tenant-scoped pair.
 
@@ -226,7 +227,7 @@ Only the Core and PIM APIs check role permissions.
 | Core, PIM | Access token pair or session                                                                       | Yes                                              |
 | Catalogue | **Settings → API access**: open, static token or access token pair                                 | No: with the pair, any role on the tenant passes |
 | Discovery | **Settings → API access**, the Search & Discovery entry (shared with Search): static token          | No                                               |
-| Shop      | Bearer token from `/auth/token`, requested with a session or an unscoped pair and a list of scopes | No                                               |
+| Shop      | Bearer token from `/auth/token`, requested with a session or a token pair and a list of scopes     | No                                               |
 
 See [js-api-client](../js-api-client/SKILL.md) for wiring these credentials.
 

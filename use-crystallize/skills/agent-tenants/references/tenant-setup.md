@@ -89,12 +89,12 @@ What the storefront's server needs, and where it comes from. The API for each st
 | --------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Discovery | None while open (the default). The static token when **Settings → API access** restricts it               | `tenant { staticAuthToken }` on Core, or the App                                                   |
 | Catalogue | Open, static token or token pair, per **Settings → API access**                                           | As above                                                                                           |
-| Shop API  | A JWT from `POST https://shop-api.crystallize.com/{tenant}/auth/token` with `{ scopes, expiresIn }`       | Minted on the server with an access token pair that is **not tenant-scoped** (see [[permissions]]) |
+| Shop API  | A JWT from `POST https://shop-api.crystallize.com/{tenant}/auth/token` with `{ scopes, expiresIn }`       | Minted on the server with an access token pair, scoped to the tenant or not (see [[permissions]])  |
 | Core      | A tenant-scoped pair, for seeds, imports and webhook receivers only. Never in the storefront request path | A dedicated integration user (see [[permissions]])                                                 |
 
-- **An agent tenant's token can't mint Shop API tokens** if it is tenant-scoped. Check before building checkout on
-  it: a refused `/auth/token` call is the signal. Once a human owns the tenant, they create an unscoped token on a
-  dedicated user.
+- **A tenant-scoped token mints Shop API tokens for its own tenant only.** Another tenant's `/auth/token` answers
+  400 "User is not a member of tenant X", even for a member: check the token's scope before its membership. Once a
+  human owns the tenant, they create a tenant-scoped token on a dedicated user.
 - **An open Discovery is public.** Everything it indexes, every price variant and every market's price list
   included, is readable by anyone. Restrict it, or keep confidential terms out of it.
 - The Shop API JWT is per tenant, not per shopper. Keep it on the server, cache it, and refresh it before it

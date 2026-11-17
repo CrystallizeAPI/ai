@@ -59,7 +59,7 @@ The full decision table (task → API → call → token → where) is in
 | API       | Endpoint                                                            | Credential                                                                                              | From the browser?                                                                                                   |
 | --------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Discovery | `https://api.crystallize.com/{tenant}/discovery`                    | None when open (the default); `X-Crystallize-Static-Auth-Token` when restricted                         | Yes if open, and then **everything it serves is public**: every price variant, every market price list, every draft |
-| Shop API  | `https://shop-api.crystallize.com/{tenant}/{cart,order,customer,…}` | A JWT from `POST …/{tenant}/auth/token`, minted with an access token pair that is **not tenant-scoped** | **No.** Server only. The browser holds the cart id, in an httpOnly cookie                                           |
+| Shop API  | `https://shop-api.crystallize.com/{tenant}/{cart,order,customer,…}` | A JWT from `POST …/{tenant}/auth/token`, minted with an access token pair scoped to this tenant (or unscoped) | **No.** Server only. The browser holds the cart id, in an httpOnly cookie                                           |
 | Catalogue | `https://api.crystallize.com/{tenant}/catalogue`                    | Open, static token or token pair, per tenant setting                                                    | Only open, published reads; contract prices are server-only                                                         |
 | Core      | `https://api.crystallize.com/@{tenant}`                             | Token pair                                                                                              | Never                                                                                                               |
 
@@ -72,8 +72,8 @@ The full decision table (task → API → call → token → where) is in
   carrying every scope was seen to lack subscription access silently.
 - **The Shop API reads products from the Catalogue with the request's credentials.** On a tenant whose Catalogue
   requires a token, every hydrate needs it.
-- Never put a token in a `NEXT_PUBLIC_*` (or any client-bundled) variable. See [[permissions]] for why a
-  tenant-scoped token can't mint Shop tokens.
+- Never put a token in a `NEXT_PUBLIC_*` (or any client-bundled) variable. See [[permissions]] for which
+  token pair mints Shop tokens.
 
 ## Before you start
 
@@ -81,7 +81,7 @@ The full decision table (task → API → call → token → where) is in
       non-discoverable component is simply absent from the schema). See [[query]].
 - [ ] New shapes or components have been through an ignite and answer reliably: query a new field ten times in a
       row before shipping code that depends on it.
-- [ ] You have an unscoped access token pair for the Shop API, server-side only.
+- [ ] You have an access token pair for the Shop API, scoped to this tenant, server-side only.
 - [ ] Languages, price variants, markets, VAT types and stock locations exist, and you know their identifiers
       (they become Discovery field names: `nokPrice`, `<location>Stock`).
 - [ ] Find a reference implementation with the capabilities you need (below).

@@ -251,7 +251,7 @@ A built tenant is not yet one a storefront can read. Do this before you hand ove
    HTTP 404 with "There is no ignited Tenant" in a plain JSON body. Ignite again after new shapes, components, stock
    locations or vocabularies.
 4. **Credentials.** The storefront's server needs the static token if Discovery or Catalogue is restricted, and an
-   access token pair that is **not tenant-scoped** to mint Shop API tokens. Core stays out of the request path.
+   access token pair to mint Shop API tokens (one scoped to the tenant is enough). Core stays out of the request path.
 5. **Publish webhooks** (`concern: "items"`, plural) if the storefront caches Discovery reads.
 
 Every setting with its API and call, the `getMany` answer shapes, the ignite, the credentials table and a webhook

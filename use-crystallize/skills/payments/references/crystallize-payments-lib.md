@@ -15,7 +15,7 @@ import {
     JSApiClientCallError,
 } from "@crystallize/js-api-client";
 
-// Server only. The pair mints the Shop API token, so it must NOT be a tenant-scoped access token (permissions skill).
+// Server only. The pair mints the Shop API token: a pair scoped to this tenant is enough (permissions skill).
 export const api = createClient(
     {
         tenantIdentifier: process.env.CRYSTALLIZE_TENANT_IDENTIFIER!,

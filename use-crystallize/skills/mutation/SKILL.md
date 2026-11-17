@@ -20,8 +20,8 @@ Before writing mutations, ask:
    admin tool)?** Shopper → Shop API. Back office → Core API (or a mass operation).
 2. **Will a storefront read the result?** Orders and customers a storefront lists are created and changed on the
    Shop API, so they stay one record in one store.
-3. **Do you have the right token?** Core takes an access token pair. The Shop API takes a JWT minted with a pair that
-   is **not tenant-scoped**.
+3. **Do you have the right token?** Core takes an access token pair. The Shop API takes a JWT minted for one tenant,
+   with a pair scoped to that tenant or unscoped.
 4. **Is it a field edit or a rebuild?** `updateComponent` for one field; anything with `components` replaces the
    whole set (see [What a partial write replaces](references/core-api.md#what-a-partial-write-replaces)).
 5. **Should it go live?** Creating or updating an item doesn't publish it, and publishing is asynchronous.

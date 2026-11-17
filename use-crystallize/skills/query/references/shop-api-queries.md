@@ -49,8 +49,10 @@ curl -X POST 'https://shop-api.crystallize.com/YOUR_TENANT/auth/token' \
 `expiresIn` is in seconds and defaults to one day in the API; js-api-client asks for 12 hours unless told otherwise.
 The response is `{ "success": true, "token": "..." }`.
 
-- **Mint it with an access token that is not tenant-scoped.** The token endpoint checks who you are on `/@me`, which
-  refuses a tenant-scoped access token and a plugin bearer token ([[permissions]]).
+- **The JWT is always for one tenant.** An access token pair that isn't tenant-scoped can mint one for any tenant its
+  user belongs to; a tenant-scoped pair only for its own tenant. Any other tenant answers 400 "User is not a member of
+  tenant X", even when the user is a member, so check the token's scope. A plugin bearer token is not read
+  ([[permissions]]).
 - **The JWT is per tenant, not per shopper.** It reads any customer's orders and carts, so it never reaches the
   browser, and the `customerIdentifier` you pass comes from your session.
 - **Cache it on the server and refresh it before it expires.** An expired token fails with

@@ -59,7 +59,8 @@ rule.
 ## Shop API token rules
 
 - Minted with `POST https://shop-api.crystallize.com/{tenant}/auth/token` and `{ scopes, expiresIn }`, using an
-  access token pair whose token is **not tenant-scoped** ([[permissions]]). The `@` before the tenant is
+  access token pair. A pair scoped to the tenant mints for that tenant only; an unscoped pair for any tenant its
+  user belongs to ([[permissions]]). The `@` before the tenant is
   optional on the Shop API.
 - Per tenant, not per shopper. Cache it server-side; refresh before `exp`. Expiry is one day by default in the
   API and 12 hours in `@crystallize/js-api-client`.
