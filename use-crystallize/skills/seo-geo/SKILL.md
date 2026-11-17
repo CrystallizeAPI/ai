@@ -110,20 +110,35 @@ in [[content-model]] and [[taxonomy]].
 `og:image` and schema.org `image` are read by link-preview bots and crawlers that don't all decode AVIF. Use an
 absolute URL to the **original format** (JPEG or PNG), else WebP, **never AVIF**, at least 1200 px wide when the
 source allows. The variant ladder is capped at the source width, so a 1200 px source tops out at 1024: use the
-image's `url` then. Give `og:image` its width and height, and use the white-background packshot for Product
+image's `url` then, which is the original upload, with the image's own `width` and `height` (unless the upload is
+itself AVIF). Give `og:image` its width and height, and use the white-background packshot for Product
 JSON-LD.
 
 ```ts
-/** og:image and JSON-LD images: the original format first, then WebP, never AVIF; the largest rendition. */
-const FORMAT_RANK = (url: string) => (/\.avif(\?|$)/i.test(url) ? 2 : /\.webp(\?|$)/i.test(url) ? 1 : 0);
+/** og:image, twitter:image and JSON-LD images: original format first, then WebP, never AVIF, 1200 px or wider. */
+const isAvif = (url: string) => /\.avif(\?|$)/i.test(url);
+const formatRank = (url: string) => (isAvif(url) ? 2 : /\.webp(\?|$)/i.test(url) ? 1 : 0);
 
-export function bestImage(img?: { url: string; variants?: { url: string; width: number }[] | null } | null) {
-    const v = [...(img?.variants ?? [])]
-        .filter((x) => FORMAT_RANK(x.url) < 2)
-        .sort((a, b) => FORMAT_RANK(a.url) - FORMAT_RANK(b.url) || b.width - a.width)[0];
-    return v?.url ?? img?.url;
+type ShareImage = { url: string; width?: number; height?: number };
+
+export function shareImage(image?: {
+    url: string;
+    width?: number | null;
+    height?: number | null;
+    variants?: { url: string; width: number; height: number }[] | null;
+} | null): ShareImage | undefined {
+    if (!image) return undefined;
+    const best = (image.variants ?? [])
+        .filter((v) => !isAvif(v.url))
+        .sort((a, b) => formatRank(a.url) - formatRank(b.url) || b.width - a.width)[0];
+    if (best && best.width >= 1200) return best;
+    // The ladder stops below the source width, so the original upload is the larger file.
+    if (!isAvif(image.url)) return { url: image.url, width: image.width ?? undefined, height: image.height ?? undefined };
+    return best; // an AVIF upload: the widest WebP rendition is all there is
 }
 ```
+
+The same helper is in [[responsive-images]]; keep the two in step.
 
 On-page images are a different question: see [[responsive-images]] (WebP over AVIF, `sizes`).
 

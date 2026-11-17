@@ -268,7 +268,8 @@ previewers, not by a browser that negotiates formats:
   not WebP. Pick the widest original-format variant (JPEG or PNG), else the widest WebP; skip AVIF. A
   `.jpg` source's variants are `.jpeg`.
 - **At least 1200 px wide when the source allows.** The capped ladder means a 1200 px source tops out at
-  1024, so use the image's `url` (the original file) then, provided it is not itself AVIF.
+  1024, so use the image's `url` then: the original upload, with the image's own `width` and `height`,
+  provided it is not itself AVIF.
 - **Absolute URLs, with dimensions.** Give `og:image` its `og:image:width` and `og:image:height`, from the
   variant you picked.
 - **The packshot goes in Product JSON-LD and feeds.** Use the white-background product shot, the first image
@@ -279,13 +280,27 @@ previewers, not by a browser that negotiates formats:
   at render time, so allow the media host in the image fetch and in any CSP.
 
 ```ts
-const shareImage = (image: { url: string; variants?: { url: string; width: number; height: number }[] | null }) => {
-    const rank = (url: string) => (/\.avif(\?|$)/i.test(url) ? 2 : /\.webp(\?|$)/i.test(url) ? 1 : 0);
+/** og:image, twitter:image and JSON-LD images: original format first, then WebP, never AVIF, 1200 px or wider. */
+const isAvif = (url: string) => /\.avif(\?|$)/i.test(url);
+const formatRank = (url: string) => (isAvif(url) ? 2 : /\.webp(\?|$)/i.test(url) ? 1 : 0);
+
+type ShareImage = { url: string; width?: number; height?: number };
+
+export function shareImage(image?: {
+    url: string;
+    width?: number | null;
+    height?: number | null;
+    variants?: { url: string; width: number; height: number }[] | null;
+} | null): ShareImage | undefined {
+    if (!image) return undefined;
     const best = (image.variants ?? [])
-        .filter((v) => rank(v.url) < 2)
-        .sort((a, b) => rank(a.url) - rank(b.url) || b.width - a.width)[0];
-    return best && best.width >= 1200 ? best : { url: image.url }; // the original when the ladder is short
-};
+        .filter((v) => !isAvif(v.url))
+        .sort((a, b) => formatRank(a.url) - formatRank(b.url) || b.width - a.width)[0];
+    if (best && best.width >= 1200) return best;
+    // The ladder stops below the source width, so the original upload is the larger file.
+    if (!isAvif(image.url)) return { url: image.url, width: image.width ?? undefined, height: image.height ?? undefined };
+    return best; // an AVIF upload: the widest WebP rendition is all there is
+}
 ```
 
 Where these tags and the JSON-LD are emitted, and how they are validated, is in [[seo-geo]].

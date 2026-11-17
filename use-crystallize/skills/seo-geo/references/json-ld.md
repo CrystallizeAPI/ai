@@ -332,7 +332,7 @@ return { "@context": "https://schema.org", "@graph": [node, breadcrumbs(crumbs)]
   entity.
 - `weight`, `width`, `height`, `depth` as `QuantitativeValue`s from the physical specs.
 - `releaseDate` from a launch date.
-- `image`: up to six images, through `bestImage` (original format, never AVIF).
+- `image`: up to six images, through `shareImage(img)?.url` (original format, never AVIF).
 
 ## Relations
 
