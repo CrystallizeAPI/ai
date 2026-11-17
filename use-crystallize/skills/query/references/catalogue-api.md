@@ -21,7 +21,10 @@ By default, the API is accessible without authentication. You can configure acce
 3. Save changes
 
 A restricted Catalogue API takes the `X-Crystallize-Static-Auth-Token` header, or
-`X-Crystallize-Access-Token-Id` and `X-Crystallize-Access-Token-Secret`, depending on the level chosen.
+`X-Crystallize-Access-Token-Id` and `X-Crystallize-Access-Token-Secret`, depending on the level chosen. A missing or
+wrong credential answers HTTP 400 `Invalid static auth token`, not 401 as Discovery does. Inside a Shop API `hydrate`,
+which reads products from the Catalogue, it shows up as a GraphQL error on `hydrate`. Unlike Discovery, the setting
+takes effect at once.
 
 ## When to Use Catalogue API
 

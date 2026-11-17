@@ -282,7 +282,7 @@ re-imports.
 
 | Call                                                 | What it does to everything you did not send                             |
 | ---------------------------------------------------- | ----------------------------------------------------------------------- |
-| `updateProduct` / `updateDocument` with `components` | **Replaces the whole component set** for that language                  |
+| `updateProduct` / `updateDocument` with `components` | **Replaces the whole component set**: translated components in that language, shared (non-translated) ones in **every** language |
 | `updateProduct` / `updateDocument` with only `name`  | Leaves components alone, but **changes the path** (see below)           |
 | `updateDocument(input: { topicIds })` alone          | Keeps every component: topics can be rewritten on each run              |
 | `updateProductVariant` **without** `components`      | **Empties that variant's components** in that language                  |
@@ -734,7 +734,7 @@ from the edge** (an import into the back office, renewals on a tenant whose cont
 accepted quote or a demo seed that a storefront lists is a Shop API `create` instead (see the store table in
 [Shop API Order Mutations](shop-api-order-mutations.md#the-order-store-and-core)). Quotes are `type: quote` with the
 order made from them pointing back through `relatedOrderIds`. The order `reference` can't be set (Core gives each
-order a random one), so keep your own order number in meta. It answers `{ id, createdAt }` before the order is stored, so a call right behind it can
+order a random one), so keep your own order number in meta. It answers `{ id, createdAt }` (select it with `... on OrderConfirmation`, not `... on Order`) before the order is stored, so a call right behind it can
 get `OrderNotFoundError`. Before using it, read what it does to an order a storefront lists, in
 [shop-api-order-mutations.md](shop-api-order-mutations.md).
 

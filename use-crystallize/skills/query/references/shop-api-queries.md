@@ -46,6 +46,9 @@ curl -X POST 'https://shop-api.crystallize.com/YOUR_TENANT/auth/token' \
   -d '{"scopes":["cart","cart:admin","order"],"expiresIn":18000}'
 ```
 
+From a script, send a User-Agent of your own: `/auth/token` refused Python's default `urllib` agent with Cloudflare
+error 1010 (HTTP 403).
+
 `expiresIn` is in seconds and defaults to one day in the API; js-api-client asks for 12 hours unless told otherwise.
 The response is `{ "success": true, "token": "..." }`.
 

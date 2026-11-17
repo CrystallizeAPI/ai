@@ -38,7 +38,7 @@ mutation CreateMarket {
 }
 ```
 
-Listing customers in `customerIdentifiers` does not put their carts in that market. Price resolution reads the markets the caller passes, nothing else.
+`create` refuses `customerIdentifiers` that don't exist yet (`MARKET_INVALID_CUSTOMER_IDENTIFIERS`), so seed customers first, then markets, then price lists. Listing customers in `customerIdentifiers` does not put their carts in that market. Price resolution reads the markets the caller passes, nothing else.
 
 ### Market Architecture Patterns
 

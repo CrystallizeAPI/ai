@@ -63,7 +63,8 @@ fails the whole request with a validation error.
 - **The root fields below return a union.** Select the result with `... on <Type>` and the failure with
   `... on BasicError`; `items(...) { edges }` without a fragment does not validate. The list types are
   `ItemConnection`, `CustomerConnection`, `CustomerGroupConnection`, `OrderConnection`, `PieceConnection`,
-  `FlowContentConnection`, `ArchivedItemVersionConnection`, `BulkTaskConnection` and `ImageConnection`.
+  `FlowContentConnection`, `ArchivedItemVersionConnection`, `BulkTaskConnection`, `ImageConnection` and
+  `PriceListConnection` (`priceLists`). `tenant(identifier:)` needs `... on Tenant` the same way.
   `shapes` is the exception: it returns a plain `ShapeConnection`.
 - **`content` and `config` are unions too.** Give `content` one fragment per component type you expect. The
   names carry `Component` here (`RichTextComponentContent`), unlike the Catalogue API (`RichTextContent`).

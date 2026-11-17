@@ -155,7 +155,7 @@ decides what later writes do to it, so choose by who reads it:
 - **`createFromCart`**: the cart must be `placed`; pass `pipelines`, `paymentStatus` and `payments` in the input
   rather than chaining calls, because the order is saved just after the answer. It copies the cart's `meta` (plus
   `cartId`, `cartState`, `cartType`) into the order, and its input has no `meta`, so set meta on the cart first.
-  `additionalInformation: null` is refused: leave it out. It moves the cart to `ordered`, so never call `fulfill`
+  `additionalInformation: null` is refused ("Output validation error", naming no field): leave it out. It moves the cart to `ordered`, so never call `fulfill`
   after it. The order id is the cart id.
 - **`create`** takes `relatedOrderIds` (Core ids) for an order made from a quote. Whether it honours `createdAt` was
   observed both ways (back-dated on one tenant, "now" on another): keep the intended date in meta (`orderedAt`) as

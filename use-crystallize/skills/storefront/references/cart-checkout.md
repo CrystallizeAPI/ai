@@ -159,7 +159,8 @@ const { createFromCart: order } = await shop<{ createFromCart: { id: string } }>
 
 - A guest is `{ isGuest: true, identifier: email, firstName, lastName, email }`; a signed-in buyer is
   `{ identifier, isGuest: false, … }`. Put the customer on the cart before any booking.
-- `additionalInformation: null` is refused: leave the key out.
+- `additionalInformation: null` is refused: leave the key out. The error is a bare "Output validation error",
+  which doesn't name the field.
 - Pipeline and stage ids, not names. Read them with PIM `pipeline.getMany` at build time.
 
 ## Quotes and invoice
