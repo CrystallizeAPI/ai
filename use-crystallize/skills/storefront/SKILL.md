@@ -44,8 +44,9 @@ correct. The query and mutation details live in [[query]] and [[mutation]]; pric
 2. **Shop API: everything about a shopper.** Carts, the price for this customer and market, promotions and
    vouchers, `place`, orders, payments, pipeline stages, the shopper's order history, customers, bookings,
    subscription contracts, locks.
-3. **Catalogue API: a fallback for one named task.** Per-customer price lists for display
-   (`priceFor(customerIdentifiers)`), server-side. Not for path lookups, preview or hreflang: Discovery does
+3. **Catalogue API: the synchronous fallback.** Per-customer price lists for display
+   (`priceFor(customerIdentifiers)`), server-side, and reads that must be in sync with a publish: Discovery is
+   updated asynchronously, Catalogue at once. Not for path lookups, preview or hreflang: Discovery does
    those.
 4. **Core API: never in the request path.** Seeding, imports, scheduled jobs, webhooks, admin tools behind staff
    login. It is rate limited.

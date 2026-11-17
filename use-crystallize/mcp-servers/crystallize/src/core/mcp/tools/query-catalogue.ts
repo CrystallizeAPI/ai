@@ -17,9 +17,10 @@ export const createQueryCatalogueToolWrapper = ({ tenantMatcher, queryExecutor }
             "Execute a GraphQL query against the Crystallize Catalogue API. " +
             "If you haven't already, call the `skills` tool first — it provides query examples and best practices " +
             "that will help you write correct queries. " +
-            "The Catalogue API is a storefront API for fetching items, products, and content to build frontends. " +
-            "Use this for reading specific items by path or ID, traversing the catalogue tree, " +
-            "and accessing detailed component data with full type support.",
+            "For storefront reads, prefer the Discovery API. The Catalogue API is the synchronous fallback: " +
+            "use it for a specific customer's price-list prices (`priceFor(customerIdentifiers)`, server-side only) " +
+            "and for reads that must be in sync with what was just published, since Discovery is updated asynchronously. " +
+            "It can also read specific items by path or ID and traverse the catalogue tree.",
         inputSchema: z.object({
             tenant: tenantSchema,
             query: querySchema,

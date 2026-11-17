@@ -1,6 +1,6 @@
 ---
 name: query
-description: Query Crystallize APIs for product data, content, and commerce information. Use this skill when fetching product catalogs, reading an item by path, listing a category, searching products, typeahead, filtering by attributes or typed specs, faceted navigation, listing cards per colourway (variantGroups), picking a variant on a product page, reading list, market or sale prices and stock, translated paths for hreflang and sitemaps, editor draft preview, paginating results, retrieving cart data, reading a shopper's orders, customers or subscription contracts, building back-office dashboards, or reading any data from Crystallize. Covers the Discovery API (every storefront catalogue read), the Shop API (carts, orders, customers), the Catalogue API (fallback for per-customer price display only) and Core API reads (back office only). Also use when choosing which Crystallize API a frontend should read from, debugging empty or stale Discovery results after a publish or a model change, generated Discovery field names, or any read operation — even if the user doesn't explicitly say "query".
+description: Query Crystallize APIs for product data, content, and commerce information. Use this skill when fetching product catalogs, reading an item by path, listing a category, searching products, typeahead, filtering by attributes or typed specs, faceted navigation, listing cards per colourway (variantGroups), picking a variant on a product page, reading list, market or sale prices and stock, translated paths for hreflang and sitemaps, editor draft preview, paginating results, retrieving cart data, reading a shopper's orders, customers or subscription contracts, building back-office dashboards, or reading any data from Crystallize. Covers the Discovery API (every storefront catalogue read), the Shop API (carts, orders, customers), the Catalogue API (the synchronous fallback, for per-customer prices and reads that must be in sync with a publish) and Core API reads (back office only). Also use when choosing which Crystallize API a frontend should read from, debugging empty or stale Discovery results after a publish or a model change, generated Discovery field names, or any read operation — even if the user doesn't explicitly say "query".
 metadata:
     author: Crystallize
     version: "3.0"
@@ -35,8 +35,10 @@ Before writing queries, ask:
 2. **Shop API: everything about a shopper.** Carts, the price for this customer and market, promotions and vouchers,
    `place`, orders created from the cart or directly, payments, pipeline stages on those orders, the shopper's order
    history, customers, bookings, subscription contracts (one store per tenant, see [[subscriptions]]), and locks.
-3. **Catalogue API: a fallback for one named task**, per-customer price lists for display
-   (`priceFor(customerIdentifiers:)`). It is not a peer of Discovery: `variants` came back `[]` on three tenants while
+3. **Catalogue API: the synchronous fallback**, for two tasks: per-customer price lists for display
+   (`priceFor(customerIdentifiers:)`), and a read that must be in sync with what was just published, such as a
+   price right after it changed. Discovery is updated asynchronously after a publish; Catalogue answers from the
+   published state at once. Otherwise keep tenants off it. It is not a peer of Discovery: `variants` came back `[]` on three tenants while
    `defaultVariant` worked. Draft preview and hreflang are Discovery tasks.
 4. **Core API: never in the storefront's request path**, not even server-side with a short cache. It is heavily rate
    limited. It is for seeding, imports, scheduled jobs, webhook receivers, admin and seller tools behind staff login,
@@ -300,8 +302,8 @@ query {
 
 ## Catalogue API (fallback)
 
-Use it for the one task that Discovery and the Shop API can't do: showing a **specific customer's** price-list price
-on a page, server-side, cached per organisation.
+Use it for what Discovery and the Shop API can't do: showing a **specific customer's** price-list price on a page,
+server-side, cached per organisation, and reads that must be in sync with a publish (Discovery is asynchronous).
 
 ```graphql
 query ContractPrice($skus: [String!]!, $customers: [String!]) {
@@ -357,7 +359,7 @@ See the [Core API Queries Reference](references/core-api.md).
 ## Best Practices
 
 1. **Follow the contract** - Discovery for catalogue reads, the Shop API for shopper data, Catalogue only for
-   per-customer price display, Core never in the request path
+   per-customer prices and in-sync reads, Core never in the request path
 2. **Detect the Discovery schema, don't hardcode it** - Introspect filter, facet, sort and ranking fields after each
    ignite
 3. **Leave optional arguments out** - Never send `null` to Discovery or the Shop API

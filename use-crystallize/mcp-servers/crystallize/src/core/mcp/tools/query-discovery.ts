@@ -18,7 +18,8 @@ export const createQueryDiscoveryToolWrapper = ({ tenantMatcher, queryExecutor }
             "that will help you write correct queries. " +
             "The Discovery API is a storefront API for searching, browsing, filtering, and faceting items and products " +
             "to build frontends. It uses a shape-typed schema where each shape in the tenant becomes a GraphQL type. " +
-            "Use this for searching, filtering, listing items, and aggregating data for storefront use cases.",
+            "This is the default for every storefront catalogue read: items by path, listings, search, filtering and facets. " +
+            "It is updated asynchronously after a publish; for a read that must be in sync, or a specific customer's price, use the Catalogue API.",
         inputSchema: z.object({
             tenant: tenantSchema,
             query: querySchema,

@@ -18,7 +18,7 @@ Before writing code, understand the context. Ask clarifying questions:
 2. **Do you need raw GraphQL or a high-level helper?** Helpers reduce boilerplate for common workflows (orders, carts, navigation). Use raw GraphQL via API callers for custom queries or when helpers don't cover the use case.
 3. **Which API?** Follow the storefront API contract ([[storefront]]): `discoveryApi` for every catalogue read; the
    Shop API callers for everything about a shopper (carts, the customer's price, orders, payments, customers,
-   bookings, subscription contracts, locks); `catalogueApi` only for per-customer price display; Core (`nextPimApi`)
+   bookings, subscription contracts, locks); `catalogueApi` only for per-customer prices and reads that must be in sync with a publish; Core (`nextPimApi`)
    only for the back office (seeds, imports, jobs, admin tools), never in a storefront's request path. Orders and
    customers exist on both sides, so pick the helper for the side you are on (see
    [Shop API](#shop-api-carts-orders-customers-locks)).
@@ -63,7 +63,8 @@ const { search } = await api.discoveryApi<{ search: { hits: { name: string; path
 api.close();
 ```
 
-`catalogueApi` is the fallback for one task, a specific customer's price-list prices for display (see [[query]]).
+`catalogueApi` is the synchronous fallback: a specific customer's price-list prices for display, and reads that must be in
+sync with a publish, since Discovery is updated asynchronously (see [[query]]).
 `createCatalogueFetcher`, `createNavigationFetcher` and `createProductHydrater` are built on the Catalogue API, so
 they inherit that status: a storefront reads navigation and products from Discovery instead.
 
@@ -108,7 +109,7 @@ All callers share the same signature:
 
 | Caller                        | Purpose                                                                                                                                                                                   |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `catalogueApi`                | Catalogue GraphQL: fallback for per-customer price display                                                                                                                                |
+| `catalogueApi`                | Catalogue GraphQL: synchronous fallback for per-customer prices and in-sync reads                                                                                                         |
 | `discoveryApi`                | Discovery GraphQL: every storefront catalogue read                                                                                                                                        |
 | `pimApi`                      | PIM GraphQL (legacy — prefer `nextPimApi`)                                                                                                                                                |
 | `nextPimApi`                  | PIM Next GraphQL (scoped to tenant, recommended)                                                                                                                                          |
