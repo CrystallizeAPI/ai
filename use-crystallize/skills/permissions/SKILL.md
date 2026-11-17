@@ -212,7 +212,7 @@ mutation CreateToken($tenantId: ID) {
 A storefront is such an integration. Its server holds the credentials, and the browser holds none of them:
 
 - **Shop API**: an unscoped token pair on a dedicated user, used only on the server to mint the Shop API JWT from `POST https://shop-api.crystallize.com/{tenant}/auth/token`. A tenant-scoped pair is refused there (see above). The JWT is per tenant, not per shopper, so it never goes to the browser.
-- **Discovery and Catalogue**: no credential when open, or the static token when **Settings → API access** restricts them. Discovery is open by default, and an open Discovery serves everything it indexes to anyone, price variants and price lists included. Keep confidential terms out of it.
+- **Discovery and Catalogue**: no credential when open, or the static token when **Settings → API access** restricts them. They are two separate settings: Discovery follows the **Search & Discovery** entry (shared with the Search API), Catalogue its own entry. Discovery is open by default, and an open Discovery serves everything it indexes to anyone, price variants and price lists included. Keep confidential terms out of it.
 - **Core**: never in the storefront's request path. Seeding, imports and webhook receivers use their own tenant-scoped pair.
 
 The API each storefront task uses is in [[storefront]]. Where these credentials come from on a new tenant is in [[agent-tenants]] ([tenant setup](../agent-tenants/references/tenant-setup.md#storefront-credentials)).
@@ -225,7 +225,7 @@ Only the Core and PIM APIs check role permissions.
 | --------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | Core, PIM | Access token pair or session                                                                       | Yes                                              |
 | Catalogue | **Settings → API access**: open, static token or access token pair                                 | No: with the pair, any role on the tenant passes |
-| Discovery | Static token, when the tenant protects it                                                          | No                                               |
+| Discovery | **Settings → API access**, the Search & Discovery entry (shared with Search): static token          | No                                               |
 | Shop      | Bearer token from `/auth/token`, requested with a session or an unscoped pair and a list of scopes | No                                               |
 
 See [js-api-client](../js-api-client/SKILL.md) for wiring these credentials.

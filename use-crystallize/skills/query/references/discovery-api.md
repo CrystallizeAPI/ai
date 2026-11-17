@@ -17,7 +17,8 @@ belongs to the Core API).
 ## Authentication
 
 By default, the Discovery API is open, and its CORS allows any origin, so a browser can call it. Restrict it with
-the **Search & Discovery** entry under Settings → API Access, which is separate from the Catalogue entry.
+the **Search & Discovery** entry under Settings → API Access. Discovery shares that setting with the Search API; it is
+separate from the Catalogue entry, so restricting one does not restrict the other.
 
 | Tenant setting | Published reads                                                                 | Drafts (`publicationState: draft`)      |
 | -------------- | ------------------------------------------------------------------------------- | --------------------------------------- |
