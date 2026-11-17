@@ -53,6 +53,14 @@ and only one of them knows the customer in the cart:
 - **Discovery is open by default, and when open, everything it serves is public**: every price variant and,
   to anyone who knows a market's identifier, that market's price list. A "market per agreement" makes the
   agreement readable without a token, so keep confidential terms out of it.
+- **A market identifier works as a key.** A price list aimed at a customer and a market applies to anyone who
+  sends that market. On a sandbox tenant, a guest cart (`isGuest: true`) with `context.price.markets:
+  ["b2b-contract"]` got the contract price (71.2 instead of 89), and Discovery `defaultPriceFor` gave the same
+  price anonymously. Price resolution reads the markets the caller passes, nothing else, so derive markets on the
+  server from the signed-in session, never from the browser, a query string or an agent tool's arguments.
+- **With price lists or contract prices, restrict Catalogue and Search & Discovery.** Both can be open, and are by
+  default, but then the prices above can be read without a token. Restricting them is strongly recommended: read
+  them with the static token from the server, and re-ignite Discovery after the change ([[query]]).
 - **The Shop API and the Catalogue resolve the same list**, so a contract price shown from either agrees
   with the cart. The Shop API resolves only the cart's customer; the Catalogue resolves any customer, which
   is what a seller tool or a cached per-organisation price table needs.
@@ -351,7 +359,7 @@ Market ──→ Price Lists (which prices apply)
        ──→ Checkout context (resolved at purchase time)
 ```
 
-Markets are set in the **checkout context** — at cart/checkout time, `context.price.markets` determines which price lists and promotions are evaluated.
+Markets are set in the **checkout context** — at cart/checkout time, `context.price.markets` determines which price lists and promotions are evaluated. Set them on the server from the signed-in session: whoever sends a market gets its prices.
 
 ## Promotions
 

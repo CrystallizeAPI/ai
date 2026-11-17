@@ -65,7 +65,7 @@ export async function hydrate(
                         pricesHaveTaxesIncludedInCrystallize: false,
                         taxRate: m.vat, // a fraction: 0.25
                         decimals: 4, // exact line and tax amounts; round for display only
-                        markets, // the buyer's price-list markets
+                        markets, // the buyer's price-list markets, from the server session: whoever sends a market gets its prices
                     },
                 },
             },

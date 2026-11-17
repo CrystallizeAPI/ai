@@ -302,7 +302,9 @@ Details and code: [references/i18n-routing.md](references/i18n-routing.md).
 ## B2B prices against a public Discovery
 
 An open Discovery serves every price variant and every market price list to anyone who knows the field name.
-**Confidential terms never go there.**
+**Confidential terms never go there.** With price lists or contract prices, restrict Catalogue and Search &
+Discovery and read them with the static token from the server; Discovery needs a re-ignite after the change
+([[query]]). Open APIs are fine for a catalogue whose prices are all public.
 
 | Need                                    | Where                                                                                                                                                                                         |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -313,6 +315,9 @@ An open Discovery serves every price variant and every market price list to anyo
 
 - The customer on a B2B cart is the **organisation** (orders belong to it); the person who ordered goes in cart
   meta.
+- **Markets come from the server session.** A market identifier works as a key: a guest cart that sends a
+  contract market gets the contract price. Never take markets from the browser, a query string or a form field
+  ([[pricing]]).
 - Target organisations by `customerIdentifiers` or markets. Customer-group price lists were reported failing
   with `CustomerGroupNotFoundError` on several tenants; see [[pricing]].
 - Show incl. or excl. VAT per segment. Prices in Crystallize are usually net; the market decides currency,

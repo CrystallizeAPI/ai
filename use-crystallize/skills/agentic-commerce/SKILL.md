@@ -66,6 +66,9 @@ server-side functions the storefront's actions call.
 
 - Stateless: every request builds a fresh server; nothing is stored. Every tool takes `lang`, which sets market,
   currency, VAT and links.
+- **`lang` picks only a public market.** A contract market comes from the signed-in shopper's session on the
+  server, never from a tool argument: a market identifier works as a key to its price list, so an agent that can
+  pass one can read the contract price ([[pricing]]).
 - **Search parses the shopper's words** into typed-spec, platform, brand and type filters, generated from the
   content model, not from a word list; what is left goes to fuzzy text. When filters plus leftover words find
   nothing, rerun without the words.
