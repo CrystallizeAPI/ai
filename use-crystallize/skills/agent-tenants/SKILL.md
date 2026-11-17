@@ -14,7 +14,7 @@ description: >
     expires", "tenant deleted", "tenant setup", "igniteDiscoApi", "createWebhook".
 metadata:
     author: Crystallize
-    version: "1.0"
+    version: "1.1"
 ---
 
 # Crystallize Agent Tenants

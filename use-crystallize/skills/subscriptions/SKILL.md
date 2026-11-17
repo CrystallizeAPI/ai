@@ -14,7 +14,7 @@ description: >
     "orderIntent", "meteredVariables", "churn", "pause subscription", "cancel subscription".
 metadata:
     author: Crystallize
-    version: "1.0"
+    version: "1.1"
 ---
 
 # Crystallize Subscriptions

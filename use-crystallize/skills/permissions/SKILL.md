@@ -3,7 +3,7 @@ name: permissions
 description: Manage user roles, permissions, and access control in Crystallize. Use when configuring field-level permissions (read-only or hidden fields for specific roles), managing user roles and team access, creating or updating custom roles (createRole, updateRole, setUserRole, createInviteToken), restricting a role to specific folders, languages or stock locations, creating access tokens and scoping them to a tenant, deciding which user and role an integration runs as, debugging a Forbidden error on the Core API, controlling who can view/edit specific content areas or component fields, designing role-based access for multi-team tenants, or planning permission strategies for content workflows. For wiring credentials and Shop API token scopes into client code use js-api-client.
 metadata:
     author: Crystallize
-    version: "2.0"
+    version: "2.1"
 ---
 
 # Crystallize Permissions & Access Control

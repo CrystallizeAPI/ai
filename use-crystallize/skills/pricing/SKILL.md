@@ -3,7 +3,7 @@ name: pricing
 description: Design and implement pricing strategies in Crystallize using Price Variants, Price Lists, Promotions, and Markets. Use when recommending pricing structures, setting up multi-currency support, configuring B2B/B2C pricing, planning promotional campaigns, defining markets, or advising on pricing architecture for commerce projects. Also use when the user asks about currencies, multi-market setup, was/now pricing, strikethrough prices, wholesale pricing, contract prices, coupon codes, discount campaigns, tiered or volume pricing, cart discounts, tax-inclusive/exclusive pricing, or any question about how prices work in Crystallize — even if they don't explicitly mention "pricing".
 metadata:
     author: Crystallize
-    version: "2.0"
+    version: "2.1"
 ---
 
 # Crystallize Pricing Skill

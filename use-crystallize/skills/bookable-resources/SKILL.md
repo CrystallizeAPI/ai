@@ -14,7 +14,7 @@ description: >
     "pool", "units".
 metadata:
     author: Crystallize
-    version: "1.0"
+    version: "1.1"
 ---
 
 # Crystallize Bookable Resources

@@ -14,7 +14,7 @@ description: >
     results by something other than a plain sort field.
 metadata:
     author: Crystallize
-    version: "1.0"
+    version: "1.1"
 ---
 
 # Crystallize Vector Ranking

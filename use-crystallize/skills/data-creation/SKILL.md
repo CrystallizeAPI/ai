@@ -10,7 +10,7 @@ description: >
     bulk imports and seeding.
 metadata:
     author: Crystallize
-    version: "1.0"
+    version: "1.1"
 ---
 
 # Crystallize Data Creation Skill

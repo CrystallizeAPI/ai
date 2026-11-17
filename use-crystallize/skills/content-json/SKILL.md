@@ -1,6 +1,9 @@
 ---
 name: content-json
 description: Generate Crystallize rich text JSON, the node tree stored in `richText` components, paragraph bodies and image captions. Use when creating, converting or editing rich text for Crystallize, converting HTML or Markdown to Crystallize JSON, or debugging rich text that opens empty in the App. Also use when the user mentions "rich text JSON", "content nodes", "Crystallize content format" or the Content Transformer format.
+metadata:
+    author: Crystallize
+    version: "1.0"
 ---
 
 # Crystallize Rich Text Content JSON

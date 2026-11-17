@@ -13,7 +13,7 @@ description: >
     "QuickPay", "Two", "Razorpay", "B2B invoice", "agent checkout", "MCP checkout", "cart hand-off".
 metadata:
     author: Crystallize
-    version: "2.0"
+    version: "2.1"
 ---
 
 # Crystallize Payments

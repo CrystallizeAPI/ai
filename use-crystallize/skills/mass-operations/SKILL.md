@@ -3,7 +3,7 @@ name: mass-operations
 description: Author, validate, run, and monitor Crystallize mass operation files — the JSON batch format executed by the mass-operations runner as a BulkTask. Use this skill whenever the user wants to bulk create, update, or upsert Crystallize data (products, folders, documents, variants, prices, stock, customers, orders, subscription contracts, shapes, pieces, topics, flows, price lists, paths, images), seed or migrate a tenant, import a catalog or customer/order backlog, fix or replay data outside API rate limits, publish or unpublish items at scale, or debug a failed or stuck bulk task. Trigger on mentions of "mass operation", "mass-operation", "bulk task", "bulkTask", "operations.json", "intent", "_ref", "createMassOperationBulkTask", "operationLogs", or on any request phrased as "import X into Crystallize", "update all products", "migrate this tenant" — even when the user does not name the mass operations feature itself.
 metadata:
     author: Crystallize
-    version: "1.0"
+    version: "1.1"
 ---
 
 # Crystallize Mass Operations

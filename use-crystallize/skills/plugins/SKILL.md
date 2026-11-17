@@ -13,7 +13,7 @@ description: >
     `crystallizeSignature`, an iframe view in the App).
 metadata:
     author: Crystallize
-    version: "1.0"
+    version: "1.1"
 ---
 
 # Crystallize Plugins

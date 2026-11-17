@@ -14,7 +14,7 @@ description: >
     "packshot", "preconnect".
 metadata:
     author: Crystallize
-    version: "1.0"
+    version: "1.1"
 ---
 
 # Responsive Images with Crystallize
