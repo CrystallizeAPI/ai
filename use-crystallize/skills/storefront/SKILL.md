@@ -82,6 +82,8 @@ The full decision table (task → API → call → token → where) is in
 - [ ] New shapes or components have been through an ignite and answer reliably: query a new field ten times in a
       row before shipping code that depends on it.
 - [ ] You have an access token pair for the Shop API, scoped to this tenant, server-side only.
+- [ ] If drafts, price lists or contract prices must stay private, Search & Discovery and Catalogue are restricted,
+      Discovery has been re-ignited since, and an anonymous Discovery call is refused several times in a row.
 - [ ] Languages, price variants, markets, VAT types and stock locations exist, and you know their identifiers
       (they become Discovery field names: `nokPrice`, `<location>Stock`).
 - [ ] Find a reference implementation with the capabilities you need (below).
@@ -345,7 +347,8 @@ next to the item. Setup, code and verification: [references/preview.md](referenc
 - **On an open Discovery every draft is public.** Anyone who sends `publicationState: draft` gets it, no
   credentials needed (verified 2026-11-12 on two tenants, including unpublished drafts read anonymously). The
   preview secret guards the preview mode, not the data. Don't keep confidential or embargoed content in drafts on
-  an open tenant; if drafts must stay private, restrict Discovery and send the static token from the server.
+  an open tenant; if drafts must stay private, restrict Discovery, re-ignite, and send the static token from the server.
+  The restriction takes effect only after `igniteDiscoApi` and a few minutes more ([[query]]).
 - **Never render drafts to crawlers or the public.** Preview responses are `noindex` and uncached, the preview
   route is under a `Disallow`ed path and not in the sitemap, and nothing in the store links to it.
 
@@ -371,7 +374,7 @@ next to the item. Setup, code and verification: [references/preview.md](referenc
 | Order missing from the account page         | Order listing lag                                                         | Show the returned order; say history updates shortly                                                |
 | Page stale after publish                    | No webhook, or `concern: "item"`                                          | `concern: "items"` → route that clears the `discovery` tag                                          |
 | Page broke after a model change             | Schema not propagated; an error cached per query body                     | Ignite, wait for ten good answers, then ship                                                        |
-| Embargoed product readable before launch    | Drafts on an open Discovery are public                                    | Restrict Discovery and use the static token, or keep it out of drafts                               |
+| Embargoed product readable before launch    | Drafts on an open Discovery are public, or Discovery restricted without a re-ignite | Restrict Discovery, re-ignite, use the static token; or keep it out of drafts |
 | Crawlers see only the default market        | Market chosen by cookie                                                   | Language and market in the path                                                                     |
 | Googlebot gets no `<title>` or canonical    | Dynamic metadata streamed into `<body>`; cached shell served to Googlebot | Cacheable metadata in the shell's `<head>` ([references/performance.md](references/performance.md)) |
 | Search page fails for everyone              | An explicit `null` in Discovery variables                                 | Omit the key                                                                                        |

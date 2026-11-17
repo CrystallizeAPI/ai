@@ -247,8 +247,9 @@ query Preview($path: String!) {
 > **On an open Discovery, every draft is public.** `publicationState: draft` needs no credential there: tools-universe
 > returned its 541 draft documents to an anonymous request, and another tenant served an unpublished page the same
 > way (2026-11-12). Never keep confidential content, prices or embargoed launches in drafts on an open tenant. To
-> keep drafts private, restrict Discovery and send `X-Crystallize-Static-Auth-Token`, from the server only. Whether
-> a restricted Discovery also accepts the access token pair is unverified.
+> keep drafts private, restrict Discovery, run `igniteDiscoApi` (the setting does not reach Discovery before that,
+> and takes a few more minutes after), and send `X-Crystallize-Static-Auth-Token` from the server only. The access
+> token pair was refused there.
 
 ### Consistency
 

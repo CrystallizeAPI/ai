@@ -145,7 +145,9 @@ Then the storefront's own pages are the preview: same routes, same views, no `/p
 
 **Drafts are public on an open Discovery.** `publicationState: draft` needs no credentials there (verified on two
 tenants). The secret protects the preview **mode**: uncached rendering, `noindex`, framing by the App. It does
-not protect the data. To keep drafts private, restrict Discovery and send the static token from the server.
+not protect the data. To keep drafts private, restrict Discovery, re-ignite
+(`igniteDiscoApi`; the setting reaches Discovery only after that, and a few minutes later), and send the static
+token from the server.
 
 ## 4. Live reload
 
@@ -240,4 +242,4 @@ browser that forged it. Add `http://localhost:*` only if you frame a local serve
 | "Exit preview" link ends preview before it is clicked | A prefetched `<Link>` to a `GET` exit route                            | `POST`, or `prefetch={false}`                                            |
 | The view doesn't follow the editor's saves            | The App's listener isn't loaded                                        | `frontend-preview-listener.js` in preview mode                           |
 | Device buttons inside the preview                     | Preview chrome built into the storefront                               | Remove it; turn on the App's responsive device toolbar                   |
-| Treating the secret as access control for drafts      | Drafts are public on an open Discovery                                 | Restrict Discovery and use the static token if drafts must stay private  |
+| Treating the secret as access control for drafts      | Drafts are public on an open Discovery                                 | Restrict Discovery, re-ignite, use the static token if drafts must stay private |

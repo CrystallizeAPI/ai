@@ -71,8 +71,8 @@ rule.
 
 ## Things that look like contradictions
 
-- **"Discovery is public."** It is open by default and can be restricted with a static token. When open,
-  everything it serves is public.
+- **"Discovery is public."** It is open by default and can be restricted with a static token, which takes effect
+  only after a re-ignite. When open, everything it serves is public.
 - **"Catalogue for exact paths."** Discovery resolves paths. Catalogue `variants` came back empty on several
   tenants; keep it for per-customer price lists.
 - **Customer price resolution.** Discovery resolves markets only. The Shop API resolves the cart's customer (price

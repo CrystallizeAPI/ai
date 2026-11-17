@@ -25,8 +25,25 @@ separate from the Catalogue entry, so restricting one does not restrict the othe
 | Open (default) | Nothing                                                                         | Nothing: **drafts are public**          |
 | Restricted     | `X-Crystallize-Static-Auth-Token: <static token>`; missing or wrong answers 401 | The same static token, server-side only |
 
-The static token is the one credential Discovery is known to read. Whether a restricted Discovery also accepts the
-access token pair is unverified, and a bearer token is ignored.
+The static token is the one credential Discovery is known to read, and a bearer token is ignored. With Search &
+Discovery set to `accessTokenPair`, Discovery still took the static token and refused the access token pair (sandbox
+tenant, 2026-11-16); with `staticToken` it refused the pair too. Send the static token whichever mode is set.
+
+**A change of the setting reaches Discovery only after an ignite.** The Search API follows it at once; Discovery does
+not. Change the setting, run `igniteDiscoApi`, poll the bulk task until it is `complete`, then wait for several
+refusals in a row before you rely on it:
+
+- Without an ignite, Discovery stayed open to anonymous reads for at least ten minutes.
+- The ignite took 40–75 s. After it, anonymous calls flapped between 200 and 401 for about four more minutes,
+  while the nodes caught up.
+- After that, one query body (a contract price) still answered 200 once, which looks like a cached response for
+  that body. Drafts and prices can stay readable for a few minutes after the change.
+- Opening Discovery again needs an ignite too.
+
+```graphql
+mutation { igniteDiscoApi(stacks: opensearch) { __typename ... on BulkTask { id status } } }
+query ($id: ID!) { bulkTask(id: $id) { ... on BulkTask { status } } }
+```
 
 **When Discovery is open, everything it serves is public**: every price variant (`nokPrice`, `wholesalePrice`),
 every market's price list through `…PriceFor(marketIdentifiers:)` to anyone who knows the identifier, and every
@@ -678,9 +695,8 @@ Draft preview is this read, run from a server route behind editor login, and nev
 > **On an open Discovery, every draft is public to anyone who asks.** No credential is needed: tools-universe
 > returned the same 541 draft documents (`publicationState: "draft"`, `publishedAt: null`) with and without an
 > access token, on `search` and `browse`, in two languages, and another tenant served an unpublished page to an
-> anonymous request (2026-11-12). To keep drafts private, restrict Discovery and send
-> `X-Crystallize-Static-Auth-Token` from the server only. Whether a restricted Discovery accepts the access token
-> pair instead is unverified.
+> anonymous request (2026-11-12). To keep drafts private, restrict Discovery, re-ignite
+> (see [Authentication](#authentication)) and send `X-Crystallize-Static-Auth-Token` from the server only.
 
 Draft documents are indexed like published ones, so the same eventual consistency applies: a draft saved a moment
 ago may not be served yet.
