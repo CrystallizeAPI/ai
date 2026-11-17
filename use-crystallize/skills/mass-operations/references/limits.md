@@ -16,6 +16,7 @@ re-check anything load-bearing before depending on it.
 - [Component capacity](#component-capacity)
 - [String and number bounds](#string-and-number-bounds)
 - [Structural rules](#structural-rules)
+- [Throughput](#throughput)
 
 ## How limits fail
 
@@ -176,37 +177,37 @@ Ceilings on the `max` you may configure, and therefore on content.
 
 ## String and number bounds
 
-| Field                                                | Bound                                                |
-| ---------------------------------------------------- | ---------------------------------------------------- |
-| **Default for every unqualified string**             | min 1, **max 256**                                   |
-| Shape / piece identifier                             | **2–64**, charset as below                           |
-| Flow identifier                                      | **1–64**, charset as below                           |
-| Identifier charset                                   | `[A-Za-z0-9]` plus `; : + @ ( ) . _ - " =` and space |
-| `resourceIdentifier`                                 | 1–**256**, charset `[A-Za-z0-9]` plus `. - _ / @`    |
-| `externalReference`                                  | 1–256                                                |
-| Item / catalogue item name                           | **512**                                              |
-| Product variant name                                 | **1024**                                             |
-| SKU                                                  | **512**                                              |
-| Variant attribute key / value                        | **128** / **2048**                                   |
-| Component name / description                         | 256 / 1024                                           |
-| `singleLine` text, meta value, tree path             | **1048576**                                          |
-| Meta key                                             | 256                                                  |
-| Image alt text / URL                                 | 1024 / 10240                                         |
-| Order `additionalInformation`                        | 10240                                                |
-| Language code                                        | 2–20                                                 |
-| Currency code                                        | 10                                                   |
-| Topic display colour                                 | `#RGB`, `#RRGGBB` or `#RRGGBBAA`                     |
-| Uploaded filename (basename of the `{{upload}}` URL) | 3–512                                                |
-| Every `id` field                                     | exactly 24 lowercase hex, or `{{ ... }}`             |
-| Price                                                | −1e9 … 1e9                                           |
-| Percent (order tax & discount)                       | −1000 … 1000                                         |
-| Order cart item quantity                             | 0 … 1e6                                              |
-| Item tree position                                   | 1 … 100000                                           |
-| Latitude / longitude                                 | ±90 / ±180                                           |
-| Focal point                                          | x, y each 0 … 1                                      |
-| **`product/variant/price/modify` price**             | **minimum 1** — you cannot set 0 this way            |
-| **`product/variant/stock/modify` quantity**          | **integer, 0 or more**                               |
-| Stock (elsewhere)                                    | integer, **fractional input silently truncated**     |
+| Field                                                | Bound                                                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Default for every unqualified string**             | min 1, **max 256**                                                                                                  |
+| Shape / piece identifier                             | **2–64**, charset as below                                                                                          |
+| Flow identifier                                      | **1–64**, charset as below                                                                                          |
+| Identifier charset                                   | `[A-Za-z0-9]` plus `; : + @ ( ) . _ - " =` and space                                                                |
+| `resourceIdentifier`                                 | 1–**256**, charset `[A-Za-z0-9]` plus `. - _ / @` (the error message lists more; spaces, `:` and `( )` are refused) |
+| `externalReference`                                  | 1–256                                                                                                               |
+| Item / catalogue item name                           | **512**                                                                                                             |
+| Product variant name                                 | **1024**                                                                                                            |
+| SKU                                                  | **512**                                                                                                             |
+| Variant attribute key / value                        | **128** / **2048**                                                                                                  |
+| Component name / description                         | 256 / 1024                                                                                                          |
+| `singleLine` text, meta value, tree path             | **1048576**                                                                                                         |
+| Meta key                                             | 256                                                                                                                 |
+| Image alt text / URL                                 | 1024 / 10240                                                                                                        |
+| Order `additionalInformation`                        | 10240                                                                                                               |
+| Language code                                        | 2–20                                                                                                                |
+| Currency code                                        | 10                                                                                                                  |
+| Topic display colour                                 | `#RGB`, `#RRGGBB` or `#RRGGBBAA`                                                                                    |
+| Uploaded filename (basename of the `{{upload}}` URL) | 3–512                                                                                                               |
+| Every `id` field                                     | exactly 24 lowercase hex, or `{{ ... }}`                                                                            |
+| Price                                                | −1e9 … 1e9                                                                                                          |
+| Percent (order tax & discount)                       | −1000 … 1000                                                                                                        |
+| Order cart item quantity                             | 0 … 1e6                                                                                                             |
+| Item tree position                                   | 1 … 100000                                                                                                          |
+| Latitude / longitude                                 | ±90 / ±180                                                                                                          |
+| Focal point                                          | x, y each 0 … 1                                                                                                     |
+| **`product/variant/price/modify` price**             | **minimum 1** — you cannot set 0 this way                                                                           |
+| **`product/variant/stock/modify` quantity**          | **integer, 0 or more**                                                                                              |
+| Stock (elsewhere)                                    | integer, **fractional input silently truncated**                                                                    |
 
 ## Structural rules
 
@@ -227,6 +228,21 @@ Minimums and shape rules, not maximums.
   boolean is never resolved.
 - At least one of `resourceIdentifier` / `id` / `itemId` / `topicId` is required where
   `checkResourceIdentifierOrId` applies.
+
+## Throughput
+
+Figures observed on production tenants in 2026, for planning, not guarantees:
+
+| Work                                                           | Observed                                                                                |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `product/upsert`, chunks of up to 40 products / 1,500 variants | about 700 variants per minute (11k variants in about 16 min)                            |
+| `product/upsert` create                                        | about 40 products per 1–2 minutes                                                       |
+| `item/updateComponent/item` + `product/variant/upsert`         | about 130–150 operations per minute                                                     |
+| 160 operations (about 2 MB) per file                           | 46–122 s; three files in parallel ran at 15–20 RPS with no 429                          |
+| `image/register` with `{{ upload }}`                           | about 400 images per 3 minutes; 150-op files in about 10 s each when the source is fast |
+
+Downloading from the source dominates image runs. A rerun made of per-component updates costs far more
+than the first upsert, so let each step skip what nobody changed.
 
 ## Operational note
 

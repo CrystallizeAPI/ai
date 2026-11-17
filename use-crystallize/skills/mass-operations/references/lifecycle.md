@@ -264,8 +264,12 @@ will not return every log in one call. The filter also accepts two fields the do
 `product/`. Filtering on `status: failure` is the fastest triage.
 
 Each entry stores the original input payload, the command executed, the result, a `status`
-(`success` / `partial` / `failure`), and a `statusCode`. On a failure `message` is generic: the reason is
-in `output.error.message`.
+(`success` / `partial` / `failure`), and a `statusCode`. On a failure `message` is only `Operation failed.`:
+the reason is in `output.value.error.message`. `output` is wrapped in `value` on success too
+(`{ value: { id } }`), and the resourceIdentifier sits deep inside `input.value.command…`.
+
+**Logs are not returned in file order.** Match an entry to its operation by the resourceIdentifier or the
+rendered id in `input`, not by its position in the connection.
 
 | status    | statusCode | When                                                       |
 | --------- | ---------- | ---------------------------------------------------------- |

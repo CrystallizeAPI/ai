@@ -8,7 +8,15 @@ See [SKILL.md](../SKILL.md) for endpoint URLs and authentication headers. This f
 
 Convert a placed cart into an order. The cart must be in "placed" state first (via `place` mutation on the `/cart` endpoint). Any other state fails, so a second call on the same cart fails too: the first one left it `ordered`.
 
-**The order is saved just after the answer.** An `addPayments` or `addToStage` sent right behind `createFromCart` can miss it, and an immediate read can lag. Pass `paymentStatus`, `payments` and `pipelines` in this input instead of chaining calls.
+**The order is saved just after the answer.** An `addPayments`, `addToStage` or `setMeta` sent right behind `createFromCart` can fail with "Order … not found", and an immediate `order(id:)` read can too. Pass `paymentStatus`, `payments` and `pipelines` in this input instead of chaining calls, and show the confirmation page from the order this mutation returns.
+
+Run it on your server, normally in the payment provider's webhook after verifying the payment ([[payments]]). After `place` the cart is locked, so if this call fails the shopper needs a new cart.
+
+- **Cart meta becomes order meta.** `OrderFromCartInput` has no `meta`: set it on the cart (`hydrate(input: { meta })` or `setMeta`) before `place`. The order gets the cart's meta plus `cartId`, `cartState` and `cartType`, and keeps `customer.meta`.
+- **The order belongs to the cart's customer.** For B2B, put the organisation's identifier on the cart so `orders(customerIdentifier: "<company>")` lists the company's orders, and the ordering person in meta.
+- `additionalInformation: null` is refused ("Output validation error"): leave the field out.
+- `coreId` is `null` in the answer; the Core copy arrived within about 20 s with the meta and the stage.
+- `appliedPromotions` and `reference` came back `null` in the answer even when the cart had a promotion.
 
 ```graphql
 mutation CreateOrderFromCart($id: UUID!, $input: OrderFromCartInput) {
@@ -68,7 +76,11 @@ Variables:
 
 ## Create Order Directly
 
-Create an order without a cart (e.g., for POS, imports, or manual order creation).
+Create an order without a cart: a POS sale, an accepted quote, a manual order, or a demo seed. **Use this, not Core `registerOrder`, whenever a storefront or the Shop API lists the order**; `registerOrder` is for imports nobody reads from the edge (see [The Order Store and Core](#the-order-store-and-core)).
+
+- `relatedOrderIds` takes **Core** ids (`coreId`): an order made from an accepted quote points back at the quote.
+- **`createdAt` was observed both ways**: honoured on one tenant, ignored ("now") on another. For back-dated seeds, keep the intended date in meta (`orderedAt`) as well and read it from there.
+- Seeds: create orders one at a time or at low concurrency, then check by id. The per-customer listing lags and can stay incomplete (47 created, 29 listed), so never use it to decide what still needs creating; key on a meta `seedRef` and keep a ledger.
 
 ```graphql
 mutation CreateOrder($input: OrderInput!) {
@@ -172,7 +184,7 @@ Variables:
 | `relatedOrderIds`         | `[String]`             | No       | Related **Core** order ids (`coreId`), for returns and replacements. A Shop id fails the sync to Core       |
 | `additionalInformation`   | `String`               | No       | Free-text additional info                                                                                   |
 | `meta`                    | `[KeyValueInput]`      | No       | Arbitrary key-value metadata                                                                                |
-| `createdAt`               | `DateTime`             | No       | Override creation timestamp                                                                                 |
+| `createdAt`               | `DateTime`             | No       | Override creation timestamp. Ignored on some tenants: keep the date in meta too                             |
 
 ### OrderItemInput
 
@@ -546,8 +558,15 @@ there is nothing left to link: do not follow it with `fulfill`.
 
 ## The Order Store and Core
 
-Shop API orders and Core orders are the same orders in two stores, synced asynchronously in both
-directions. Where an order was born decides what a Core write does to it.
+Shop API orders and Core orders are meant to be one order in two stores, synced asynchronously in both
+directions. The two entries do different jobs:
+
+- **Shop `/order` is the entry for volume.** It is asynchronous: it puts orders on a FIFO queue and writes them to
+  the database after it answers, and it is built to take millions of orders. An answer means accepted, not stored,
+  so read the order back by id, with a retry.
+- **Core is synchronous but rate limited.** Use it for imports and back-office edits, not for storefront orders.
+
+Where an order was born decides what a Core write does to it today.
 
 **Shop → Core.** An order created here gets its `coreId` in about ten seconds, and `addToStage`
 moves the Core stage with it. (`coreId` can still read `null` in the answer of a Shop `create` even after
@@ -556,7 +575,7 @@ the order has reached Core, so don't use it as a sync flag.)
 | Born in                               | Core `updateOrder`                                     | Core `deleteOrder`             |
 | ------------------------------------- | ------------------------------------------------------ | ------------------------------ |
 | Shop API (`create`, `createFromCart`) | Rewrites the same Shop order with Core's whole version | Removes it from the Shop store |
-| Core (`registerOrder`)                | **Adds another copy** to the Shop store                | Removes only the latest copy   |
+| Core (`registerOrder`)                | **Adds another copy** to the Shop store (a sync bug)   | Removes only the latest copy   |
 
 **A stage moved in Core or the App does not reach the Shop store, and the next Shop write puts it back.**
 Every `/order` mutation sends the whole Shop order to Core, and Core makes the order's pipelines match it: a
@@ -566,16 +585,18 @@ stage may have moved, read the stages from Core and copy them over with `addToSt
 **Seed demo orders with the Shop API, not with `registerOrder`**, if a storefront is going to list them:
 orders registered in Core showed up in the Shop store only sometimes.
 
-**Editing an order born in Core adds another copy of it to the Shop store.** Such an order has no Shop id
-to come back to, so every change arrives as a new order. Three `updateOrder` calls on one seeded order left
-three orders in `orders(customerIdentifier:)` — new Shop ids, the same `coreId`, different `updatedAt`. A
+**Editing an order born in Core adds another copy of it to the Shop store.** This is a sync bug, reported to the
+platform team: Core and Shop `/order` should work on one order. Until it is fixed, plan for it. Such an order has
+no Shop id to come back to, so every change arrives as a new order. Three `updateOrder` calls on one seeded order
+left three orders in `orders(customerIdentifier:)` — new Shop ids, the same `coreId`, different `updatedAt` — and
+on a sandbox tenant (2026-11-17) one `registerOrder` plus three `updateOrder` calls left four. A
 storefront that sums that list counts the same money several times over; the Lab Universe build read a
 department budget of NOK 1,249,299 instead of 411,775. So:
 
 - **Change orders through the Shop API** (`setMeta`, `addToStage`, `setPayments`) whenever a storefront
   reads them. On an order born here, a Core edit also overwrites whatever the Shop wrote just before it.
 - If an order born in Core must be edited there anyway, have the reader **group by `coreId` and keep the
-  most recently updated copy**.
+  most recently updated copy**. This is a workaround for the bug, not how the stores are meant to work.
 
 **There is no delete on the Shop API.** Cancelled or mistaken orders stay in the list until `deleteOrder`
 on the Core order removes them. Otherwise archive them with `setMeta` (`archived: true`) and filter them

@@ -109,6 +109,10 @@ mutation SetVariantPrice {
 
 It sets one price at a time and leaves the rest of the variant alone. `updateProductVariant` also takes `priceVariants`, but rewrites more of the variant: see [[mutation]] before using it for a price change.
 
+**Negative prices are legal** (from −1e9 to 1e9), and zero too: useful for option deltas against a base
+configuration, such as a deduction for a simpler brake. Write them with the variant (`product/upsert`,
+`updateProductVariant`): `product/variant/price/modify` has a minimum of 1.
+
 ## Querying Prices
 
 ### Discovery API
@@ -148,6 +152,29 @@ query {
     }
 }
 ```
+
+### Every Discovery price field
+
+Each price variant generates the same set of fields on every product variant type, here for `nok`. The
+generic fields take the identifier as an argument instead. Checked by introspection on a live tenant,
+2026-11-12:
+
+| Field                                                              | Answers                                                                  |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `nokPrice(count)`                                                  | The variant's price, the tier price for `count`; `null` when not set     |
+| `nokPriceTierType`, `nokPriceTiers { threshold price }`            | The volume or graduated ladder; `null` without one                       |
+| `nokPriceFor(marketIdentifiers, count)`                            | The lowest price after the lists aimed at those markets                  |
+| `nokPriceForEveryone(count)`                                       | The same for `EVERYONE` lists. Slow at volume                            |
+| `nokBestPriceList`, `…ForEveryone`, `…For(marketIdentifiers)`      | The winning `PriceList { identifier name modifier modifierType }`        |
+| `priceVariants(key)`                                               | The hash of every variant, `{ price, currency }` each                    |
+| `priceVariantFor(identifier, marketIdentifiers, count)`            | `nokPriceFor` with the identifier as an argument                         |
+| `priceVariantForEveryone(identifier, count)`                       | `nokPriceForEveryone` likewise                                           |
+| `bestPriceList(identifier)`, `bestPriceListFor(…)`, `…ForEveryone` | The winning list, likewise                                               |
+| `price_nok` (in `filters`, `sorting`, facets)                      | The filter, sort and facet field; `exists: true` means "has a nok price" |
+
+None of them takes a customer: Discovery resolves markets only. For a customer's price, see "Which price,
+from which API, for whom" in the main pricing guide. A new price variant shows up in the `priceVariants`
+hash without a re-ignite.
 
 ### Catalogue API
 

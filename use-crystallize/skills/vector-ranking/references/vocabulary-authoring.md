@@ -50,6 +50,15 @@ weight: [1.0, 0.6, 0.3]    1st entry  1.0
                            4th entry  0.3   (clamped to last)
 ```
 
+**Use the positions, or tastes collapse.** When every item carries several entries of one dimension at weight 1,
+every shopper matches every item about equally and the house boosts decide the order. In one build, decaying the
+secondary entries (`[1.0, 0.5, 0.35]`) made all 16 profile × category listings differ from the unpersonalised one.
+
+**Broad entries dilute the cosine.** A spare part that fits 200 machines carries 200 `machine:` keys, so its cosine
+to a shopper with one machine is about 1/√200, while an item with one key scores about 0.8. Ranking inside such a
+category still works (everything is diluted alike), but a mixed rail needs its own query for those items, with a
+filter instead of a taste.
+
 ## 2. Create the vocabulary
 
 `upsertVocabulary` creates or replaces a vocabulary **in full**. It is a full replace, not a patch —
@@ -57,6 +66,10 @@ send the whole dimension list every time. **Any dimension you omit is gone**, an
 hold for it are skipped, without error, the next time their vectors are built.
 
 A vocabulary needs at least one dimension, dimension ids must be unique, and every weight must be positive.
+
+**There is no `deleteVocabulary`, and no query lists vocabularies.** `upsertVocabulary` with an empty dimension list
+fails ("Cannot return null for non-nullable field GraphqlVocabulary.name") and deletes nothing, so every vocabulary
+you create stays a value of the tenant's enum for good. Do not test with throwaway vocabularies on a real tenant.
 
 ```graphql
 mutation UpsertVocabulary($input: UpsertVocabularyInput!) {
@@ -116,6 +129,12 @@ query {
 `setItemTaste` writes the ordered entries for **one item, one language, one vocabulary**, replacing what
 that vocabulary held on the item. Two vocabularies means two calls per item.
 
+**Write one item's vocabularies and languages one after another.** Concurrent `setItemTaste` calls on the same
+item lose writes with no error: each call reads, changes and writes the item's draft, and the last write wins. With
+three vocabularies × two languages in parallel, one item kept a single vocabulary; another build found 34
+(item, language) pairs missing a whole vocabulary after eight writes at once. Seen on three tenants. Run **items**
+in parallel, never the calls for one item, and read the taste back afterwards (below).
+
 ```graphql
 mutation SetItemTaste($input: SetItemTasteInput!) {
     setItemTaste(input: $input) {
@@ -169,6 +188,11 @@ SetItemTasteResult (union)   Product | Folder | Document
                              | UnauthorizedError | UnknownError
 ```
 
+Documents and folders take taste too, and rank like products: banner documents with taste derived from their
+topics, filtered by `itemId` and ranked with `tasteCosine` and a `context`, came back in a different order per
+shopper after one ignition. A numeric `priority` on the document shape became a `TenantRankByField` and works as a
+small `fieldBoost` tie-break.
+
 `ExperimentalFeaturesNotAvailableError` is a standard member of Core result unions, not a signal about
 vectors: nothing in vocabulary or taste authoring raises it, and ranking is switched on by the ignition in
 step 5. The validation rejections below come back as `UnknownError`, with the reason in `message`.
@@ -196,7 +220,8 @@ are **no partial writes** — fix it and resend the full set of entries.
 ### Read taste back
 
 Core exposes taste on the item, which is the reliable way to verify a bulk author before indexing.
-It is **not** exposed on Discovery hits.
+It is **not** exposed on Discovery hits. `taste` is on `Item`, not on `GetItemResult`, so the inline fragment is required;
+without it the query fails validation.
 
 ```graphql
 query {
@@ -218,6 +243,21 @@ query {
 GraphqlItemTaste       { vocabulary: String!, entries: [GraphqlItemTasteEntry!]! }
 GraphqlItemTasteEntry  { key: String!, weight: Float }
 ```
+
+After a bulk run, read every item back per language and rewrite only the vocabularies that are missing or
+differ. Even sequential runs lost the odd write in one build, so make this repair step part of the job.
+
+### Observed both ways: verify on your tenant
+
+| Claim                                     | Seen                                                        | Not seen                                        |
+| ----------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------- |
+| `setItemTaste` empties variant components | once (2026-09): variant chunks and numerics gone from draft | four later tenants, variants checked            |
+| Item taste is per language                | one tenant: a taste written in `no` was absent in `en`      | another: written in `no`, read the same in `en` |
+
+So keep two checks rather than a rule: read the variant components back after the taste step on a catalogue
+whose variants carry components, and write taste for **every** language you serve (it costs calls, not
+correctness). Taste does survive a translation: after translating and publishing in `no`, a `tasteCosine` query in
+`no` scored the same as in `en`.
 
 ### Keep one source of truth
 
@@ -330,6 +370,12 @@ From then on the tenant's Discovery schema includes `context`, `rankBy` and `nea
 vocabulary you created becomes a value of the `TenantVocabularyIdentifier` enum, under its normalized
 name. **A vocabulary is only a valid enum value after the next index run** — until then, queries
 referencing it fail schema validation.
+
+**The enum is not the end of the wait.** In one build `Vocabulary <name> not found` came back for about five
+minutes after the task said `complete`, while `TenantVocabularyIdentifier` already listed the value; in others the
+enum and `lastIndexCompletedAt` themselves stayed stale for minutes, and one vocabulary scored 0 for a while as the
+others ranked. Probe with a real `context` query per vocabulary, and check `rankScore` per vocabulary, before
+concluding that the vectors are wrong.
 
 Before a tenant has any indexed vocabulary, the same arguments (`nearestTo.vocabulary`,
 `userTaste.vocabulary`) are typed `String`, and a query fails with `Vocabulary <name> not found`. After

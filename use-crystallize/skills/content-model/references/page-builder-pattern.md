@@ -338,11 +338,11 @@ Use `contentChunk` for inline-repeated groups. Use `itemRelations` when those it
 
 Beyond `layout`, other pieces serve as shared field groups embedded across shapes:
 
-| Piece            | Used by                                        | Purpose                               |
-| ---------------- | ---------------------------------------------- | ------------------------------------- |
-| `call-to-action` | `banner`                                       | Repeatable `{label, url}` CTA buttons |
-| `meta`           | `landing-page`, `category`, `product`, `story` | SEO title, description, image         |
-| `dimensions`     | `product`, product variant                     | Physical measurements (W/H/D/weight)  |
+| Piece            | Used by                                        | Purpose                                                                          |
+| ---------------- | ---------------------------------------------- | -------------------------------------------------------------------------------- |
+| `call-to-action` | `banner`                                       | Repeatable `{label, url}` CTA buttons                                            |
+| `seo`            | `landing-page`, `category`, `product`, `story` | SEO title, description, image ([Pieces Reference](pieces.md#standard-seo-piece)) |
+| `dimensions`     | `product`, product variant                     | Physical measurements (W/H/D/weight)                                             |
 
 ---
 
@@ -390,6 +390,8 @@ category (folder shape)  ← same blocks component as landing-page
 
 **Use `componentChoice` for media fields** (`background-media`, story `media`). It enforces the "image OR video" constraint at the data model level rather than relying on frontend logic.
 
+**Offer an embed next to the upload for video.** A `videos` component holds uploaded files only. When the brand's videos live on YouTube or Vimeo, add a `youtube` (or `video-url`) Single Line as another choice, so editors don't re-upload hosted video.
+
 **Use `contentChunk` with `repeatable: true` for inline lists** (USP items, CTA buttons, detail tabs). Use `itemRelations` when the items are independently managed content (products, stories, categories).
 
 ### Frontend Rendering
@@ -427,7 +429,7 @@ selectedComponents.map((block) => {
 
 ### Schema Governance
 
-**Centralise shared pieces** (`layout`, `meta`, `call-to-action`). If you need to add a new theme option (e.g. `"brand"`), you change it in one place and it propagates to all blocks automatically.
+**Centralise shared pieces** (`layout`, `seo`, `call-to-action`). If you need to add a new theme option (e.g. `"brand"`), you change it in one place and it propagates to all blocks automatically.
 
 **Add blocks by extending `componentMultipleChoice` choices** — not by creating parallel block fields. A single `blocks` field keeps rendering logic, ordering, and multilingual handling unified.
 

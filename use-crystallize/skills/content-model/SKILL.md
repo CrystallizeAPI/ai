@@ -1,9 +1,9 @@
 ---
 name: content-model
-description: Design content models in Crystallize using Shapes, Pieces, Components, and Grids, and decide when a classification is a Topic Map, a Selection or a document. Create product structures, define document types, design relationships between items, implement classification bridges, configure item relations with shape restrictions, model brand and product colours with the Colors component (hex, RGB, HSL, CMYK, Pantone, RAL, colour presets, swatches), and architect scalable data models. Use when modeling content, creating shapes or pieces, defining components, designing relationship patterns, implementing semantic bridges, configuring variant components, building a page builder, setting component validation, localization or Discovery flags, or choosing between a Colors component and a Selection for colour. For the topic tree itself use taxonomy, and for folder hierarchies use information-architecture.
+description: Design content models in Crystallize using Shapes, Pieces, Components, and Grids, and decide when a classification is a Topic Map, a Selection or a document. Create product structures, define document types, design relationships between items, implement classification bridges, configure item relations with shape restrictions, model brand and product colours with the Colors component (hex, RGB, HSL, CMYK, Pantone, RAL, colour presets, swatches), and architect scalable data models. Use when modeling content, creating shapes or pieces, defining components, designing relationship patterns, implementing semantic bridges, configuring variant components, building a page builder, setting component validation, localization or Discovery flags, modelling typed technical specs with units, product identifiers (SKU, GTIN, MPN) or the SEO piece, or choosing between a Colors component and a Selection for colour. For the topic tree itself use taxonomy, and for folder hierarchies use information-architecture.
 metadata:
     author: Crystallize
-    version: "3.0"
+    version: "3.1"
 ---
 
 # Crystallize Content Model Skill
@@ -71,26 +71,27 @@ Product variants have additional built-ins: `sku`, `images`, `videos`, `price`, 
 
 **`variantComponents` require the same type discipline as product-level components** — apply the Component Selection Guide below. Measurable values (weight, voltage, length) → `numeric` with units. Controlled options (connection type, material) → `selection`. Free-form identifiers → `singleLine`. Do not default everything to `singleLine`.
 
+**Typed specs are what the storefront, search engines and agents read.** A model with numerics, selections and switches (shared `power` and `physical` pieces, plus one family piece behind a `specs` choice) gets Discovery range and option filters, facets and `rankBy` fields, schema.org `additionalProperty` with UN/CEFACT unit codes, Markdown twins and agent filters from the same values. A label/value table gets none of them. Keep **one unit per numeric**, because range filters ignore the unit, and remember that an **unset switch reads `false`** in Discovery. See [Typed Specs, Units and Identifiers](references/typed-specs.md), and [[seo-geo]] for the JSON-LD.
+
+**Chunks on variants:** observed both ways. One build's variant chunks never published, another's published and were served by Discovery. Read one item back from Discovery before you rely on them.
+
 **IMPORTANT:** Do NOT add components for price or stock - these are native properties managed through the product variant's built-in fields. Only create custom price/stock components for specific edge cases (e.g., tiered pricing models, subscription pricing, price modifiers for configurators).
 
-**Product Identification:** The built-in `sku` field on product variants is the primary product identifier — use it for GTIN, EAN, ISBN, or any single identifier. Do NOT add a separate `gtin` or `ean` single-line component on the variant. If a product needs **multiple identifiers** (e.g., both ISBN-10 and ISBN-13, or a GTIN plus a legacy system ID), add a non-repeatable **identifiers chunk** with named fields to the shape:
+**Product Identification:** the merchant's SKU, the GTIN and the manufacturer part number are **separate facts** (schema.org, Google Merchant Center and GS1 ask for each). A SKU used as the GTIN loses the merchant's own SKU, and a kit and the bare tool have different GTINs.
+
+- **Built-in `sku`** on the variant: the merchant's SKU.
+- **`gtin` Single Line in `variantComponents`**: not translatable, discoverable, validated with a `pattern` for 8, 12, 13 or 14 digits.
+- **`mpn` Single Line**: on the variant when it differs per variant.
+- **National trade numbers** (NOBB, NRF, ISBN): one named Single Line each, never a key/value list. On the product, several can be grouped in a non-repeatable `identifiers` chunk; on variants keep them as plain Single Lines (chunks on variants are contested, see above).
+- **One external system id**: the built-in `externalReference` on the item or variant.
 
 ```
-Product Shape: Book
-  └── identifiers (contentChunk)
-        ├── isbn-10 (Single Line)
-        ├── isbn-13 (Single Line)
-        └── legacy-id (Single Line)
-
-Product Shape: Consumer Electronics
-  └── identifiers (contentChunk)
-        ├── gtin (Single Line)
-        ├── ean (Single Line)
-        ├── upc (Single Line)
-        └── legacy-id (Single Line)
+Product Shape: Power Tool
+  └── variantComponents
+        ├── gtin (Single Line, not translatable)
+        ├── mpn (Single Line, not translatable)
+        └── nobb-number (Single Line, not translatable)
 ```
-
-Each identifier gets its own named component — not a generic key/value pattern. This keeps the data typed, queryable, and self-documenting. Also useful during migrations to preserve old system identifiers alongside the new SKU. For a single external system ID, use the built-in `externalReference` on the item or variant.
 
 See [Shapes Reference](references/shapes.md) and [Content Modelling Guide](references/content-modelling.md) for details.
 
@@ -104,8 +105,8 @@ See [Shapes Reference](references/shapes.md) and [Content Modelling Guide](refer
 
 ### "I need to store numbers"
 
-- **Numeric** → Measurable values with selectable units (e.g. `["g","mg","kg"]` for weight, `["cm","m","in"]` for dimensions). Configure units in `config.numeric.units`.
-- **Properties Table** → Arbitrary key-value specs
+- **Numeric** → Measurable values with a unit (`["kg"]`, `["mm"]`, `["V"]`). Configure units in `config.numeric.units`, one per component where you can: range filters ignore the unit. A unit list makes every empty value fail create, update and publish unless the component has `required: false` (see [Typed Specs](references/typed-specs.md#a-unit-list-makes-empty-values-fail))
+- **Properties Table** → Arbitrary key-value specs whose keys can't be known in advance. Not for known specs: it gives no filters, facets or structured data
 
 ### "I need to link to other items"
 
@@ -117,7 +118,7 @@ See [Shapes Reference](references/shapes.md) and [Content Modelling Guide](refer
 ### "I need controlled options"
 
 - **Selection** → Dropdown/checkboxes with predefined options. Every option needs `key` and `value`; also set `label` (optional, but good practice — the App UI displays it; default: same text as `value`)
-- **Switch** → Boolean flag (type: `boolean`)
+- **Switch** → Boolean flag (type: `boolean`). Unset reads `false` in Discovery, so write only what is true
 - **Datetime** → Date/timestamp (type: `datetime`)
 - **Location** → Geographic coordinates
 
@@ -206,14 +207,14 @@ For complete component reference with nesting rules, validation, and localizatio
 
 Leaving a config key out is a decision. This is what you get:
 
-| Key                                                  | Left out                                                                                       | Set it when                                                                                        |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `repeatable` on `contentChunk`                       | `true`: the chunk repeats                                                                      | `false` for a group that occurs once                                                               |
-| `allowDuplicates` on `componentMultipleChoice`       | `true`: a choice can be picked several times                                                   | `false` when each choice may be picked once                                                        |
-| `discoverable`                                       | `true`: the component is indexed and returned by the Discovery API                             | `false` for internal data (ERP ids, notes, integration keys)                                       |
-| `required`                                           | Not the same as `false`: an empty component is still held to its `min`, `pattern` and `units`  | `false` on an optional field that has one of those rules                                           |
-| `multilingual` on a field                            | `singleLine`, `richText` and `colors` are stored per language; every other component is shared | `false` on `colors` that are universal, `true` on other fields that translate                      |
-| `multilingual` on a chunk, choice or multiple choice | Structure is shared; each component inside follows its own setting                             | `true` to vary the structure per language. `false` forces everything inside to shared, so avoid it |
+| Key                                                  | Left out                                                                                        | Set it when                                                                                        |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `repeatable` on `contentChunk`                       | `true`: the chunk repeats                                                                       | `false` for a group that occurs once                                                               |
+| `allowDuplicates` on `componentMultipleChoice`       | `true`: a choice can be picked several times                                                    | `false` when each choice may be picked once                                                        |
+| `discoverable`                                       | `true` in the API, but builds found rich text, images and config-less components absent: set it | `true` explicitly on everything a storefront renders, `false` for internal data (ERP ids, notes)   |
+| `required`                                           | Not the same as `false`: an empty component is still held to its `min`, `pattern` and `units`   | `false` on an optional field that has one of those rules                                           |
+| `multilingual` on a field                            | `singleLine`, `richText` and `colors` are stored per language; every other component is shared  | `false` on `colors` that are universal, `true` on other fields that translate                      |
+| `multilingual` on a chunk, choice or multiple choice | Structure is shared; each component inside follows its own setting                              | `true` to vary the structure per language. `false` forces everything inside to shared, so avoid it |
 
 Details and the App's own defaults are in [Components Reference](references/components.md#multilingual--localization).
 
@@ -312,7 +313,7 @@ Piece: "SEO"  (not "SEO Metadata")
 7. **Use chunks for grouping** - Related fields that repeat together
 8. **Choose topics vs documents wisely** - Simple labels → topics, rich content → documents
 9. **Plan localization early** - Set `multilingual` from the start
-10. **Decide what Discovery sees** - Components are indexed by default. Set `discoverable: false` on internal fields
+10. **Decide what Discovery sees** - Set `discoverable: true` explicitly on everything the storefront renders and `false` on internal fields. A component made discoverable after publishing stays empty in Discovery until the items are published again. Give every shape at least one discoverable component
 11. **Apply design patterns** - Use established patterns for scalable models
 
 ## Anti-Patterns to Avoid
@@ -327,7 +328,15 @@ Piece: "SEO"  (not "SEO Metadata")
 
 ❌ **Mixing variant data with product data** - Use variant attributes (built-in) for size/color/sku
 
-❌ **Adding GTIN/EAN/ISBN as a variant component** - The built-in `sku` field handles single product identifiers. For multiple identifiers, add a chunk with named single-line components (e.g., `isbn-10`, `isbn-13`, `gtin`, `ean`, `upc`, `legacy-id`) at the shape level, not on the variant.
+❌ **Using the `sku` as the GTIN** - The built-in `sku` is the merchant's SKU. Put the GTIN in its own non-translatable `gtin` Single Line on the variant, and the MPN in an `mpn` Single Line, so structured data and merchant feeds get three separate facts.
+
+❌ **A hand-typed canonical URL field** - Canonicals and hreflang come from the item's generated paths (see [[information-architecture]]). A typed canonical goes stale on the first rename.
+
+❌ **Rich text for the SEO description** - It goes into `<meta>`, Open Graph and JSON-LD, which take plain text. Use a Single Line.
+
+❌ **Several units on one numeric** - Range filters compare the raw number, so `["m³/h", "l/s"]` mixes units in one filter. One unit per component, converted at import.
+
+❌ **Writing `false` for "unknown"** - An unset switch already reads `false`; a written `false` is a wrong fact. Write `true` for what an item has, and use a yes/no Selection when "no" must be stated.
 
 ❌ **Adding price or stock components to product shapes** - Products have native `price` and `stock` fields on variants. Only add custom pricing/stock components for specific edge cases (tiered pricing, subscription models, configurator price modifiers, bulk discounts)
 
@@ -353,9 +362,9 @@ Piece: "SEO"  (not "SEO Metadata")
 
 ❌ **Empty contentChunk (no components)** - A `contentChunk` with zero child components is meaningless and invalid. Always define at least 1 component inside a chunk. If you find yourself creating an empty chunk, reconsider the design.
 
-❌ **`maxItems` as "unlimited"** - An Item Relation holds at most 75 items and 75 SKUs. A `maxItems` or `maxSkus` above 75 is rejected, so a high number like 999 fails. Leave it out for "as many as allowed". For more than 75, invert the relation or use a topic.
+❌ **`maxItems` as "unlimited"** - An Item Relation component holds at most 75 items and 75 SKUs. The limit is per component, not per item: an item can hold more relations spread over components or chunk rows. A `maxItems` or `maxSkus` above 75 is rejected, so a high number like 999 fails. Leave it out for "as many as allowed". For more than 75, invert the relation or use a topic (at most 250 topics per item).
 
-❌ **Internal fields left discoverable** - Discovery indexes every component unless it says `discoverable: false`, and the Discovery API is typically public.
+❌ **Internal fields left discoverable** - Discovery indexes every component unless it says `discoverable: false`, and the Discovery API is open by default: when open, everything it serves is public.
 
 See [Content Modelling Guide](references/content-modelling.md) for detailed anti-patterns and migration strategies.
 
@@ -402,10 +411,11 @@ Before presenting the mass operations JSON, verify:
 8. **`datetime` config has no `format` field in mass operations** — the schema rejects it. A datetime created this way uses the default `date` format. `format` is only accepted by the `createShape` and `updateShape` mutations.
 9. **`files` config**: if `acceptedContentTypes` is provided, each entry needs `contentType` (required). In mass operations, any `files` config must include `maxFileSize` with both `size` and `unit`.
 10. **Naming conventions** — all identifiers use lowercase-with-hyphens (no camelCase, no underscores)
-11. **Reusable SEO piece** — create an SEO piece and reference it from multiple shapes
+11. **Reusable SEO piece** — one `seo` piece (`title` and `description` as Single Lines, `image`), discoverable, with no canonical URL field, referenced from every shape with a page. See [Pieces Reference](references/pieces.md#standard-seo-piece)
 12. **Localization strategy** — translatable for marketing text, non-translatable for universal data (codes, dimensions)
 13. **Colors components** — set `customColorSpaces` or `colorPresets`, or editors have nothing to enter in the App. Set `multilingual: false` when the values are universal
-14. **`discoverable: false`** on internal fields
+14. **`discoverable`** set explicitly: `true` on everything the storefront renders, `false` on internal fields
+15. **Typed specs** — one unit per numeric, `required: false` or no unit list on optional numerics, `sku`, `gtin` and `mpn` as separate fields. See [Typed Specs](references/typed-specs.md#checklist)
 
 ## References
 
@@ -418,5 +428,6 @@ Before presenting the mass operations JSON, verify:
 - [Shape Consolidation](references/shape-consolidation.md) - When and how to merge similar shapes
 - [Shapes Reference](references/shapes.md) - Shape types, variantComponents, and creation process
 - [Pieces Reference](references/pieces.md) - Reusable field sets, standard SEO piece
+- [Typed Specs, Units and Identifiers](references/typed-specs.md) - Why typed specs, units and UN/CEFACT codes, unit lists that break writes, booleans, SKU/GTIN/MPN
 - [Taxonomies Reference](references/taxonomies.md) - Topic Maps and Grids
 - [[taxonomy]] — Use this skill to design topic maps (hierarchical taxonomies with `displayColor`, `pathIdentifier`, nesting). Topics are a built-in field on every item, so a shape does not reference them.

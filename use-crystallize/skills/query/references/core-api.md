@@ -49,11 +49,10 @@ curl -X POST 'https://api.crystallize.com/@your-tenant' \
 - Customer management
 - Bulk data access
 
-**Use Discovery/Catalogue API for:**
-
-- Storefront product listings
-- Search and filtering
-- Public content access
+**Never in a storefront's request path.** Core is heavily rate limited, so it runs in seeds, imports, scheduled
+jobs, webhook receivers and admin or seller tools behind staff login, on your own server. A storefront reads the
+catalogue from Discovery and shopper data (carts, orders, customers) from the Shop API; see the contract in
+[[storefront]] and the query skill's SKILL.md.
 
 ## Reading a Core Response
 
@@ -64,7 +63,8 @@ fails the whole request with a validation error.
 - **The root fields below return a union.** Select the result with `... on <Type>` and the failure with
   `... on BasicError`; `items(...) { edges }` without a fragment does not validate. The list types are
   `ItemConnection`, `CustomerConnection`, `CustomerGroupConnection`, `OrderConnection`, `PieceConnection`,
-  `FlowContentConnection`, `ArchivedItemVersionConnection`, `BulkTaskConnection` and `ImageConnection`.
+  `FlowContentConnection`, `ArchivedItemVersionConnection`, `BulkTaskConnection`, `ImageConnection` and
+  `PriceListConnection` (`priceLists`). `tenant(identifier:)` needs `... on Tenant` the same way.
   `shapes` is the exception: it returns a plain `ShapeConnection`.
 - **`content` and `config` are unions too.** Give `content` one fragment per component type you expect. The
   names carry `Component` here (`RichTextComponentContent`), unlike the Catalogue API (`RichTextContent`).

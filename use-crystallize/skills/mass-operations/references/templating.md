@@ -166,7 +166,12 @@ Mechanics worth knowing:
   runner waits for them before the next operation.
 - Within one task, repeated calls with the same URL return the same key — so calling `upload` inline in
   several operations is safe.
-- The filename is the last segment of the URL, so query strings and redirect URLs can produce odd names.
+- The filename is the basename of the raw URL string, so query strings and redirect URLs can produce odd
+  names (`…?w=2400&fm=jpg` becomes `…tifw2400andfmjpg`). An extension-less URL (`…/4846/default`) gives a key
+  without an extension that registers but is **never processed**: `width`, `height` and `variants` stay
+  `null`. Append a query whose last segment is a file name, as a hint:
+  `…/4846/default?name=/brand-4846.jpg` gives the key `…/brand-4846.jpg` and a full set of renditions. Unique
+  file names also let you map keys back to sources by `key.split("/").at(-1)` rather than by log order.
 - The source must send `Content-Length` and an allowed image `Content-Type` (`references/limits.md`).
 - Image uploads are logged as their own entries with `"intent": "image/upload"` and statusCode 200/500,
   **separate** from the operation that called `upload`. A failed image does not fail its operation.

@@ -128,6 +128,10 @@ Target: The SKU of the shipping line
 Limitations: Cumulative (can combine with product discounts)
 ```
 
+**A promotion without a target discounts the shipping line too.** "10 % off everything" took 99 shipping
+down to 89.10, and `changeCartItemPricing` on that line does not exempt it. Give site-wide promotions a
+target, or put the shipping SKU in their `exclusions`.
+
 ### Members-Only Discount
 
 ```
@@ -249,6 +253,8 @@ mutation HydrateCartWithCoupon {
 ```
 
 The response includes a `discounts` list on each item and on the cart total when a discount has been applied, and `appliedPromotions` names what fired. If the coupon code is invalid or no promotion matches, the prices are returned without discounts and **without an error**. To tell the shopper, query `validateVoucher(voucher: "WELCOME15") { isValid promotions { identifier name } }` on the same endpoint. It only says that a promotion carries the code, not that this cart qualifies, so compare with `appliedPromotions` after hydrating.
+
+**Read the applied promotions from the cart, not from the order.** `createFromCart` answers `appliedPromotions: null` (and `reference: null`) even when the cart had one; the discounts survive on the lines. If the order must say which promotion fired, copy `appliedPromotions` into cart meta before `place`, since cart meta becomes order meta. Test orders count toward `maxUsagePerCustomer` and orders cannot be deleted, so never test a limited promotion with a real customer's identifier.
 
 ### Cart Hydration with Automatic Promotions
 

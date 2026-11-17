@@ -13,7 +13,8 @@ UserTasteInput { vocabulary: TenantVocabularyIdentifier!   # enum, generated per
 ContextInput   { userTaste: [UserTasteInput!]! }           # one entry per vocabulary
 ```
 
-`userTaste` must be **non-empty**, and a vocabulary may appear **at most once**. `weights` maps
+`userTaste` is a **list**, one entry per vocabulary. A map keyed by vocabulary is not rejected: every item
+then scores 0, silently. It must be **non-empty**, and a vocabulary may appear **at most once**. `weights` maps
 `dimensionId:value` to a number — **positive means likes, negative means dislikes**. A negative weight
 puts the query on the windowed path; see
 [the rerank window](ranking-signals.md#the-rerank-window).
@@ -112,8 +113,19 @@ The vector is UI state or session state, whichever you have. All of these are on
   topics, or read `item { ... on Item { taste { ... } } }` from Core server-side.
 - **Decayed session behaviour.** Add a little weight for every product a shopper opens or adds, decay it
   over time, and send the result. The profile lives in the browser or your session store.
-- **Agents.** An AI agent holds a structured taste vector for a customer and sends it with every search,
-  so the results it reads are already ranked for that customer.
+- **Order history, rebuilt per request.** Read the shopper's orders from the Shop API (`orders(customerIdentifier)`)
+  on the server, take the keys of what they bought (the topic paths in each order line's meta), weight them with
+  the same positional rule as the items, and send the result. Nothing is stored per person, and in one build a
+  joiner, an electrician and a carpenter got clearly different home grids, category orders and menu images. Cache
+  the vector per customer for a short while; the order listing lags new orders by seconds to minutes anyway.
+- **Agents.** An MCP server or an on-site assistant ranks every tool result for the shopper behind the call: when
+  its access token or session identifies the shopper, rebuild `context.userTaste` from Shop API order history
+  **per call**, as above (no stored profile), and send it with every search, similar-products and recommendation
+  tool. A signed-out call falls back to the house ranking (`rankBy` without `tasteCosine`). Add `relevance` to the
+  terms whenever the tool passes a `term`. See [[agentic-commerce]].
+
+Order history and the agent's identity are server-side, so this vector is built on the server even when the
+rest of the page could call Discovery from the browser.
 
 ## Blending taste with your rules
 
@@ -170,6 +182,19 @@ origin at 0.3 — which plain `context` cannot do. This is the main reason to re
 `tasteCosine` contributes **0** for items with no vector in that vocabulary, so unmapped products fall
 back to your other rules rather than disappearing.
 
+**A dial on one vocabulary needs that vocabulary's term weighted up.** A slider that adds keys to one vocabulary
+only moves that term's cosine, so a shopper with a strong taste in another vocabulary keeps the same top items
+whatever the slider says. Weight the dialled term up (3 against 0.8 worked in one build) while the dial is set.
+
+**Rank once, reuse everywhere.** One `rankBy` over the catalogue per request (`limit: 250`, `explain: true`) can
+feed every rail on a page — "For you", the home rows, the hero. Discovery reads are cached on query + variables,
+and the taste is part of the variables, so each shopper's ranking is computed once per cache lifetime.
+
+**Let Discovery filter, rank and page in one query** for interactive surfaces. Ranking 250 cached cards in code
+cost about 0.5 s and 255 KB per slider move; one `browse.<shape>(filters, rankBy, context, pagination: { limit: 12 })`
+query per move, plus a cached `limit: 0` query for counts and facets, brought it to about 0.2 s and half the
+payload. Skip the shared cache for reads that are almost never repeated, such as every slider position.
+
 ## `nearestTo` — "more like this"
 
 Ranks by similarity to a **reference item's own stored vector** instead of a hand-built one. Use it for
@@ -201,7 +226,15 @@ Four things to know:
   So does an anchor not found in the query's language and publication state. Check the anchor before
   rendering an empty shelf.
 - **`k` replaces `pagination.limit`** when `nearestTo` is set, and is itself capped by the rerank window.
-- **`nearestTo` alone does not combine `context.userTaste`.** It scores from the anchor vector only.
+- **`nearestTo` alone does not combine `context.userTaste`.** It scores from the anchor vector only, in **one**
+  vocabulary: on a mood vocabulary alone, a film's neighbours shared its mood and nothing else. For a "more like
+  this" that spans vocabularies and follows the shopper, use `rankBy` with a `userTaste` built from the item's own
+  keys blended with the shopper's (the item's keys at 0.8 kept it in the lead; 1.2 let the shopper take over).
+
+Observed on single tenants and not resolved, so verify on yours: `nearestTo` answered no hits for one
+vocabulary while ranking by a `userTaste` in that same vocabulary worked, and on another tenant a `tasteCosine`
+term `from: nearestTo` contributed 0 to every hit, while `nearestTo` alone (with `filters`) returned the right
+neighbours. Read `rankExplain` before you ship the blended path.
 
 To blend neighbours with stock, margin or the shopper's own taste, add a `tasteCosine` term with
 `from: nearestTo` to a `rankBy`, and keep `nearestTo` in the query: the term reads the anchor from it and

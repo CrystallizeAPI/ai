@@ -38,8 +38,9 @@ A complete operations file following the 4-phase ordering described in [SKILL.md
             "identifier": "seo",
             "name": "SEO",
             "components": [
-                { "id": "title", "name": "SEO Title", "type": "singleLine" },
-                { "id": "description", "name": "SEO Description", "type": "singleLine" }
+                { "id": "title", "name": "Title", "type": "singleLine" },
+                { "id": "description", "name": "Description", "type": "singleLine" },
+                { "id": "image", "name": "Image", "type": "images" }
             ]
         },
         {
